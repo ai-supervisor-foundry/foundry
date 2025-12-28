@@ -11,6 +11,8 @@ import { appendPromptLog } from './promptLogger';
 import { SupervisorState, Task, ValidationReport } from './types';
 import { checkHardHalts, HaltReason as HaltDetectionReason, CursorResult } from './haltDetection';
 import { interrogateAgent } from './interrogator';
+import { generateValidationCommands } from './commandGenerator';
+import { executeVerificationCommands } from './commandExecutor';
 import { log as logShared, logVerbose, logStateTransition, logPerformance } from './logger';
 import * as path from 'path';
 
@@ -678,6 +680,136 @@ export async function controlLoop(
         rules_passed_count: validationReport.rules_passed?.length || 0,
         rules_failed_count: validationReport.rules_failed?.length || 0,
       });
+
+      // NEW: Try Helper Agent command generation
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Attempting Helper Agent command generation...`);
+      const helperAgentMode = process.env.HELPER_AGENT_MODE || 'auto';
+      logVerbose('ControlLoop', 'Starting Helper Agent command generation', {
+        iteration,
+        task_id: task.task_id,
+        helper_agent_mode: helperAgentMode,
+        failed_criteria_count: validationReport.failed_criteria?.length || 0,
+      });
+
+      try {
+        const commandGeneration = await generateValidationCommands(
+          cursorResult.rawOutput || cursorResult.stdout || '',
+          validationReport.failed_criteria || [],
+          sandboxCwd,
+          cliAdapter,
+          helperAgentMode,
+          sandboxRoot,
+          projectId,
+          task.task_id
+        );
+
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Helper Agent result: isValid=${commandGeneration.isValid}, commands=${commandGeneration.verificationCommands.length}`);
+        logVerbose('ControlLoop', 'Helper Agent command generation completed', {
+          iteration,
+          task_id: task.task_id,
+          is_valid: commandGeneration.isValid,
+          commands_count: commandGeneration.verificationCommands.length,
+          reasoning: commandGeneration.reasoning,
+        });
+
+        if (commandGeneration.isValid) {
+          // Helper Agent determined validation passes, skip interrogation
+          log(`[Iteration ${iteration}] Task ${task.task_id}: ✅ Helper Agent confirmed validation via command generation`);
+          logVerbose('ControlLoop', 'Helper Agent confirmed validation', {
+            iteration,
+            task_id: task.task_id,
+            reasoning: commandGeneration.reasoning,
+          });
+          validationReport.valid = true;
+          validationReport.reason = `Helper Agent confirmed validation via command generation: ${commandGeneration.reasoning || 'no reasoning provided'}`;
+          // Continue to success handling (will be handled by code after this block)
+        } else if (commandGeneration.verificationCommands.length > 0) {
+          // Execute generated commands
+          log(`[Iteration ${iteration}] Task ${task.task_id}: Executing ${commandGeneration.verificationCommands.length} verification commands...`);
+          logVerbose('ControlLoop', 'Executing verification commands', {
+            iteration,
+            task_id: task.task_id,
+            commands_count: commandGeneration.verificationCommands.length,
+            commands: commandGeneration.verificationCommands,
+          });
+
+          const commandResults = await executeVerificationCommands(
+            commandGeneration.verificationCommands,
+            sandboxCwd
+          );
+
+          log(`[Iteration ${iteration}] Task ${task.task_id}: Command execution result: ${commandResults.passed ? 'PASSED' : 'FAILED'}`);
+          logVerbose('ControlLoop', 'Verification commands executed', {
+            iteration,
+            task_id: task.task_id,
+            passed: commandResults.passed,
+            total_commands: commandResults.results.length,
+            passed_commands: commandResults.results.filter(r => r.passed).length,
+            failed_commands: commandResults.results.filter(r => !r.passed).length,
+          });
+
+          // Log command execution results
+          if (sandboxRoot && projectId) {
+            await appendPromptLog(
+              {
+                task_id: task.task_id,
+                iteration: 0,
+                type: 'RESPONSE', // Using RESPONSE type for command execution results
+                content: `Command execution results:\n${commandResults.results.map(r => `${r.command}: ${r.passed ? 'PASSED' : 'FAILED'} (exitCode=${r.exitCode})`).join('\n')}`,
+                metadata: {
+                  working_directory: sandboxCwd,
+                  prompt_type: 'command_execution',
+                  command_execution_passed: commandResults.passed,
+                  command_execution_results: commandResults.results.map(r => ({
+                    command: r.command,
+                    exitCode: r.exitCode,
+                    passed: r.passed,
+                  })),
+                },
+              },
+              sandboxRoot,
+              projectId
+            );
+          }
+
+          if (commandResults.passed) {
+            // Commands passed, validation succeeds
+            log(`[Iteration ${iteration}] Task ${task.task_id}: ✅ Verification commands passed`);
+            logVerbose('ControlLoop', 'Verification commands passed', {
+              iteration,
+              task_id: task.task_id,
+            });
+            validationReport.valid = true;
+            validationReport.reason = 'Verification commands passed';
+            // Skip interrogation
+          } else {
+            // Commands failed, proceed to interrogation (existing flow)
+            log(`[Iteration ${iteration}] Task ${task.task_id}: Verification commands failed, proceeding to interrogation`);
+            logVerbose('ControlLoop', 'Verification commands failed, proceeding to interrogation', {
+              iteration,
+              task_id: task.task_id,
+              failed_commands: commandResults.results.filter(r => !r.passed).map(r => r.command),
+            });
+          }
+        } else {
+          // No commands generated, proceed to interrogation (existing flow)
+          log(`[Iteration ${iteration}] Task ${task.task_id}: No verification commands generated, proceeding to interrogation`);
+          logVerbose('ControlLoop', 'No verification commands generated, proceeding to interrogation', {
+            iteration,
+            task_id: task.task_id,
+            reasoning: commandGeneration.reasoning,
+          });
+        }
+      } catch (error) {
+        // Helper Agent failed, proceed to interrogation (existing flow)
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Helper Agent command generation failed: ${error instanceof Error ? error.message : String(error)}`);
+        logVerbose('ControlLoop', 'Helper Agent command generation failed', {
+          iteration,
+          task_id: task.task_id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Continue to interrogation (existing flow)
+      }
     } else {
       logVerbose('ControlLoop', 'Validation passed', {
         iteration,

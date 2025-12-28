@@ -120,3 +120,23 @@ export interface InterrogationSession {
   remaining_failed_criteria: string[];
 }
 
+// Command generation types
+export interface CommandGenerationResult {
+  isValid: boolean; // If true, interrogation not required
+  verificationCommands: string[]; // Commands to execute if not valid
+  reasoning?: string; // Optional explanation
+}
+
+export interface CommandResult {
+  command: string;
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  passed: boolean;
+}
+
+export interface CommandExecutionResult {
+  passed: boolean;
+  results: CommandResult[];
+}
+

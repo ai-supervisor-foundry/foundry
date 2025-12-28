@@ -17,7 +17,9 @@ export type PromptLogType =
   | 'INTERROGATION_PROMPT'
   | 'INTERROGATION_RESPONSE'
   | 'FIX_PROMPT'
-  | 'CLARIFICATION_PROMPT';
+  | 'CLARIFICATION_PROMPT'
+  | 'HELPER_AGENT_PROMPT'
+  | 'HELPER_AGENT_RESPONSE';
 
 export interface PromptLogEntry {
   timestamp: string; // ISO format
@@ -45,8 +47,16 @@ export interface PromptLogEntry {
     analysis_results?: { [criterion: string]: { result: 'COMPLETE' | 'INCOMPLETE' | 'UNCERTAIN'; reason: string; file_paths?: string[] } }; // For batched interrogation responses
     file_paths_found?: string[]; // For interrogation responses - file paths mentioned by agent
     direct_file_verification?: boolean; // For interrogation responses - whether files were verified directly
-    prompt_type?: string; // For fix/clarification prompts: "fix", "clarification", "fix_fallback"
+    prompt_type?: string; // For fix/clarification prompts: "fix", "clarification", "fix_fallback", "helper_agent_command_generation"
     retry_count?: number; // For fix/clarification prompts
+    // Helper Agent command generation metadata
+    failed_criteria?: string[]; // For Helper Agent prompts - failed criteria being checked
+    failed_criteria_count?: number; // For Helper Agent prompts - count of failed criteria
+    helper_agent_is_valid?: boolean; // For Helper Agent responses
+    helper_agent_commands_count?: number; // For Helper Agent responses
+    helper_agent_commands?: string[]; // For Helper Agent responses
+    command_execution_passed?: boolean; // For command execution results
+    command_execution_results?: Array<{ command: string; exitCode: number; passed: boolean }>; // For command execution results
   };
 }
 
