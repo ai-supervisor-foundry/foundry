@@ -2,4 +2,4 @@
 description: When restarting anything.
 alwaysApply: false
 ---
-1. Supervisor when updated: Halt, stop. Rebuild. Restart. Resume.
+1. Supervisor when updated and has to be restarted should follow lifecycle: Halt, stop. Rebuild. Restart. Resume.
