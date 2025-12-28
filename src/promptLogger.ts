@@ -37,9 +37,14 @@ export interface PromptLogEntry {
     intent?: string;
     truncated?: boolean;
     original_length?: number;
-    criterion?: string; // For interrogation entries
+    criterion?: string; // For interrogation entries (single criterion)
+    criteria?: string[]; // For batched interrogation entries (multiple criteria)
+    criteria_count?: number; // For batched interrogation entries
     question_number?: number; // For interrogation entries
     analysis_result?: 'COMPLETE' | 'INCOMPLETE' | 'UNCERTAIN'; // For interrogation responses
+    analysis_results?: { [criterion: string]: { result: 'COMPLETE' | 'INCOMPLETE' | 'UNCERTAIN'; reason: string; file_paths?: string[] } }; // For batched interrogation responses
+    file_paths_found?: string[]; // For interrogation responses - file paths mentioned by agent
+    direct_file_verification?: boolean; // For interrogation responses - whether files were verified directly
     prompt_type?: string; // For fix/clarification prompts: "fix", "clarification", "fix_fallback"
     retry_count?: number; // For fix/clarification prompts
   };

@@ -695,6 +695,12 @@ export async function controlLoop(
                                 (validationReport.confidence === 'UNCERTAIN' || 
                                  (validationReport.confidence === 'LOW' && validationReport.uncertain_criteria && validationReport.uncertain_criteria.length > 0));
     
+    // NEW: Check if interrogation already performed for this task attempt
+    const retryKey = `retry_count_${task.task_id}`;
+    const retryCount = (state.supervisor as any)[retryKey] || 0;
+    const interrogationKey = `interrogation_performed_${task.task_id}_attempt_${retryCount}`;
+    const interrogationAlreadyPerformed = (state.supervisor as any)[interrogationKey] || false;
+    
     logVerbose('ControlLoop', 'Evaluating retry/interrogation need', {
       iteration,
       task_id: task.task_id,
@@ -705,10 +711,13 @@ export async function controlLoop(
       halt_reason: haltReason,
       uncertain_criteria_count: validationReport.uncertain_criteria?.length || 0,
       failed_criteria_count: validationReport.failed_criteria?.length || 0,
+      retry_count: retryCount,
+      interrogation_already_performed: interrogationAlreadyPerformed,
     });
     
     // Interrogation phase: Ask agent about uncertain/failed criteria
-    if (needsInterrogation) {
+    // Only interrogate if not already performed for this task attempt
+    if (needsInterrogation && !interrogationAlreadyPerformed) {
       log(`[Iteration ${iteration}] Task ${task.task_id}: Entering interrogation phase`);
       logVerbose('ControlLoop', 'Starting interrogation phase', {
         iteration,
@@ -716,6 +725,13 @@ export async function controlLoop(
         uncertain_criteria: validationReport.uncertain_criteria || [],
         failed_criteria: validationReport.failed_criteria || [],
       });
+
+      // Mark interrogation as performed for this task attempt
+      // CRITICAL: Persist state immediately to prevent duplicate interrogations if control loop continues
+      (state.supervisor as any)[interrogationKey] = true;
+      log(`[Iteration ${iteration}] Marking interrogation as performed for task ${task.task_id}, attempt ${retryCount}`);
+      await persistence.writeState(state);
+      log(`[Iteration ${iteration}] State persisted with interrogation flag to prevent duplicate interrogations`);
 
       const interrogationStartTime = Date.now();
       const interrogationSession = await interrogateAgent(

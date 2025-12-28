@@ -179,7 +179,8 @@
             "max_retries": 2,
             "backoff_strategy": "linear"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-nestjs-002",
@@ -201,7 +202,8 @@
             "max_retries": 2,
             "backoff_strategy": "linear"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-nestjs-003",
@@ -222,7 +224,8 @@
             "max_retries": 3,
             "backoff_strategy": "exponential"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-nestjs-004",
@@ -243,7 +246,8 @@
             "max_retries": 2,
             "backoff_strategy": "linear"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-nestjs-005",
@@ -265,7 +269,8 @@
             "max_retries": 3,
             "backoff_strategy": "exponential"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-nestjs-006",
@@ -286,7 +291,8 @@
             "max_retries": 3,
             "backoff_strategy": "exponential"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-nestjs-007",
@@ -307,7 +313,8 @@
             "max_retries": 3,
             "backoff_strategy": "exponential"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-nestjs-008",
@@ -328,7 +335,8 @@
             "max_retries": 3,
             "backoff_strategy": "exponential"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-nestjs-009",
@@ -349,7 +357,8 @@
             "max_retries": 2,
             "backoff_strategy": "linear"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-nestjs-010",
@@ -370,7 +379,8 @@
             "max_retries": 2,
             "backoff_strategy": "linear"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-001",
@@ -389,7 +399,8 @@
             "max_retries": 3,
             "backoff_strategy": "exponential"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-002",
@@ -409,7 +420,8 @@
             "max_retries": 3,
             "backoff_strategy": "exponential"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-003",
@@ -429,7 +441,8 @@
             "max_retries": 2,
             "backoff_strategy": "linear"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-004",
@@ -450,7 +463,8 @@
             "max_retries": 3,
             "backoff_strategy": "exponential"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-005",
@@ -470,7 +484,8 @@
             "max_retries": 3,
             "backoff_strategy": "exponential"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-006",
@@ -489,7 +504,8 @@
             "max_retries": 2,
             "backoff_strategy": "linear"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-007",
@@ -509,7 +525,8 @@
             "max_retries": 3,
             "backoff_strategy": "exponential"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-008",
@@ -528,7 +545,8 @@
             "max_retries": 2,
             "backoff_strategy": "linear"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-009",
@@ -548,7 +566,8 @@
             "max_retries": 2,
             "backoff_strategy": "linear"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "backend-010",
@@ -567,7 +586,8 @@
             "max_retries": 2,
             "backoff_strategy": "linear"
         },
-        "status": "pending"
+        "status": "pending",
+        "working_directory": "easeclassifieds-api"
     },
     {
         "task_id": "frontend-001",
@@ -791,7 +811,7 @@
         "task_id": "integration-002",
         "intent": "End-to-end testing and bug fixes",
         "tool": "cursor-cli",
-        "instructions": "Test complete user flows: registration → login → browse → search → favorite → upgrade → create listing, identify and fix bugs, test error scenarios, verify subscription limits, test on mobile devices",
+        "instructions": "Test complete user flows: registration \u2192 login \u2192 browse \u2192 search \u2192 favorite \u2192 upgrade \u2192 create listing, identify and fix bugs, test error scenarios, verify subscription limits, test on mobile devices",
         "acceptance_criteria": [
             "All user flows working end-to-end",
             "No critical bugs",

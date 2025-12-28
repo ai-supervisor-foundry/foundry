@@ -1,5 +1,5 @@
 // CLI Adapter - Multi-provider CLI dispatcher with circuit breaker
-// Priority-based fallback: Cursor → Claude → Codex → Gemini
+// Priority-based fallback: Cursor → Gemini → Codex → Claude
 
 import { CursorResult } from './haltDetection';
 import { CircuitBreakerManager, Provider } from './circuitBreaker';
@@ -27,12 +27,13 @@ function logPerformance(operation: string, duration: number, metadata?: Record<s
   logPerformanceShared(`[CLIAdapter] ${operation}`, duration, metadata);
 }
 
-// Default priority order: Cursor → Claude → Gemini → Codex
+// Default priority order: Cursor → Gemini → Codex → Claude
+// Claude moved to end due to payment requirements
 const DEFAULT_PRIORITY: Provider[] = [
   Provider.CURSOR,
-  Provider.CLAUDE,
   Provider.GEMINI,
   Provider.CODEX,
+  Provider.CLAUDE,
 ];
 
 export class CLIAdapter {
@@ -131,8 +132,14 @@ export class CLIAdapter {
         // TODO: Implement Codex-specific error detection
         return errorText.includes('api error') || errorText.includes('rate limit');
       case Provider.GEMINI:
-        // TODO: Implement Gemini-specific error detection
-        return errorText.includes('quota') || errorText.includes('rate limit');
+        // Gemini CLI error detection
+        return (
+          errorText.includes('quota') ||
+          errorText.includes('rate limit') ||
+          errorText.includes('resource exhausted') ||
+          errorText.includes('api key') ||
+          errorText.includes('authentication')
+        );
       default:
         return false;
     }

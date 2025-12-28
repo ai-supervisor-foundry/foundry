@@ -1,5 +1,7 @@
 // Gemini CLI Dispatcher
-// TODO: Research Gemini CLI/API and implement
+// Based on https://github.com/google-gemini/gemini-cli
+// Installation: npm install -g @google/gemini-cli
+// Command: gemini -p/--print [prompt] for non-interactive mode
 
 import { CursorResult } from '../haltDetection';
 import { spawn } from 'child_process';
@@ -29,19 +31,32 @@ export async function dispatchToGemini(
     throw new Error(`Invalid cwd: ${cwd} - ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  // Gemini CLI (user has installed - exact command structure TBD)
-  // Command structure to be verified with: gemini --help
-  // May need to use npx or different package name
-  const geminiCommand = process.env.GEMINI_CLI_PATH || 'gemini';
+  // Gemini CLI: npm install -g @google/gemini-cli or use npx @google/gemini-cli
+  // Documentation: https://github.com/google-gemini/gemini-cli
+  // Command: gemini -p/--print [prompt] for non-interactive mode
+  // Try npx first if gemini not in PATH
+  const geminiCommand = process.env.GEMINI_CLI_PATH || 'npx';
+  const useNpx = !process.env.GEMINI_CLI_PATH;
   const args: string[] = [];
   
-  // TODO: Verify actual command structure
-  // For now, assume similar pattern to other CLIs
-  // Common patterns:
-  // - May support stdin: echo "prompt" | gemini
-  // - May support --prompt flag: gemini --prompt "prompt"
-  // - May need non-interactive flag: gemini --non-interactive
-  args.push(prompt); // Placeholder - needs verification
+  // If using npx, add package name first
+  if (useNpx) {
+    args.push('@google/gemini-cli');
+  }
+  
+  // Use -p/--print for non-interactive mode (prints response and exits)
+  args.push('--print');
+  
+  // Set output format to text (default, but explicit for clarity)
+  args.push('--output-format', 'text');
+  
+  // Set model if provided (agentMode maps to Gemini model)
+  if (agentMode && agentMode !== 'auto') {
+    args.push('--model', agentMode);
+  }
+  
+  // Add prompt as argument
+  args.push(prompt);
   
   log(`Spawning: ${geminiCommand} ${args.join(' ')}`);
 
