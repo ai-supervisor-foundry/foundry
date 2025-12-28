@@ -237,7 +237,7 @@ export async function validateTaskOutput(
 
     // If no required artifacts, check common code directories recursively
     if (codeFilesToCheck.length === 0) {
-      const commonCodeDirs = ['src', 'lib', 'app', 'components', 'services', 'utils'];
+      const commonCodeDirs = ['src', 'lib', 'app', 'components', 'services', 'utils', 'pages', 'hooks'];
       const codeExtensions = ['.ts', '.tsx', '.js', '.jsx', '.py', '.java', '.go', '.rs', '.cpp', '.c', '.h'];
       
       async function findCodeFiles(dirPath: string): Promise<void> {
@@ -263,6 +263,21 @@ export async function validateTaskOutput(
       for (const dir of commonCodeDirs) {
         const dirPath = path.join(sandboxRoot, dir);
         await findCodeFiles(dirPath);
+      }
+      
+      // Also check root-level files (App.tsx, index.tsx, etc.) for frontend projects
+      const rootCodeFiles = ['App.tsx', 'App.jsx', 'App.ts', 'App.js', 'index.tsx', 'index.jsx', 'main.tsx', 'main.jsx'];
+      for (const fileName of rootCodeFiles) {
+        const filePath = path.join(sandboxRoot, fileName);
+        try {
+          await fs.access(filePath);
+          const ext = path.extname(fileName).toLowerCase();
+          if (codeExtensions.includes(ext)) {
+            codeFilesToCheck.push(filePath);
+          }
+        } catch {
+          // File doesn't exist, skip
+        }
       }
     }
 
@@ -317,7 +332,36 @@ export async function validateTaskOutput(
         criterionSatisfied = true;
       }
       
-      // Method 2: Check for key functionality indicators
+      // Method 2: Route/Endpoint parsing for NestJS decorators
+      if (!criterionSatisfied && (criterionLower.includes('endpoint') || criterionLower.includes('get /') || criterionLower.includes('post /') || criterionLower.includes('delete /') || criterionLower.includes('put /'))) {
+        // Extract HTTP method and path from criterion
+        // Examples: "GET /feed/daily endpoint", "DELETE /favorites/:listingId removes from favorites"
+        const endpointMatch = criterionLower.match(/(get|post|delete|put|patch)\s+\/?([^\s]+)/);
+        if (endpointMatch) {
+          const httpMethod = endpointMatch[1].toUpperCase();
+          const endpointPath = endpointMatch[2].toLowerCase();
+          
+          // Look for NestJS decorators: @Get('path'), @Post('path'), etc.
+          const decoratorPatterns = [
+            // Direct match: @Get('feed/daily') or @Get('daily')
+            new RegExp(`@${httpMethod}\\s*\\([^)]*['"]${endpointPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]`, 'i'),
+            // Path contains endpoint: @Get('my-feed') when looking for 'feed'
+            new RegExp(`@${httpMethod}\\s*\\([^)]*['"][^'"]*${endpointPath.split('/').pop()}['"]`, 'i'),
+            // Controller prefix + method: @Controller('feed') + @Get('daily')
+            new RegExp(`@controller\\s*\\([^)]*['"][^'"]*${endpointPath.split('/')[0]}['"]`, 'i'),
+          ];
+          
+          // Also check for just the decorator existence (e.g., @Get, @Delete)
+          const decoratorExists = new RegExp(`@${httpMethod}`, 'i').test(allCodeContent);
+          
+          if (decoratorExists || decoratorPatterns.some(pattern => pattern.test(allCodeContent))) {
+            criterionSatisfied = true;
+            log(`✅ Endpoint found: ${httpMethod} ${endpointPath}`);
+          }
+        }
+      }
+      
+      // Method 2b: Check for key functionality indicators
       if (!criterionSatisfied && keyTerms.length > 0) {
         // Check for class/function names, method definitions, etc.
         const functionalityPatterns = [
@@ -350,6 +394,48 @@ export async function validateTaskOutput(
           'location': ['location', 'extractlocation', 'getlocation'],
           'category': ['category', 'extractcategory', 'getcategory'],
           'feed metadata': ['feedmetadata', 'feed.*metadata', 'getfeedmetadata', 'updatefeedmetadata'],
+          // Authentication patterns
+          'authentication required': ['useguards', '@useguards', 'authguard', '@authguard', 'auth.*guard', '@auth', 'requireauth', '@requireauth', 'guard', '@guard', 'canactivate', 'jwt.*guard'],
+          // Duplicate prevention
+          'prevent duplicate': ['unique', '@unique', 'unique.*constraint', 'duplicate', 'already.*exists', 'conflict', 'unique.*index'],
+          // Endpoint/Route validation
+          'endpoint.*get|get.*endpoint': ['@get', 'get.*decorator', 'route.*get', 'http.*get'],
+          'endpoint.*post|post.*endpoint': ['@post', 'post.*decorator', 'route.*post', 'http.*post'],
+          'endpoint.*delete|delete.*endpoint': ['@delete', 'delete.*decorator', 'route.*delete', 'http.*delete'],
+          'endpoint.*put|put.*endpoint': ['@put', 'put.*decorator', 'route.*put', 'http.*put'],
+          // Response/Return validation
+          'returns.*metadata': ['metadata', 'metadatas', 'response.*metadata', 'feed.*metadata'],
+          // Loading states (frontend)
+          'loading state': ['loading', 'isloading', 'usestate.*loading', 'setloading', 'loading.*state', 'spinner', 'loader'],
+          // TypeScript types
+          'typescript types': ['interface', 'type.*=', ':.*type', 'typescript', 'ts.*type', 'interface.*response', 'type.*response'],
+          // Frontend-specific patterns
+          'phone number sent to backend|phone number.*backend': ['sendotp', 'authservice.sendotp', 'send.*otp', 'phone.*otp'],
+          'otp verification calls backend|otp verification.*backend': ['verifyotp', 'authservice.verifyotp', 'verify.*otp'],
+          'pagination working|pagination.*working': ['pagination', 'page', 'limit', 'offset', 'currentpage', 'itemsperpage'],
+          'loading spinner|spinner.*fetching': ['spinner', 'loader', 'loader2', 'loading.*spinner', 'animate-spin'],
+          'empty state|empty.*listing': ['empty', 'length.*===.*0', 'no.*listing', 'listings.*length.*===.*0', 'listings.length === 0'],
+          'add.*remove favorite.*api|favorite.*api.*calls': ['addfavorite', 'removefavorite', 'favoriteservice', 'favorite.*service'],
+          'heart icon|heart.*shows': ['heart', 'faheart', 'lucide.*heart', 'heart.*icon'],
+          'heart icon shows favorites count|heart.*shows.*count': ['favoritescount', 'favorite.*count', 'heart.*favoritescount', 'favoritescount.*heart'],
+          'success.*error.*notification|notification': ['notification', 'toast', 'notification.*type', 'success.*error'],
+          'success.*error.*notification|success.*notification': ['showsuccess', 'show.*success', 'success.*notification', 'notification.*success'],
+          'error.*notification': ['showerror', 'show.*error', 'error.*notification', 'notification.*error'],
+          'navigation.*between.*pages|navigation': ['navigation', 'navigate', 'router', 'route', 'link', 'nav'],
+          'navigation.*between.*pages': ['routes', 'route', 'navigate', 'usenavigate', 'react-router', 'router.*dom'],
+          // Tier limits
+          'tier.*limit': ['tier', 'tier.*limit', 'tierconfig', 'tier.*config', 'user.*tier'],
+          // Favorite count
+          'favorite.*count': ['favoritecount', 'favorite.*count', 'count.*favorite', 'getfavoritecount'],
+          // Redis caching
+          'redis.*cache|cache.*redis': ['redis', 'cache', 'ttl', 'cache.*service', 'rediscache'],
+          // Scheduled jobs
+          'scheduled.*job|job.*scheduled': ['@cron', '@schedule', '@interval', 'cron.*expression', 'scheduled.*task'],
+          // Sync status
+          'sync.*status|status.*sync': ['sync.*status', 'status.*sync', 'syncstatus', 'sync.*health'],
+          // Module validation
+          'module.*created|created.*module': ['module', '@module', 'module.*export', 'export.*module'],
+          'module.*imported|imported.*module': ['import.*module', 'module.*import', 'from.*module'],
         };
         
         for (const [key, keywords] of Object.entries(keywordMappings)) {
@@ -408,6 +494,86 @@ export async function validateTaskOutput(
             if (allComponentsPresent) {
               criterionSatisfied = true;
             }
+          }
+        }
+      }
+      
+      // Method 5: File structure validation (for project setup tasks)
+      if (!criterionSatisfied && (criterionLower.includes('initialized') || criterionLower.includes('configured') || criterionLower.includes('set up'))) {
+        // Check for Vite configuration
+        if (criterionLower.includes('vite') || criterionLower.includes('react project')) {
+          const viteConfigPath = path.join(sandboxRoot, 'vite.config.ts');
+          const viteConfigJsPath = path.join(sandboxRoot, 'vite.config.js');
+          try {
+            await fs.access(viteConfigPath);
+            // Also check package.json for vite dependency
+            const packageJsonPath = path.join(sandboxRoot, 'package.json');
+            try {
+              const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
+              const hasVite = packageJson.dependencies?.vite || packageJson.devDependencies?.vite;
+              if (hasVite) {
+                criterionSatisfied = true;
+                log(`✅ Vite project detected: vite.config.ts exists and vite in package.json`);
+              }
+            } catch {
+              // package.json doesn't exist or invalid, skip
+            }
+          } catch {
+            try {
+              await fs.access(viteConfigJsPath);
+              criterionSatisfied = true;
+              log(`✅ Vite project detected: vite.config.js exists`);
+            } catch {
+              // vite.config not found
+            }
+          }
+        }
+        
+        // Check for Tailwind CSS configuration
+        if (criterionLower.includes('tailwind')) {
+          const tailwindConfigPaths = [
+            path.join(sandboxRoot, 'tailwind.config.js'),
+            path.join(sandboxRoot, 'tailwind.config.ts'),
+            path.join(sandboxRoot, 'tailwind.config.cjs'),
+          ];
+          for (const configPath of tailwindConfigPaths) {
+            try {
+              await fs.access(configPath);
+              criterionSatisfied = true;
+              log(`✅ Tailwind CSS configured: ${path.basename(configPath)} exists`);
+              break;
+            } catch {
+              // Continue checking other paths
+            }
+          }
+        }
+        
+        // Check for TypeScript configuration
+        if (criterionLower.includes('typescript') || criterionLower.includes('typescript configured')) {
+          const tsConfigPath = path.join(sandboxRoot, 'tsconfig.json');
+          try {
+            await fs.access(tsConfigPath);
+            criterionSatisfied = true;
+            log(`✅ TypeScript configured: tsconfig.json exists`);
+          } catch {
+            // tsconfig.json not found
+          }
+        }
+        
+        // Check for React Router
+        if (criterionLower.includes('react router') || criterionLower.includes('router set up')) {
+          const packageJsonPath = path.join(sandboxRoot, 'package.json');
+          try {
+            const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
+            const hasRouter = packageJson.dependencies?.['react-router-dom'] || 
+                            packageJson.dependencies?.['@tanstack/react-router'] ||
+                            packageJson.devDependencies?.['react-router-dom'];
+            if (hasRouter) {
+              criterionSatisfied = true;
+              log(`✅ React Router detected in package.json`);
+            }
+          } catch {
+            // package.json doesn't exist or invalid, skip
           }
         }
       }

@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+1. Blocked tasks will never be autocompleted, They will always be set to pending and let the supervisor decide.
