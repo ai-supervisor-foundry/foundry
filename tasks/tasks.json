@@ -1,0 +1,829 @@
+[
+    {
+        "task_id": "project-001",
+        "intent": "Set up project architecture and repository structure",
+        "tool": "cursor-cli",
+        "instructions": "Create monorepo or separate repositories for frontend and backend, set up project documentation (README, architecture docs), define project structure, set up version control, create .gitignore files, establish coding standards and conventions",
+        "acceptance_criteria": [
+            "Project structure defined and documented",
+            "Repository/repositories initialized",
+            "README files with project overview",
+            "Architecture documentation created",
+            ".gitignore configured for all projects",
+            "Coding standards documented"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "project-002",
+        "intent": "Set up frontend project with React and Tailwind CSS",
+        "tool": "cursor-cli",
+        "instructions": "Initialize React project with Vite, install and configure Tailwind CSS, set up project structure (components/, pages/, services/, utils/), configure TypeScript, set up routing (React Router), create base layout components, configure build and dev scripts",
+        "acceptance_criteria": [
+            "React project initialized with Vite",
+            "Tailwind CSS configured and working",
+            "TypeScript configured",
+            "Project structure created",
+            "React Router set up",
+            "Base layout components created",
+            "Dev and build scripts working"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "project-003",
+        "intent": "Design and implement senior-friendly UI/UX",
+        "tool": "cursor-cli",
+        "instructions": "Create accessible design system with large fonts, high contrast, clear navigation, implement responsive mobile-first design, create reusable UI components (buttons, cards, forms), ensure WCAG accessibility compliance, test with screen readers, optimize for touch interactions",
+        "acceptance_criteria": [
+            "Design system with accessibility guidelines",
+            "Large, readable fonts (minimum 16px)",
+            "High contrast color scheme",
+            "Clear navigation structure",
+            "Mobile-responsive design",
+            "Reusable UI component library",
+            "WCAG 2.1 AA compliance",
+            "Touch-friendly interactive elements"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "project-004",
+        "intent": "Set up search service with keyword and filter parsing",
+        "tool": "cursor-cli",
+        "instructions": "Create SearchService with keyword extraction, implement query parsing using regex and string matching, extract search filters (category, price range, location, property/vehicle attributes), create filter builder utility, add error handling, implement search result formatting",
+        "acceptance_criteria": [
+            "SearchService created with query parsing",
+            "Keyword extraction working",
+            "Filter extraction from queries (category, price, location)",
+            "Structured filter generation from parsed query",
+            "Error handling for invalid queries",
+            "Search result formatting",
+            "Support for property and vehicle specific filters"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "project-005",
+        "intent": "Design subscription tier system and daily feed algorithm",
+        "tool": "cursor-cli",
+        "instructions": "Define subscription tiers (freemium: 5 listings/day, paid: 10, premium: 50, premium_plus: 100), design curation algorithm (newest, verified listings, popular areas, user preferences), create feed caching strategy, implement daily reset logic, design tier upgrade flow",
+        "acceptance_criteria": [
+            "Subscription tiers defined and documented",
+            "Daily feed limits per tier specified",
+            "Curation algorithm designed",
+            "Feed caching strategy implemented",
+            "Daily reset mechanism working",
+            "Tier upgrade flow designed",
+            "Feed metadata (limit, remaining, reset time) tracked"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "project-006",
+        "intent": "Design data models for properties and vehicles",
+        "tool": "cursor-cli",
+        "instructions": "Design unified listing model with polymorphic support for properties and vehicles, define property-specific fields (bedrooms, bathrooms, area, property type), define vehicle-specific fields (make, model, year, mileage, fuel type), create category taxonomy, design image storage strategy, plan for listing verification",
+        "acceptance_criteria": [
+            "Unified listing data model designed",
+            "Property fields defined (bedrooms, bathrooms, area, type)",
+            "Vehicle fields defined (make, model, year, mileage, fuel)",
+            "Category taxonomy created",
+            "Image storage strategy defined",
+            "Verification system designed",
+            "Database schema documented"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "project-007",
+        "intent": "Set up phone authentication system design",
+        "tool": "cursor-cli",
+        "instructions": "Design phone number validation and formatting, plan OTP generation and storage, design OTP expiration (5-10 minutes), plan SMS service integration (Twilio/AWS SNS), design JWT token structure, plan session management, design rate limiting for OTP requests",
+        "acceptance_criteria": [
+            "Phone number validation logic designed",
+            "OTP generation strategy defined",
+            "OTP storage and expiration planned",
+            "SMS service provider selected",
+            "JWT token structure designed",
+            "Session management strategy defined",
+            "Rate limiting rules for OTP defined"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "project-008",
+        "intent": "Set up aggregation system for external listings",
+        "tool": "cursor-cli",
+        "instructions": "Design web scraping architecture for PakWheels and other sources, create data normalization pipeline, design duplicate detection system, plan for listing synchronization, create data quality checks, design error handling for failed aggregations",
+        "acceptance_criteria": [
+            "Aggregation architecture designed",
+            "Web scraping strategy for PakWheels defined",
+            "Data normalization pipeline designed",
+            "Duplicate detection algorithm designed",
+            "Synchronization schedule planned",
+            "Data quality validation rules defined",
+            "Error handling strategy for aggregations"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-nestjs-001",
+        "intent": "Create NestJS modules structure for classifieds app",
+        "tool": "cursor-cli",
+        "instructions": "Create NestJS modules: AuthModule (phone authentication), ListingsModule (properties and vehicles), SearchModule (query parsing), FeedModule (daily curated feed), SubscriptionModule (tier management), FavoritesModule (bookmarks), AggregationModule (external listings), configure module imports in AppModule, set up shared modules and common utilities",
+        "acceptance_criteria": [
+            "AuthModule created with phone auth service",
+            "ListingsModule with property and vehicle support",
+            "SearchModule with query parsing",
+            "FeedModule with curation logic",
+            "SubscriptionModule with tier management",
+            "FavoritesModule for bookmarks",
+            "AggregationModule for external sources",
+            "All modules properly imported in AppModule",
+            "Shared/common modules created"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-nestjs-002",
+        "intent": "Implement TypeORM entities for classifieds data models",
+        "tool": "cursor-cli",
+        "instructions": "Create TypeORM entities: UserEntity (phone, tier, timestamps), ListingEntity (polymorphic for property/vehicle with discriminator), PropertyEntity (extends ListingEntity with bedrooms, bathrooms, area, propertyType), VehicleEntity (extends ListingEntity with make, model, year, mileage, fuelType), SubscriptionEntity, FavoriteEntity, SearchHistoryEntity, create entity relationships, add indexes for performance",
+        "acceptance_criteria": [
+            "UserEntity with phone, tier, timestamps",
+            "ListingEntity base class with discriminator",
+            "PropertyEntity with property-specific fields",
+            "VehicleEntity with vehicle-specific fields",
+            "SubscriptionEntity with tier and dates",
+            "FavoriteEntity with user-listing relationship",
+            "SearchHistoryEntity for analytics",
+            "All relationships properly defined",
+            "Database indexes created for queries"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-nestjs-003",
+        "intent": "Implement search service with query parsing",
+        "tool": "cursor-cli",
+        "instructions": "Create SearchService in SearchModule, implement keyword-based query parsing using regex patterns, extract search filters (category, price range, location, bedrooms, make, model, year), create filter builder utility, add error handling, implement search result caching using Redis, configure search patterns",
+        "acceptance_criteria": [
+            "SearchService created with query parsing",
+            "Keyword-based query parsing working",
+            "Filter extraction from queries (category, price, location, attributes)",
+            "Structured filter generation from parsed query",
+            "Error handling for invalid queries",
+            "Search result caching with Redis",
+            "Search patterns configurable",
+            "Support for property and vehicle specific filters"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-nestjs-004",
+        "intent": "Implement daily feed curation service with caching",
+        "tool": "cursor-cli",
+        "instructions": "Create FeedService with curation algorithm, implement tier-based limits (freemium: 5, paid: 10, premium: 50, premium_plus: 100), create feed caching using Redis/CacheManager with 6-hour TTL, implement daily reset scheduler using @nestjs/schedule, create curation logic (newest, verified, popular areas), return feed metadata (limit, remaining, reset time)",
+        "acceptance_criteria": [
+            "FeedService with curation algorithm",
+            "Tier-based feed limits enforced",
+            "Redis caching with 6-hour TTL per user",
+            "Daily reset scheduler at midnight",
+            "Curation prioritizes newest, verified, popular",
+            "Feed metadata returned (limit, remaining, reset)",
+            "Feed endpoint requires authentication",
+            "Cache invalidation on new listings"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-nestjs-005",
+        "intent": "Implement listing aggregation service for PakWheels",
+        "tool": "cursor-cli",
+        "instructions": "Create AggregationService, integrate PakWheels scraper from tests-projects, implement data normalization pipeline, create duplicate detection using fuzzy matching, set up scheduled aggregation using @nestjs/schedule, implement error handling and retry logic, store aggregated listings with source metadata, create sync status tracking",
+        "acceptance_criteria": [
+            "AggregationService created",
+            "PakWheels scraper integrated",
+            "Data normalization pipeline working",
+            "Duplicate detection algorithm implemented",
+            "Scheduled aggregation job configured",
+            "Error handling and retry logic",
+            "Source metadata stored with listings",
+            "Sync status tracking",
+            "Manual trigger endpoint for testing"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-nestjs-006",
+        "intent": "Implement phone authentication with OTP using NestJS guards",
+        "tool": "cursor-cli",
+        "instructions": "Create AuthService with sendOTP and verifyOTP methods, integrate SMS service (Twilio/AWS SNS), create OTP entity with expiration, implement JwtAuthGuard and JwtStrategy, create phone number validation pipe, add rate limiting using @nestjs/throttler, store OTP in Redis with expiration, generate JWT tokens",
+        "acceptance_criteria": [
+            "AuthService with sendOTP and verifyOTP",
+            "SMS service integration working",
+            "OTP stored in Redis with 5-10 min expiration",
+            "JwtAuthGuard and JwtStrategy implemented",
+            "Phone number validation pipe",
+            "Rate limiting on OTP endpoints",
+            "JWT token generation and validation",
+            "User creation on first login"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-nestjs-007",
+        "intent": "Implement listings controller with advanced filtering",
+        "tool": "cursor-cli",
+        "instructions": "Create ListingsController with CRUD endpoints, implement QueryBuilderService for dynamic filtering (category, price range, location, property/vehicle specific), add pagination using nestjs-paginate, implement image upload using @nestjs/platform-express multer, create DTOs with class-validator, add authorization guards (owner-only for update/delete), implement search integration",
+        "acceptance_criteria": [
+            "ListingsController with all CRUD endpoints",
+            "Advanced filtering with QueryBuilder",
+            "Pagination working correctly",
+            "Image upload to S3/local storage",
+            "DTOs with validation",
+            "Authorization guards for owner-only actions",
+            "Search integration with filters",
+            "Polymorphic queries for property/vehicle"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-nestjs-008",
+        "intent": "Implement subscription service with payment integration",
+        "tool": "cursor-cli",
+        "instructions": "Create SubscriptionService with tier management, integrate payment gateway (Stripe/PayPal), implement webhook handler for payment confirmations, create subscription upgrade/downgrade logic, implement subscription expiration checks, add subscription status tracking, create subscription plans configuration, implement grace period for expired subscriptions",
+        "acceptance_criteria": [
+            "SubscriptionService with tier management",
+            "Payment gateway integration (Stripe/PayPal)",
+            "Webhook handler for payment events",
+            "Upgrade/downgrade logic",
+            "Expiration checks and status updates",
+            "Subscription plans configuration",
+            "Grace period handling",
+            "Subscription history tracking"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-nestjs-009",
+        "intent": "Set up file storage service for listing images",
+        "tool": "cursor-cli",
+        "instructions": "Create FileStorageService, configure AWS S3 integration or local storage, implement image upload with validation (size, type), create image resizing/optimization, implement signed URLs for secure access, add image deletion logic, create file upload DTOs, configure CORS for image access",
+        "acceptance_criteria": [
+            "FileStorageService created",
+            "S3 or local storage configured",
+            "Image upload with validation",
+            "Image resizing/optimization",
+            "Signed URLs for secure access",
+            "Image deletion working",
+            "File upload DTOs with validation",
+            "CORS configured for images"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-nestjs-010",
+        "intent": "Add API documentation and validation",
+        "tool": "cursor-cli",
+        "instructions": "Configure Swagger/OpenAPI with @nestjs/swagger, add API decorators to all controllers, create DTO documentation, add authentication documentation, implement global validation pipe, create custom exception filters, add request/response logging, implement API versioning",
+        "acceptance_criteria": [
+            "Swagger documentation at /api-docs",
+            "All endpoints documented",
+            "DTOs documented with examples",
+            "Authentication flow documented",
+            "Global validation pipe working",
+            "Custom exception filters",
+            "Request/response logging",
+            "API versioning configured"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-001",
+        "intent": "Set up backend project structure and infrastructure",
+        "tool": "cursor-cli",
+        "instructions": "Create a new backend project in ../easeclassifieds-api with Node.js/Express or NestJS, TypeScript, database setup (PostgreSQL/MongoDB), environment configuration, and basic project structure",
+        "acceptance_criteria": [
+            "Backend project initialized with TypeScript",
+            "Database connection configured",
+            "Environment variables setup (.env.example)",
+            "Basic project structure (src/, controllers/, services/, models/)",
+            "Package.json with dependencies",
+            "README with setup instructions"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-002",
+        "intent": "Implement phone authentication and OTP service",
+        "tool": "cursor-cli",
+        "instructions": "Create authentication endpoints: POST /auth/send-otp (sends OTP to phone), POST /auth/verify-otp (verifies OTP and returns JWT token), integrate with SMS service (Twilio/AWS SNS), store OTP in database with expiration, implement JWT token generation and refresh",
+        "acceptance_criteria": [
+            "POST /auth/send-otp endpoint working",
+            "POST /auth/verify-otp endpoint working",
+            "OTP stored in database with expiration (5-10 minutes)",
+            "JWT token generation and validation",
+            "SMS service integration (Twilio or AWS SNS)",
+            "Rate limiting on OTP requests",
+            "User model/schema created"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-003",
+        "intent": "Create database models and schemas",
+        "tool": "cursor-cli",
+        "instructions": "Design and implement database schemas: User (id, phone, tier, createdAt, updatedAt), Listing (id, category, title, description, price, location, images, sellerId, postedAt, isVerified, property/vehicle specific fields), Subscription (id, userId, tier, startDate, endDate, status), Favorite (userId, listingId), SearchHistory (userId, query, filters, timestamp)",
+        "acceptance_criteria": [
+            "User model with phone, tier, timestamps",
+            "Listing model with polymorphic support for property/vehicle",
+            "Subscription model with tier and dates",
+            "Favorite model for saved listings",
+            "SearchHistory model for analytics",
+            "Database migrations created",
+            "Relationships properly defined"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-004",
+        "intent": "Implement listings CRUD API endpoints",
+        "tool": "cursor-cli",
+        "instructions": "Create endpoints: GET /listings (with pagination, filters, category), GET /listings/:id, POST /listings (create, requires auth), PUT /listings/:id (update, owner only), DELETE /listings/:id (delete, owner only), GET /listings/my (user's listings), implement image upload handling",
+        "acceptance_criteria": [
+            "GET /listings with pagination (page, limit)",
+            "GET /listings with filters (category, minPrice, maxPrice, location, bedrooms, make, year)",
+            "GET /listings/:id returns single listing",
+            "POST /listings creates new listing (authenticated)",
+            "PUT /listings/:id updates listing (owner only)",
+            "DELETE /listings/:id deletes listing (owner only)",
+            "Image upload support (local storage or S3)",
+            "Input validation and error handling"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-005",
+        "intent": "Implement search endpoint with query parsing",
+        "tool": "cursor-cli",
+        "instructions": "Create POST /search endpoint that accepts user query, parses query using keyword extraction and pattern matching, extracts structured filters (category, price range, location, property/vehicle attributes), returns structured filters and explanation, applies filters to database query, implement search parsing logic",
+        "acceptance_criteria": [
+            "POST /search endpoint accepts query string",
+            "Keyword-based parsing extracts search filters",
+            "Returns structured filters (category, price range, location, etc.)",
+            "Returns friendly explanation text",
+            "Applies filters to database query",
+            "Returns matching listings with pagination",
+            "Error handling for invalid queries"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-006",
+        "intent": "Implement daily curated feed endpoint",
+        "tool": "cursor-cli",
+        "instructions": "Create GET /feed/daily endpoint that returns curated listings based on user's subscription tier (freemium: 5, paid: 10, premium: 50, premium_plus: 100), implement curation algorithm (newest, verified, popular areas), cache feed per user for 6 hours, reset at midnight",
+        "acceptance_criteria": [
+            "GET /feed/daily endpoint requires authentication",
+            "Returns listings based on user tier limit",
+            "Feed curated by algorithm (newest, verified, popular)",
+            "Feed cached per user for 6 hours",
+            "Feed resets daily at midnight",
+            "Returns metadata (limit, remaining, reset time)"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-007",
+        "intent": "Implement subscription management endpoints",
+        "tool": "cursor-cli",
+        "instructions": "Create endpoints: GET /subscription (current user subscription), POST /subscription/upgrade (upgrade tier, requires payment integration), POST /subscription/cancel (cancel subscription), GET /subscription/plans (list all plans), implement payment webhook handler (Stripe/PayPal)",
+        "acceptance_criteria": [
+            "GET /subscription returns current user's subscription",
+            "POST /subscription/upgrade upgrades user tier",
+            "POST /subscription/cancel cancels subscription",
+            "GET /subscription/plans returns all available plans",
+            "Payment integration (Stripe or PayPal)",
+            "Webhook handler for payment confirmations",
+            "Subscription status tracking"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-008",
+        "intent": "Implement favorites/bookmarks functionality",
+        "tool": "cursor-cli",
+        "instructions": "Create endpoints: POST /favorites/:listingId (add to favorites), DELETE /favorites/:listingId (remove from favorites), GET /favorites (get user's favorites), implement favorite count on listings",
+        "acceptance_criteria": [
+            "POST /favorites/:listingId adds listing to favorites",
+            "DELETE /favorites/:listingId removes from favorites",
+            "GET /favorites returns user's favorite listings",
+            "Favorite count included in listing response",
+            "Prevent duplicate favorites",
+            "Authentication required"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-009",
+        "intent": "Add authentication middleware and authorization",
+        "tool": "cursor-cli",
+        "instructions": "Create JWT authentication middleware, implement role-based access control, add rate limiting, implement CORS configuration, add request validation middleware, create error handling middleware",
+        "acceptance_criteria": [
+            "JWT authentication middleware working",
+            "Protected routes require valid token",
+            "Rate limiting on sensitive endpoints",
+            "CORS configured for frontend origin",
+            "Request validation with proper error messages",
+            "Centralized error handling",
+            "Logging middleware"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "backend-010",
+        "intent": "Add API documentation and testing",
+        "tool": "cursor-cli",
+        "instructions": "Create API documentation with Swagger/OpenAPI, write unit tests for services, write integration tests for endpoints, add test data seeding script, configure test database",
+        "acceptance_criteria": [
+            "Swagger/OpenAPI documentation available at /api-docs",
+            "Unit tests for all services",
+            "Integration tests for all endpoints",
+            "Test coverage > 80%",
+            "Test data seeding script",
+            "CI/CD pipeline configuration"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "frontend-001",
+        "intent": "Create API service layer for backend integration",
+        "tool": "cursor-cli",
+        "instructions": "Create services/api.ts with axios/fetch client, implement API endpoints: authService (sendOTP, verifyOTP), listingService (getListings, getListing, createListing, updateListing, deleteListing), searchService (search), feedService (getDailyFeed), subscriptionService (getSubscription, upgradeSubscription), favoriteService (addFavorite, removeFavorite, getFavorites), add error handling and token management",
+        "acceptance_criteria": [
+            "API client configured with base URL",
+            "All service functions implemented",
+            "JWT token stored and included in requests",
+            "Token refresh logic",
+            "Error handling with user-friendly messages",
+            "Request/response interceptors",
+            "TypeScript types for all API responses"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "frontend-002",
+        "intent": "Integrate phone authentication with backend",
+        "tool": "cursor-cli",
+        "instructions": "Update App.tsx auth handlers to call backend API: handleSendCode calls POST /auth/send-otp, handleVerifyCode calls POST /auth/verify-otp and stores JWT token, add loading states and error handling, persist auth state in localStorage, add token refresh logic",
+        "acceptance_criteria": [
+            "Phone number sent to backend for OTP",
+            "OTP verification calls backend API",
+            "JWT token stored in localStorage",
+            "Auth state persists on page refresh",
+            "Error messages displayed for failed auth",
+            "Loading states during API calls",
+            "Auto-logout on token expiration"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "frontend-003",
+        "intent": "Replace mock listings with API integration",
+        "tool": "cursor-cli",
+        "instructions": "Update MainDashboard component to fetch listings from GET /listings endpoint, implement pagination, replace MOCK_LISTINGS with API calls, add loading states, implement infinite scroll or load more button, handle empty states",
+        "acceptance_criteria": [
+            "Listings fetched from backend API",
+            "Pagination working correctly",
+            "Loading spinner while fetching",
+            "Empty state when no listings",
+            "Error handling for API failures",
+            "Category filtering uses API filters",
+            "Search results from API"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "frontend-004",
+        "intent": "Integrate search with backend API",
+        "tool": "cursor-cli",
+        "instructions": "Update SearchBar to call POST /search endpoint, remove local search parsing logic and use backend endpoint, update search results display, handle API errors gracefully",
+        "acceptance_criteria": [
+            "Search queries sent to backend API",
+            "Search results displayed correctly",
+            "Search filters applied from API response",
+            "Explanation text shown to user",
+            "Fallback to simple search on API failure",
+            "Loading state during search"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "frontend-005",
+        "intent": "Integrate daily feed with backend API",
+        "tool": "cursor-cli",
+        "instructions": "Update dailyFeed logic in MainDashboard to call GET /feed/daily endpoint, display feed based on user's subscription tier, show feed limit and remaining count, handle feed reset timing, add refresh button",
+        "acceptance_criteria": [
+            "Daily feed fetched from backend",
+            "Feed limit respects user tier",
+            "Remaining count displayed",
+            "Feed reset time shown",
+            "Refresh button works",
+            "Loading state during fetch",
+            "Error handling"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "frontend-006",
+        "intent": "Integrate subscription management with backend",
+        "tool": "cursor-cli",
+        "instructions": "Update profile page to fetch subscription from GET /subscription, implement upgrade flow calling POST /subscription/upgrade, integrate payment gateway (Stripe/PayPal), show current tier and plan details, handle subscription cancellation",
+        "acceptance_criteria": [
+            "Current subscription displayed",
+            "Upgrade button calls backend API",
+            "Payment integration working",
+            "Subscription status updates after payment",
+            "Plan details from backend",
+            "Cancel subscription functionality",
+            "Error handling for payment failures"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "frontend-007",
+        "intent": "Implement favorites functionality",
+        "tool": "cursor-cli",
+        "instructions": "Add favorite button to ListingCard, implement add/remove favorite API calls, create favorites page/view, update heart icon in header to show favorites count, persist favorite state, handle errors",
+        "acceptance_criteria": [
+            "Favorite button on each listing card",
+            "Add/remove favorite API calls working",
+            "Favorites page displays saved listings",
+            "Heart icon shows favorites count",
+            "Favorite state persists",
+            "Loading state during favorite operations",
+            "Error handling"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "frontend-008",
+        "intent": "Add listing detail view and create/edit forms",
+        "tool": "cursor-cli",
+        "instructions": "Create ListingDetail page/component showing full listing details, create ListingForm component for creating/editing listings, implement image upload, add form validation, integrate with listing API endpoints, add navigation",
+        "acceptance_criteria": [
+            "Listing detail page shows all listing information",
+            "Create listing form with validation",
+            "Edit listing form (owner only)",
+            "Image upload working",
+            "Form validation with error messages",
+            "Success/error notifications",
+            "Navigation between pages"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "frontend-009",
+        "intent": "Add environment configuration and error handling",
+        "tool": "cursor-cli",
+        "instructions": "Create .env.example with API_URL, update vite.config to use environment variables, add global error boundary component, implement toast notifications for errors/success, add retry logic for failed requests, add offline detection",
+        "acceptance_criteria": [
+            ".env.example with all required variables",
+            "API URL from environment variables",
+            "Error boundary catches React errors",
+            "Toast notifications for user feedback",
+            "Retry logic for network failures",
+            "Offline detection and messaging",
+            "Error logging"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "frontend-010",
+        "intent": "Add loading states and optimize performance",
+        "tool": "cursor-cli",
+        "instructions": "Add loading skeletons for listings, implement React.memo for components, add image lazy loading, implement virtual scrolling for long lists, optimize bundle size, add service worker for caching, implement code splitting",
+        "acceptance_criteria": [
+            "Loading skeletons for all async content",
+            "Components memoized where appropriate",
+            "Images lazy loaded",
+            "Virtual scrolling for long lists",
+            "Bundle size optimized",
+            "Service worker for offline support",
+            "Code splitting implemented"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "integration-001",
+        "intent": "Set up CORS and API communication",
+        "tool": "cursor-cli",
+        "instructions": "Configure backend CORS to allow frontend origin, test API connectivity, verify JWT token flow, test all endpoints from frontend, add API health check endpoint, configure proxy in vite.config if needed",
+        "acceptance_criteria": [
+            "CORS configured correctly",
+            "Frontend can call all backend endpoints",
+            "JWT tokens working end-to-end",
+            "API health check endpoint working",
+            "No CORS errors in browser",
+            "Proxy configured if needed"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "integration-002",
+        "intent": "End-to-end testing and bug fixes",
+        "tool": "cursor-cli",
+        "instructions": "Test complete user flows: registration → login → browse → search → favorite → upgrade → create listing, identify and fix bugs, test error scenarios, verify subscription limits, test on mobile devices",
+        "acceptance_criteria": [
+            "All user flows working end-to-end",
+            "No critical bugs",
+            "Error scenarios handled gracefully",
+            "Subscription limits enforced",
+            "Mobile responsive",
+            "Performance acceptable"
+        ],
+        "retry_policy": {
+            "max_retries": 3,
+            "backoff_strategy": "exponential"
+        },
+        "status": "pending"
+    },
+    {
+        "task_id": "deployment-001",
+        "intent": "Prepare for production deployment",
+        "tool": "cursor-cli",
+        "instructions": "Set up production environment variables, configure database for production, set up SSL certificates, configure CDN for static assets, set up monitoring and logging, create deployment scripts, configure CI/CD pipeline",
+        "acceptance_criteria": [
+            "Production environment configured",
+            "Database migrations run",
+            "SSL certificates configured",
+            "CDN configured",
+            "Monitoring and logging set up",
+            "Deployment scripts ready",
+            "CI/CD pipeline working"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff_strategy": "linear"
+        },
+        "status": "pending"
+    }
+]

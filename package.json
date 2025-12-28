@@ -1,0 +1,24 @@
+{
+  "name": "supervisor",
+  "version": "1.0.0",
+  "description": "Deterministic control-plane system for long-running, restart-safe software work",
+  "main": "index.ts",
+  "scripts": {
+    "cli": "tsx src/cli.ts",
+    "build": "tsc",
+    "dev": "tsx watch src/cli.ts"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "ioredis": "^5.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+

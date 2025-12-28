@@ -1,0 +1,30 @@
+{
+  "goal": {
+    "_comment": "Operator-provided goal for the supervisor to execute"
+  },
+  "constraints": {
+    "_comment": "Operator-defined constraints on execution"
+  },
+  "current_task": {
+    "_comment": "The task currently being executed"
+  },
+  "completed_tasks": {
+    "_comment": "List of tasks that have been completed"
+  },
+  "blocked_tasks": {
+    "_comment": "List of tasks that are blocked and cannot proceed"
+  },
+  "decisions": {
+    "_comment": "Record of decisions made during execution"
+  },
+  "artifacts": {
+    "_comment": "Artifacts produced during task execution"
+  },
+  "last_updated": {
+    "_comment": "Timestamp of the last state update"
+  },
+  "execution_mode": {
+    "_comment": "Execution mode, must default to AUTO"
+  }
+}
+

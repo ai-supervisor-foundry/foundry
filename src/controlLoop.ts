@@ -1,0 +1,1215 @@
+// Supervisor Control Loop Implementation
+// Deterministic, no planning, no task invention
+
+import { PersistenceLayer } from './persistence';
+import { QueueAdapter } from './queue';
+import { PromptBuilder, buildPrompt, buildFixPrompt, buildClarificationPrompt, MinimalState } from './promptBuilder';
+import { CLIAdapter } from './cliAdapter';
+import { Validator, validateTaskOutput } from './validator';
+import { AuditLogger, appendAuditLog } from './auditLogger';
+import { appendPromptLog } from './promptLogger';
+import { SupervisorState, Task, ValidationReport } from './types';
+import { checkHardHalts, HaltReason as HaltDetectionReason, CursorResult } from './haltDetection';
+import { interrogateAgent } from './interrogator';
+import { log as logShared, logVerbose, logStateTransition, logPerformance } from './logger';
+import * as path from 'path';
+
+const REQUIRED_STATE_FIELDS = [
+  'supervisor',
+  'supervisor.status',
+  'goal',
+  'queue',
+] as const;
+
+const HALT_REASONS = {
+  TASK_LIST_EXHAUSTED_GOAL_INCOMPLETE: 'TASK_LIST_EXHAUSTED_GOAL_INCOMPLETE',
+  VALIDATION_FAILED: 'VALIDATION_FAILED',
+  MISSING_STATE_FIELD: 'MISSING_STATE_FIELD',
+  // Halt detection reasons (from haltDetection.ts)
+  ASKED_QUESTION: 'ASKED_QUESTION',
+  AMBIGUITY: 'AMBIGUITY',
+  BLOCKED: 'BLOCKED',
+  OUTPUT_FORMAT_INVALID: 'OUTPUT_FORMAT_INVALID',
+  CURSOR_EXEC_FAILURE: 'CURSOR_EXEC_FAILURE',
+  RESOURCE_EXHAUSTED: 'RESOURCE_EXHAUSTED',
+} as const;
+
+// Resource exhaustion backoff intervals: 1min, 5min, 20min, 1hr, 2hr
+const RESOURCE_EXHAUSTED_BACKOFF_MS = [
+  1 * 60 * 1000,      // 1 minute
+  5 * 60 * 1000,      // 5 minutes
+  20 * 60 * 1000,     // 20 minutes
+  60 * 60 * 1000,     // 1 hour
+  2 * 60 * 60 * 1000, // 2 hours
+] as const;
+
+const MAX_RESOURCE_EXHAUSTED_RETRIES = RESOURCE_EXHAUSTED_BACKOFF_MS.length;
+
+type HaltReason = typeof HALT_REASONS[keyof typeof HALT_REASONS] | HaltDetectionReason;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function log(message: string, ...args: unknown[]): void {
+  logShared('ControlLoop', message, ...args);
+}
+
+function validateRequiredFields(state: SupervisorState): void {
+  if (!state.supervisor) {
+    throw new Error(`Missing required field: supervisor`);
+  }
+  if (!state.supervisor.status) {
+    throw new Error(`Missing required field: supervisor.status`);
+  }
+  if (!state.goal) {
+    throw new Error(`Missing required field: goal`);
+  }
+  if (!state.queue) {
+    throw new Error(`Missing required field: queue`);
+  }
+}
+
+
+async function halt(
+  state: SupervisorState,
+  reason: HaltReason,
+  persistence: PersistenceLayer,
+  auditLogger: AuditLogger,
+  details?: string
+): Promise<never> {
+  state.supervisor.status = 'HALTED';
+  state.supervisor.halt_reason = reason;
+  if (details) {
+    state.supervisor.halt_details = details;
+  }
+  
+  // Persist before halting
+  await persistence.writeState(state);
+  
+  // Log halt
+  await auditLogger.append({
+    event: 'HALT',
+    reason,
+    details,
+    timestamp: new Date().toISOString(),
+  });
+
+  // Exit process - no automatic resume
+  // eslint-disable-next-line no-process-exit
+  if (typeof process !== 'undefined' && process.exit) {
+    process.exit(1);
+  }
+  
+  // Unreachable, but satisfies TypeScript
+  throw new Error('Halt function should never return');
+}
+
+export async function controlLoop(
+  persistence: PersistenceLayer,
+  queue: QueueAdapter,
+  promptBuilder: PromptBuilder,
+  cliAdapter: CLIAdapter,
+  validator: Validator,
+  auditLogger: AuditLogger,
+  sandboxRoot: string
+): Promise<void> {
+  let iteration = 0;
+  const loopStartTime = Date.now();
+  log('Control loop started');
+  logVerbose('ControlLoop', 'Initializing control loop', {
+    sandboxRoot,
+    timestamp: new Date().toISOString(),
+  });
+
+  while (true) {
+    iteration++;
+    const iterationStartTime = Date.now();
+    logVerbose('ControlLoop', `Starting iteration ${iteration}`);
+
+    // 1. Load state via persistence layer (single GET)
+    const stateLoadStartTime = Date.now();
+    logVerbose('ControlLoop', 'Loading state from persistence layer');
+    const stateBefore: SupervisorState = await persistence.readState();
+    const stateLoadDuration = Date.now() - stateLoadStartTime;
+    logPerformance('StateLoad', stateLoadDuration, { iteration });
+    
+    // Deep copy for state diff tracking
+    const stateCopyStartTime = Date.now();
+    const state: SupervisorState = JSON.parse(JSON.stringify(stateBefore));
+    const stateCopyDuration = Date.now() - stateCopyStartTime;
+    logPerformance('StateCopy', stateCopyDuration, { 
+      iteration, 
+      stateSize: JSON.stringify(state).length 
+    });
+    
+    log(`[Iteration ${iteration}] State loaded, status: ${state.supervisor.status}`);
+    logVerbose('ControlLoop', 'State loaded successfully', {
+      iteration,
+      status: state.supervisor.status,
+      iteration_number: state.supervisor.iteration,
+      last_task_id: state.supervisor.last_task_id,
+      goal_completed: state.goal.completed,
+      queue_exhausted: state.queue.exhausted,
+      completed_tasks_count: state.completed_tasks?.length || 0,
+      blocked_tasks_count: state.blocked_tasks?.length || 0,
+    });
+
+    // 2. Validate required state fields exist (fail fast)
+    const stateValidationStartTime = Date.now();
+    logVerbose('ControlLoop', 'Validating required state fields');
+    try {
+      validateRequiredFields(state);
+      const validationDuration = Date.now() - stateValidationStartTime;
+      logPerformance('StateValidation', validationDuration, { iteration });
+      logVerbose('ControlLoop', 'State validation passed', { iteration });
+    } catch (error) {
+      const validationDuration = Date.now() - stateValidationStartTime;
+      logPerformance('StateValidation', validationDuration, { iteration, failed: true });
+      logVerbose('ControlLoop', 'State validation failed', {
+        iteration,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await halt(
+        state,
+        HALT_REASONS.MISSING_STATE_FIELD,
+        persistence,
+        auditLogger,
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+
+    // 3. If supervisor.status !== "RUNNING": sleep(1000) and continue
+    if (state.supervisor.status !== 'RUNNING') {
+      logStateTransition(state.supervisor.status, 'SLEEPING', { iteration, reason: 'Status not RUNNING' });
+      log(`[Iteration ${iteration}] Status is ${state.supervisor.status}, sleeping...`);
+      logVerbose('ControlLoop', 'Sleeping due to non-RUNNING status', {
+        iteration,
+        status: state.supervisor.status,
+        halt_reason: state.supervisor.halt_reason,
+      });
+      await sleep(1000);
+      continue;
+    }
+    
+    // 3.5. Check for resource_exhausted retry wait period
+    if (state.supervisor.resource_exhausted_retry) {
+      const retryInfo = state.supervisor.resource_exhausted_retry;
+      const now = Date.now();
+      const nextRetryAt = new Date(retryInfo.next_retry_at).getTime();
+      
+      if (now < nextRetryAt) {
+        const waitTime = nextRetryAt - now;
+        const waitMinutes = Math.ceil(waitTime / (60 * 1000));
+        
+        // Log only every 60 seconds to reduce log spam
+        if (iteration % 60 === 0 || waitTime < 60000) {
+          log(`[Iteration ${iteration}] Resource exhausted retry wait: ${waitMinutes} minutes remaining (attempt ${retryInfo.attempt}/${MAX_RESOURCE_EXHAUSTED_RETRIES})`);
+        }
+        logVerbose('ControlLoop', 'Waiting for resource exhausted retry', {
+          iteration,
+          attempt: retryInfo.attempt,
+          max_retries: MAX_RESOURCE_EXHAUSTED_RETRIES,
+          wait_time_ms: waitTime,
+          next_retry_at: retryInfo.next_retry_at,
+        });
+        
+        // Sleep for up to 60 seconds, or remaining wait time if less
+        const sleepTime = Math.min(waitTime, 60000);
+        await sleep(sleepTime);
+        continue;
+      }
+      
+      // Wait period expired, resume task execution
+      log(`[Iteration ${iteration}] Resource exhausted retry wait expired, resuming task execution (attempt ${retryInfo.attempt}/${MAX_RESOURCE_EXHAUSTED_RETRIES})`);
+      logVerbose('ControlLoop', 'Resource exhausted retry wait expired', {
+        iteration,
+        attempt: retryInfo.attempt,
+        last_attempt_at: retryInfo.last_attempt_at,
+      });
+    }
+    
+    logStateTransition('CHECKING', 'RUNNING', { iteration });
+
+    // 4. Check for retry task first, then dequeue from queue
+    const taskRetrievalStartTime = Date.now();
+    logVerbose('ControlLoop', 'Retrieving task', { iteration });
+    let task: Task | null = null;
+    let taskSource = '';
+    
+    // Check if there's a retry task stored in state
+    if ((state.supervisor as any).retry_task) {
+      task = (state.supervisor as any).retry_task;
+      taskSource = 'retry_task';
+      if (task) {
+        const retryCount = (state.supervisor as any)[`retry_count_${task.task_id}`] || 0;
+        delete (state.supervisor as any).retry_task; // Clear retry task after retrieving
+        log(`[Iteration ${iteration}] Retrieved retry task: ${task.task_id}`);
+        logVerbose('ControlLoop', 'Retrieved retry task from state', {
+          iteration,
+          task_id: task.task_id,
+          retry_count: retryCount,
+          intent: task.intent,
+          status: task.status,
+        });
+      }
+    } else {
+      // No retry task, dequeue from queue
+      const dequeueStartTime = Date.now();
+      task = await queue.dequeue();
+      const dequeueDuration = Date.now() - dequeueStartTime;
+      logPerformance('TaskDequeue', dequeueDuration, { iteration });
+      taskSource = 'queue';
+      if (task) {
+        log(`[Iteration ${iteration}] Dequeued task from queue: ${task.task_id}`);
+        logVerbose('ControlLoop', 'Dequeued task from queue', {
+          iteration,
+          task_id: task.task_id,
+          intent: task.intent,
+          tool: task.tool,
+          acceptance_criteria_count: task.acceptance_criteria?.length || 0,
+          has_retry_policy: !!task.retry_policy,
+          working_directory: task.working_directory,
+        });
+      } else {
+        logVerbose('ControlLoop', 'No task available in queue', { iteration });
+      }
+    }
+    const taskRetrievalDuration = Date.now() - taskRetrievalStartTime;
+    logPerformance('TaskRetrieval', taskRetrievalDuration, { iteration, source: taskSource, has_task: !!task });
+
+    // 5. If no task:
+    if (!task) {
+      log(`[Iteration ${iteration}] No task available`);
+      logVerbose('ControlLoop', 'No task available, checking queue and goal status', {
+        iteration,
+        queue_exhausted: state.queue.exhausted,
+        goal_completed: state.goal.completed,
+      });
+      
+      // mark queue.exhausted = true
+      const previousExhausted = state.queue.exhausted;
+      state.queue.exhausted = true;
+      if (previousExhausted !== state.queue.exhausted) {
+        logStateTransition('QUEUE_ACTIVE', 'QUEUE_EXHAUSTED', { iteration });
+      }
+      
+      // if goal not completed → HALT with TASK_LIST_EXHAUSTED_GOAL_INCOMPLETE
+      if (!state.goal.completed) {
+        log(`[Iteration ${iteration}] Queue exhausted, goal incomplete - halting`);
+        logVerbose('ControlLoop', 'Halting due to exhausted queue and incomplete goal', {
+          iteration,
+          goal_description: state.goal.description,
+          completed_tasks_count: state.completed_tasks?.length || 0,
+          blocked_tasks_count: state.blocked_tasks?.length || 0,
+        });
+        logStateTransition(state.supervisor.status, 'HALTED', {
+          iteration,
+          reason: HALT_REASONS.TASK_LIST_EXHAUSTED_GOAL_INCOMPLETE,
+        });
+        await halt(
+          state,
+          HALT_REASONS.TASK_LIST_EXHAUSTED_GOAL_INCOMPLETE,
+          persistence,
+          auditLogger,
+          'Task queue exhausted but goal is incomplete'
+        );
+      }
+      
+      // else mark supervisor.status = COMPLETED, persist state, exit loop
+      log(`[Iteration ${iteration}] Queue exhausted, goal completed - exiting`);
+      logVerbose('ControlLoop', 'Goal completed, exiting control loop', {
+        iteration,
+        total_iterations: iteration,
+        completed_tasks_count: state.completed_tasks?.length || 0,
+        total_duration_ms: Date.now() - loopStartTime,
+      });
+      logStateTransition(state.supervisor.status, 'COMPLETED', { iteration });
+      state.supervisor.status = 'COMPLETED';
+      
+      const finalPersistStartTime = Date.now();
+      await persistence.writeState(state);
+      const finalPersistDuration = Date.now() - finalPersistStartTime;
+      logPerformance('FinalStatePersist', finalPersistDuration, { iteration });
+      
+      await auditLogger.append({
+        event: 'COMPLETED',
+        timestamp: new Date().toISOString(),
+      });
+      
+      const totalLoopDuration = Date.now() - loopStartTime;
+      logPerformance('ControlLoop', totalLoopDuration, {
+        total_iterations: iteration,
+        final_status: 'COMPLETED',
+      });
+      
+      return; // Exit loop
+    }
+
+    // 6. Determine working directory (task override or default from project_id)
+    const cwdDeterminationStartTime = Date.now();
+    logVerbose('ControlLoop', 'Determining working directory', { iteration, task_id: task.task_id });
+    const sandboxCwd = task.working_directory
+      ? path.join(sandboxRoot, task.working_directory)
+      : `${sandboxRoot}/${state.goal.project_id || 'default'}`;
+    const cwdDeterminationDuration = Date.now() - cwdDeterminationStartTime;
+    logPerformance('CwdDetermination', cwdDeterminationDuration, { iteration, task_id: task.task_id });
+    log(`[Iteration ${iteration}] Task ${task.task_id}: Working directory: ${sandboxCwd}`);
+    log(`[Iteration ${iteration}] Task ${task.task_id}: Intent: ${task.intent}`);
+    logVerbose('ControlLoop', 'Working directory determined', {
+      iteration,
+      task_id: task.task_id,
+      working_directory: sandboxCwd,
+      has_task_override: !!task.working_directory,
+      project_id: state.goal.project_id || 'default',
+    });
+
+    // 7. Build prompt via promptBuilder using minimal snapshot
+    const promptBuildStartTime = Date.now();
+    logVerbose('ControlLoop', 'Building prompt', {
+      iteration,
+      task_id: task.task_id,
+      intent: task.intent,
+      acceptance_criteria_count: task.acceptance_criteria?.length || 0,
+    });
+    const minimalState: MinimalState = {
+      project: {
+        id: state.goal.project_id || 'default',
+        sandbox_root: sandboxCwd, // Use actual working directory being used
+      },
+      goal: {
+        id: state.goal.project_id || 'default', // Use project_id as goal id if no separate id field
+        description: state.goal.description,
+      },
+      queue: {
+        last_task_id: state.supervisor.last_task_id,
+      },
+    };
+    logVerbose('ControlLoop', 'Minimal state snapshot created', {
+      iteration,
+      task_id: task.task_id,
+      project_id: minimalState.project.id,
+      goal_id: minimalState.goal.id,
+      last_task_id: minimalState.queue.last_task_id,
+    });
+    const prompt = buildPrompt(task, minimalState);
+    const promptBuildDuration = Date.now() - promptBuildStartTime;
+    logPerformance('PromptBuild', promptBuildDuration, {
+      iteration,
+      task_id: task.task_id,
+      prompt_length: prompt.length,
+    });
+    log(`[Iteration ${iteration}] Task ${task.task_id}: Prompt built (${prompt.length} chars)`);
+    logVerbose('ControlLoop', 'Prompt built successfully', {
+      iteration,
+      task_id: task.task_id,
+      prompt_length: prompt.length,
+      prompt_preview: prompt.substring(0, 200) + (prompt.length > 200 ? '...' : ''),
+    });
+
+    // 8. Dispatch to Cursor CLI with enforced sandbox cwd
+    const agentMode = task.agent_mode || 'auto';
+    const projectId = state.goal.project_id || 'default';
+
+    // Log full prompt to prompts.log.jsonl
+    await appendPromptLog(
+      {
+        task_id: task.task_id,
+        iteration,
+        type: 'PROMPT',
+        content: prompt,
+        metadata: {
+          agent_mode: agentMode,
+          working_directory: sandboxCwd,
+          prompt_length: prompt.length,
+          intent: task.intent,
+        },
+      },
+      sandboxRoot,
+      projectId
+    );
+    log(`[Iteration ${iteration}] Task ${task.task_id}: Executing CLI adapter with agent mode: ${agentMode}...`);
+    logVerbose('ControlLoop', 'Dispatching to CLI adapter', {
+      iteration,
+      task_id: task.task_id,
+      working_directory: sandboxCwd,
+      prompt_length: prompt.length,
+      agent_mode: agentMode,
+    });
+    const cursorStartTime = Date.now();
+    const cursorResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode);
+    const cursorDuration = Date.now() - cursorStartTime;
+    log(`[Iteration ${iteration}] Task ${task.task_id}: CLI adapter completed in ${cursorDuration}ms, exit code: ${cursorResult.exitCode}`);
+    logPerformance('CLIAdapterExecution', cursorDuration, {
+      iteration,
+      task_id: task.task_id,
+      exit_code: cursorResult.exitCode,
+      stdout_length: cursorResult.stdout?.length || 0,
+      stderr_length: cursorResult.stderr?.length || 0,
+      raw_output_length: cursorResult.rawOutput?.length || 0,
+    });
+    logVerbose('ControlLoop', 'CLI adapter execution completed', {
+      iteration,
+      task_id: task.task_id,
+      exit_code: cursorResult.exitCode,
+      stdout_length: cursorResult.stdout?.length || 0,
+      stderr_length: cursorResult.stderr?.length || 0,
+      raw_output_length: cursorResult.rawOutput?.length || 0,
+      status: cursorResult.status,
+      stdout_preview: cursorResult.stdout?.substring(0, 500) || '',
+      stderr_preview: cursorResult.stderr?.substring(0, 500) || '',
+    });
+
+    // Log full response to prompts.log.jsonl
+    const responseContent = cursorResult.stdout || cursorResult.rawOutput || '';
+    await appendPromptLog(
+      {
+        task_id: task.task_id,
+        iteration,
+        type: 'RESPONSE',
+        content: responseContent,
+        metadata: {
+          agent_mode: agentMode,
+          working_directory: sandboxCwd,
+          response_length: responseContent.length,
+          stdout_length: cursorResult.stdout?.length || 0,
+          stderr_length: cursorResult.stderr?.length || 0,
+          exit_code: cursorResult.exitCode,
+          duration_ms: cursorDuration,
+        },
+      },
+      sandboxRoot,
+      projectId
+    );
+
+    // Track final prompt and response for audit log
+    let finalPrompt = prompt;
+    let finalResponse = responseContent;
+
+    // 9. Apply hard halt rules - but allow retry for AMBIGUITY and ASKED_QUESTION
+    const haltDetectionStartTime = Date.now();
+    logVerbose('ControlLoop', 'Checking for hard halt conditions', {
+      iteration,
+      task_id: task.task_id,
+      exit_code: cursorResult.exitCode,
+    });
+    
+    // Determine required keys from task (if JSON output expected)
+    const requiredKeys: string[] = []; // Stub: would extract from task.instructions if JSON expected
+    logVerbose('ControlLoop', 'Required keys for halt detection', {
+      iteration,
+      task_id: task.task_id,
+      required_keys: requiredKeys,
+      has_expected_json_schema: !!task.expected_json_schema,
+    });
+    
+    // Add requiredKeys to cursorResult for halt detection
+    const cursorResultWithKeys: CursorResult = {
+      ...cursorResult,
+      requiredKeys,
+    };
+    
+    let haltReason = checkHardHalts(cursorResultWithKeys);
+    const haltDetectionDuration = Date.now() - haltDetectionStartTime;
+    logPerformance('HaltDetection', haltDetectionDuration, {
+      iteration,
+      task_id: task.task_id,
+      halt_reason: haltReason || 'none',
+    });
+    
+    if (haltReason) {
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Halt detected: ${haltReason}`);
+      logVerbose('ControlLoop', 'Halt condition detected', {
+        iteration,
+        task_id: task.task_id,
+        halt_reason: haltReason,
+        exit_code: cursorResult.exitCode,
+        output_length: cursorResult.rawOutput?.length || 0,
+      });
+    } else {
+      logVerbose('ControlLoop', 'No halt conditions detected', {
+        iteration,
+        task_id: task.task_id,
+      });
+    }
+    
+    // Handle RESOURCE_EXHAUSTED with backoff retry
+    if (haltReason === 'RESOURCE_EXHAUSTED') {
+      const currentRetry = state.supervisor.resource_exhausted_retry?.attempt || 0;
+      const nextAttempt = currentRetry + 1;
+      
+      if (nextAttempt > MAX_RESOURCE_EXHAUSTED_RETRIES) {
+        // Max retries exceeded, halt permanently
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Resource exhausted - max retries (${MAX_RESOURCE_EXHAUSTED_RETRIES}) exceeded, halting`);
+        logVerbose('ControlLoop', 'Resource exhausted max retries exceeded', {
+          iteration,
+          task_id: task.task_id,
+          max_retries: MAX_RESOURCE_EXHAUSTED_RETRIES,
+        });
+        logStateTransition(state.supervisor.status, 'HALTED', {
+          iteration,
+          task_id: task.task_id,
+          reason: 'RESOURCE_EXHAUSTED',
+        });
+        await halt(
+          state,
+          'RESOURCE_EXHAUSTED',
+          persistence,
+          auditLogger,
+          `Resource exhausted: max retries (${MAX_RESOURCE_EXHAUSTED_RETRIES}) exceeded`
+        );
+      }
+      
+      // Calculate backoff delay
+      const backoffMs = RESOURCE_EXHAUSTED_BACKOFF_MS[nextAttempt - 1];
+      const now = Date.now();
+      const nextRetryAt = new Date(now + backoffMs).toISOString();
+      const backoffMinutes = Math.ceil(backoffMs / (60 * 1000));
+      
+      // Update retry tracking in state
+      state.supervisor.resource_exhausted_retry = {
+        attempt: nextAttempt,
+        last_attempt_at: new Date(now).toISOString(),
+        next_retry_at: nextRetryAt,
+      };
+      state.supervisor.halt_reason = 'RESOURCE_EXHAUSTED';
+      state.supervisor.halt_details = `Resource exhausted, retry ${nextAttempt}/${MAX_RESOURCE_EXHAUSTED_RETRIES} in ${backoffMinutes} minutes`;
+      
+      // Persist state with retry info
+      const persistStartTime = Date.now();
+      await persistence.writeState(state);
+      const persistDuration = Date.now() - persistStartTime;
+      logPerformance('ResourceExhaustedRetryStatePersist', persistDuration, { iteration, attempt: nextAttempt });
+      
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Resource exhausted - scheduling retry ${nextAttempt}/${MAX_RESOURCE_EXHAUSTED_RETRIES} in ${backoffMinutes} minutes`);
+      logVerbose('ControlLoop', 'Resource exhausted retry scheduled', {
+        iteration,
+        task_id: task.task_id,
+        attempt: nextAttempt,
+        max_retries: MAX_RESOURCE_EXHAUSTED_RETRIES,
+        backoff_ms: backoffMs,
+        backoff_minutes: backoffMinutes,
+        next_retry_at: nextRetryAt,
+      });
+      
+      // Log to audit
+      await auditLogger.append({
+        event: 'RESOURCE_EXHAUSTED_RETRY',
+        timestamp: new Date().toISOString(),
+        task_id: task.task_id,
+        iteration,
+        retry_attempt: nextAttempt,
+        max_retries: MAX_RESOURCE_EXHAUSTED_RETRIES,
+        backoff_minutes: backoffMinutes,
+        next_retry_at: nextRetryAt,
+      });
+      
+      // Continue loop to wait for retry
+      await sleep(1000);
+      continue;
+    }
+    
+    // Only immediately halt on critical failures (execution failure, blocked)
+    // AMBIGUITY and ASKED_QUESTION will be handled after validation (may be false positives)
+    // RESOURCE_EXHAUSTED is handled above with retry logic
+    const criticalHaltReasons: HaltReason[] = ['CURSOR_EXEC_FAILURE', 'BLOCKED', 'OUTPUT_FORMAT_INVALID'];
+    if (haltReason && criticalHaltReasons.includes(haltReason as any)) {
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Critical halt - ${haltReason}`);
+      logVerbose('ControlLoop', 'Critical halt condition, halting immediately', {
+        iteration,
+        task_id: task.task_id,
+        halt_reason: haltReason,
+        is_critical: true,
+      });
+      logStateTransition(state.supervisor.status, 'HALTED', {
+        iteration,
+        task_id: task.task_id,
+        reason: haltReason,
+      });
+      await halt(
+        state,
+        haltReason,
+        persistence,
+        auditLogger,
+        `Cursor output triggered halt: ${haltReason}`
+      );
+    }
+
+    // cursorOutput available via cursorResult.rawOutput if needed
+
+    // 10. Validate output deterministically (even if AMBIGUITY/ASKED_QUESTION detected)
+    // Use project-specific sandbox path (same as Cursor CLI working directory)
+    log(`[Iteration ${iteration}] Task ${task.task_id}: Validating output...`);
+    logVerbose('ControlLoop', 'Starting validation', {
+      iteration,
+      task_id: task.task_id,
+      sandbox_cwd: sandboxCwd,
+      has_expected_json_schema: !!task.expected_json_schema,
+      has_required_artifacts: !!(task.required_artifacts && task.required_artifacts.length > 0),
+      tests_required: task.tests_required || false,
+      acceptance_criteria_count: task.acceptance_criteria?.length || 0,
+    });
+    const validationStartTime = Date.now();
+    let validationReport: ValidationReport = await validateTaskOutput(
+      task,
+      cursorResult,
+      sandboxCwd
+    );
+    const validationDuration = Date.now() - validationStartTime;
+    log(`[Iteration ${iteration}] Task ${task.task_id}: Validation completed in ${validationDuration}ms`);
+    log(`[Iteration ${iteration}] Task ${task.task_id}: Validation result: ${validationReport.valid ? 'PASS' : 'FAIL'}`);
+    logPerformance('Validation', validationDuration, {
+      iteration,
+      task_id: task.task_id,
+      valid: validationReport.valid,
+      rules_passed_count: validationReport.rules_passed?.length || 0,
+      rules_failed_count: validationReport.rules_failed?.length || 0,
+    });
+    if (!validationReport.valid) {
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Validation reason: ${validationReport.reason}`);
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Rules passed: ${validationReport.rules_passed?.join(', ') || 'none'}`);
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Rules failed: ${validationReport.rules_failed?.join(', ') || 'none'}`);
+      logVerbose('ControlLoop', 'Validation failed', {
+        iteration,
+        task_id: task.task_id,
+        reason: validationReport.reason,
+        rules_passed: validationReport.rules_passed || [],
+        rules_failed: validationReport.rules_failed || [],
+        rules_passed_count: validationReport.rules_passed?.length || 0,
+        rules_failed_count: validationReport.rules_failed?.length || 0,
+      });
+    } else {
+      logVerbose('ControlLoop', 'Validation passed', {
+        iteration,
+        task_id: task.task_id,
+        rules_passed: validationReport.rules_passed || [],
+        rules_passed_count: validationReport.rules_passed?.length || 0,
+      });
+    }
+
+    // 11. Handle validation failure OR non-critical halts (AMBIGUITY/ASKED_QUESTION) → Generate fix prompt and retry
+    // If validation passes but AMBIGUITY/ASKED_QUESTION detected, still retry with clarification prompt
+    // NEW: If validation confidence is UNCERTAIN, enter interrogation phase before retry
+    const needsRetry = !validationReport.valid || (haltReason && ['AMBIGUITY', 'ASKED_QUESTION'].includes(haltReason));
+    const needsInterrogation = !validationReport.valid && 
+                                (validationReport.confidence === 'UNCERTAIN' || 
+                                 (validationReport.confidence === 'LOW' && validationReport.uncertain_criteria && validationReport.uncertain_criteria.length > 0));
+    
+    logVerbose('ControlLoop', 'Evaluating retry/interrogation need', {
+      iteration,
+      task_id: task.task_id,
+      needs_retry: needsRetry,
+      needs_interrogation: needsInterrogation,
+      validation_valid: validationReport.valid,
+      validation_confidence: validationReport.confidence,
+      halt_reason: haltReason,
+      uncertain_criteria_count: validationReport.uncertain_criteria?.length || 0,
+      failed_criteria_count: validationReport.failed_criteria?.length || 0,
+    });
+    
+    // Interrogation phase: Ask agent about uncertain/failed criteria
+    if (needsInterrogation) {
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Entering interrogation phase`);
+      logVerbose('ControlLoop', 'Starting interrogation phase', {
+        iteration,
+        task_id: task.task_id,
+        uncertain_criteria: validationReport.uncertain_criteria || [],
+        failed_criteria: validationReport.failed_criteria || [],
+      });
+
+      const interrogationStartTime = Date.now();
+      const interrogationSession = await interrogateAgent(
+        task,
+        validationReport.failed_criteria || [],
+        validationReport.uncertain_criteria || [],
+        minimalState,
+        sandboxCwd,
+        cliAdapter,
+        4, // max 4 questions per criterion
+        sandboxRoot,
+        projectId
+      );
+      const interrogationDuration = Date.now() - interrogationStartTime;
+      
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Interrogation completed in ${interrogationDuration}ms`);
+      log(`Interrogation result: ${interrogationSession.all_criteria_satisfied ? 'ALL SATISFIED' : `${interrogationSession.remaining_failed_criteria.length} still failed`}`);
+      logVerbose('ControlLoop', 'Interrogation phase completed', {
+        iteration,
+        task_id: task.task_id,
+        all_criteria_satisfied: interrogationSession.all_criteria_satisfied,
+        remaining_failed_criteria_count: interrogationSession.remaining_failed_criteria.length,
+        total_questions_asked: interrogationSession.interrogation_results.length,
+        duration_ms: interrogationDuration,
+      });
+
+      // If interrogation confirms all criteria satisfied, mark task as complete
+      if (interrogationSession.all_criteria_satisfied) {
+        log(`[Iteration ${iteration}] Task ${task.task_id}: ✅ All criteria confirmed COMPLETE via interrogation`);
+        logVerbose('ControlLoop', 'Task completed via interrogation', {
+          iteration,
+          task_id: task.task_id,
+          interrogation_questions: interrogationSession.interrogation_results.length,
+        });
+        
+        // Update validation report to reflect completion
+        validationReport = {
+          valid: true,
+          rules_passed: [...(validationReport.rules_passed || []), 'interrogation_confirmed'],
+          rules_failed: [],
+          confidence: 'HIGH',
+        };
+        // Skip to success handling (step 12) - will be handled by the code after this if block
+      } else {
+        // Interrogation didn't resolve all criteria, update failed criteria and proceed with retry
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Interrogation did not resolve all criteria, proceeding with retry`);
+        logVerbose('ControlLoop', 'Interrogation incomplete, proceeding to retry', {
+          iteration,
+          task_id: task.task_id,
+          remaining_failed_criteria: interrogationSession.remaining_failed_criteria,
+        });
+        
+        // Update validation report with remaining failed criteria
+        validationReport.failed_criteria = interrogationSession.remaining_failed_criteria;
+        validationReport.reason = `After interrogation, ${interrogationSession.remaining_failed_criteria.length} criteria still failed: ${interrogationSession.remaining_failed_criteria.join(', ')}`;
+      }
+    }
+    
+    if (needsRetry) {
+      // Track retry attempts for this task
+      const retryKey = `retry_count_${task.task_id}`;
+      const retryCount = (state.supervisor as any)[retryKey] || 0;
+      const maxRetries = task.retry_policy?.max_retries || 3;
+      
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Retry needed (attempt ${retryCount + 1}/${maxRetries})`);
+      logVerbose('ControlLoop', 'Retry required', {
+        iteration,
+        task_id: task.task_id,
+        retry_count: retryCount,
+        max_retries: maxRetries,
+        retry_reason: !validationReport.valid ? 'validation_failed' : 'ambiguity_or_question',
+        validation_reason: validationReport.reason,
+        halt_reason: haltReason,
+      });
+      
+      if (retryCount >= maxRetries) {
+        // Max retries exceeded
+        // NEW: Before blocking, do final interrogation to confirm work is truly incomplete
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Max retries (${maxRetries}) exceeded - performing final interrogation`);
+        logVerbose('ControlLoop', 'Max retries exceeded, performing final interrogation', {
+          iteration,
+          task_id: task.task_id,
+          retry_count: retryCount,
+          max_retries: maxRetries,
+          validation_reason: validationReport.reason,
+        });
+
+        // Final interrogation with remaining failed criteria
+        const finalInterrogationStartTime = Date.now();
+        const finalInterrogation = await interrogateAgent(
+          task,
+          validationReport.failed_criteria || [],
+          [],
+          minimalState,
+          sandboxCwd,
+          cliAdapter,
+          2, // Final check: max 2 questions per criterion
+          sandboxRoot,
+          projectId
+        );
+        const finalInterrogationDuration = Date.now() - finalInterrogationStartTime;
+        
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Final interrogation completed in ${finalInterrogationDuration}ms`);
+        logVerbose('ControlLoop', 'Final interrogation completed', {
+          iteration,
+          task_id: task.task_id,
+          all_criteria_satisfied: finalInterrogation.all_criteria_satisfied,
+          remaining_failed_criteria_count: finalInterrogation.remaining_failed_criteria.length,
+        });
+
+        // Only block if final interrogation confirms incomplete
+        if (!finalInterrogation.all_criteria_satisfied && finalInterrogation.remaining_failed_criteria.length > 0) {
+          log(`[Iteration ${iteration}] Task ${task.task_id}: Final interrogation confirms INCOMPLETE - blocking task`);
+          logVerbose('ControlLoop', 'Blocking task after final interrogation', {
+            iteration,
+            task_id: task.task_id,
+            remaining_failed_criteria: finalInterrogation.remaining_failed_criteria,
+          });
+          
+          logStateTransition('TASK_IN_PROGRESS', 'TASK_BLOCKED', {
+            iteration,
+            task_id: task.task_id,
+            reason: 'max_retries_exceeded_and_final_interrogation_confirmed_incomplete',
+          });
+          
+          if (!state.blocked_tasks) {
+            state.blocked_tasks = [];
+          }
+          state.blocked_tasks.push({
+            task_id: task.task_id,
+            blocked_at: new Date().toISOString(),
+            reason: `Validation failed after ${maxRetries} retries and final interrogation confirmed incomplete: ${finalInterrogation.remaining_failed_criteria.join(', ')}`,
+          });
+          
+          // Log the blocked task
+          await auditLogger.append({
+            event: 'TASK_BLOCKED',
+            task_id: task.task_id,
+            reason: `Max retries (${maxRetries}) exceeded and final interrogation confirmed incomplete`,
+            validation_summary: validationReport,
+            timestamp: new Date().toISOString(),
+          });
+          
+          // Persist state and continue to next task
+          const blockPersistStartTime = Date.now();
+          await persistence.writeState(state);
+          const blockPersistDuration = Date.now() - blockPersistStartTime;
+          logPerformance('BlockedTaskStatePersist', blockPersistDuration, { iteration, task_id: task.task_id });
+          continue; // Skip to next iteration
+        } else {
+          // Final interrogation confirmed completion - mark as complete
+          log(`[Iteration ${iteration}] Task ${task.task_id}: ✅ Final interrogation confirmed COMPLETE - marking task complete`);
+          logVerbose('ControlLoop', 'Task completed after final interrogation', {
+            iteration,
+            task_id: task.task_id,
+          });
+          
+          validationReport = {
+            valid: true,
+            rules_passed: [...(validationReport.rules_passed || []), 'final_interrogation_confirmed'],
+            rules_failed: [],
+            confidence: 'HIGH',
+          };
+          // Skip to success handling (step 12) - will be handled by the code after this if block
+        }
+      }
+      
+      // Increment retry count
+      (state.supervisor as any)[retryKey] = retryCount + 1;
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Retry attempt ${retryCount + 1}/${maxRetries}`);
+      
+      // Build fix/clarification prompt
+      const promptBuildStartTime = Date.now();
+      let fixPrompt: string;
+      let promptType = '';
+      let logType: 'FIX_PROMPT' | 'CLARIFICATION_PROMPT' = 'FIX_PROMPT';
+      if (!validationReport.valid) {
+        // Validation failed - use fix prompt with validation feedback
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Building fix prompt (validation failed)`);
+        promptType = 'fix';
+        logType = 'FIX_PROMPT';
+        fixPrompt = buildFixPrompt(task, minimalState, validationReport);
+      } else if (haltReason && ['AMBIGUITY', 'ASKED_QUESTION'].includes(haltReason)) {
+        // Validation passed but ambiguity/question detected - use clarification prompt
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Building clarification prompt (${haltReason})`);
+        promptType = 'clarification';
+        logType = 'CLARIFICATION_PROMPT';
+        fixPrompt = buildClarificationPrompt(task, minimalState, haltReason as 'AMBIGUITY' | 'ASKED_QUESTION');
+      } else {
+        // Should not reach here, but fallback to fix prompt
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Building fix prompt (fallback)`);
+        promptType = 'fix_fallback';
+        logType = 'FIX_PROMPT';
+        fixPrompt = buildFixPrompt(task, minimalState, validationReport);
+      }
+      const promptBuildDuration = Date.now() - promptBuildStartTime;
+      logPerformance('FixPromptBuild', promptBuildDuration, {
+        iteration,
+        task_id: task.task_id,
+        prompt_type: promptType,
+        prompt_length: fixPrompt.length,
+      });
+      logVerbose('ControlLoop', 'Fix/clarification prompt built', {
+        iteration,
+        task_id: task.task_id,
+        prompt_type: promptType,
+        prompt_length: fixPrompt.length,
+        retry_count: retryCount + 1,
+      });
+
+      // Log fix/clarification prompt to prompts.log.jsonl
+      await appendPromptLog(
+        {
+          task_id: task.task_id,
+          iteration,
+          type: logType,
+          content: fixPrompt,
+          metadata: {
+            agent_mode: agentMode,
+            working_directory: sandboxCwd,
+            prompt_length: fixPrompt.length,
+            intent: task.intent,
+            prompt_type: promptType,
+            retry_count: retryCount + 1,
+          },
+        },
+        sandboxRoot,
+        projectId
+      );
+      
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Executing fix/clarification attempt...`);
+      const fixStartTime = Date.now();
+      const fixCursorResult = await cliAdapter.execute(fixPrompt, sandboxCwd, agentMode);
+      const fixDuration = Date.now() - fixStartTime;
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Fix attempt completed in ${fixDuration}ms, exit code: ${fixCursorResult.exitCode}`);
+      logPerformance('FixCLIAdapterExecution', fixDuration, {
+        iteration,
+        task_id: task.task_id,
+        exit_code: fixCursorResult.exitCode,
+        prompt_type: promptType,
+        retry_count: retryCount + 1,
+      });
+      logVerbose('ControlLoop', 'Fix/clarification attempt completed', {
+        iteration,
+        task_id: task.task_id,
+        exit_code: fixCursorResult.exitCode,
+        stdout_length: fixCursorResult.stdout?.length || 0,
+        stderr_length: fixCursorResult.stderr?.length || 0,
+        prompt_type: promptType,
+        retry_count: retryCount + 1,
+      });
+
+      // Log fix/clarification response to prompts.log.jsonl
+      const fixResponseContent = fixCursorResult.stdout || fixCursorResult.rawOutput || '';
+      await appendPromptLog(
+        {
+          task_id: task.task_id,
+          iteration,
+          type: 'RESPONSE',
+          content: fixResponseContent,
+          metadata: {
+            agent_mode: agentMode,
+            working_directory: sandboxCwd,
+            response_length: fixResponseContent.length,
+            stdout_length: fixCursorResult.stdout?.length || 0,
+            stderr_length: fixCursorResult.stderr?.length || 0,
+            exit_code: fixCursorResult.exitCode,
+            duration_ms: fixDuration,
+            prompt_type: promptType,
+            retry_count: retryCount + 1,
+          },
+        },
+        sandboxRoot,
+        projectId
+      );
+
+      // Update final prompt and response for audit log
+      finalPrompt = fixPrompt;
+      finalResponse = fixResponseContent;
+      
+      // Check for hard halts on fix/clarification attempt
+      const fixHaltCheckStartTime = Date.now();
+      const fixHaltReason = checkHardHalts({
+        ...fixCursorResult,
+        requiredKeys: [],
+      });
+      const fixHaltCheckDuration = Date.now() - fixHaltCheckStartTime;
+      logPerformance('FixHaltDetection', fixHaltCheckDuration, {
+        iteration,
+        task_id: task.task_id,
+        halt_reason: fixHaltReason || 'none',
+      });
+      logVerbose('ControlLoop', 'Fix attempt halt check completed', {
+        iteration,
+        task_id: task.task_id,
+        halt_reason: fixHaltReason,
+        retry_count: retryCount + 1,
+      });
+      
+      // Only halt on critical failures during fix attempt
+      const criticalHaltReasons: HaltReason[] = ['CURSOR_EXEC_FAILURE', 'BLOCKED', 'OUTPUT_FORMAT_INVALID'];
+      if (fixHaltReason && criticalHaltReasons.includes(fixHaltReason as any)) {
+        logVerbose('ControlLoop', 'Critical halt during fix attempt', {
+          iteration,
+          task_id: task.task_id,
+          halt_reason: fixHaltReason,
+          retry_count: retryCount + 1,
+        });
+        logStateTransition(state.supervisor.status, 'HALTED', {
+          iteration,
+          task_id: task.task_id,
+          reason: fixHaltReason,
+          during_fix: true,
+        });
+        await halt(
+          state,
+          fixHaltReason,
+          persistence,
+          auditLogger,
+          `Cursor output triggered halt during fix attempt: ${fixHaltReason}`
+        );
+      }
+      
+      // Re-validate the fix/clarification attempt
+      // Use project-specific sandbox path (same as Cursor CLI working directory)
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Re-validating fix attempt...`);
+      logVerbose('ControlLoop', 'Re-validating fix attempt', {
+        iteration,
+        task_id: task.task_id,
+        retry_count: retryCount + 1,
+      });
+      const fixValidationStartTime = Date.now();
+      const fixValidationReport: ValidationReport = await validateTaskOutput(
+        task,
+        fixCursorResult,
+        sandboxCwd
+      );
+      const fixValidationDuration = Date.now() - fixValidationStartTime;
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Fix validation result: ${fixValidationReport.valid ? 'PASS' : 'FAIL'}`);
+      logPerformance('FixValidation', fixValidationDuration, {
+        iteration,
+        task_id: task.task_id,
+        valid: fixValidationReport.valid,
+        retry_count: retryCount + 1,
+      });
+      
+      // Check if ambiguity/question still present
+      const fixStillHasAmbiguity = fixHaltReason && ['AMBIGUITY', 'ASKED_QUESTION'].includes(fixHaltReason);
+      logVerbose('ControlLoop', 'Fix validation completed', {
+        iteration,
+        task_id: task.task_id,
+        validation_valid: fixValidationReport.valid,
+        still_has_ambiguity: fixStillHasAmbiguity,
+        halt_reason: fixHaltReason,
+        retry_count: retryCount + 1,
+      });
+      
+      if (!fixValidationReport.valid || fixStillHasAmbiguity) {
+        // Fix/clarification attempt failed or still has ambiguity, persist retry count and mark task for retry
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Fix attempt failed, will retry on next iteration`);
+        logVerbose('ControlLoop', 'Fix attempt failed, scheduling retry', {
+          iteration,
+          task_id: task.task_id,
+          validation_valid: fixValidationReport.valid,
+          still_has_ambiguity: fixStillHasAmbiguity,
+          retry_count: retryCount + 1,
+          max_retries: maxRetries,
+        });
+        (state.supervisor as any)[`retry_task`] = task; // Keep task for next iteration
+        const retryPersistStartTime = Date.now();
+        await persistence.writeState(state);
+        const retryPersistDuration = Date.now() - retryPersistStartTime;
+        logPerformance('RetryStatePersist', retryPersistDuration, { iteration, task_id: task.task_id });
+        continue; // Will retry same task on next iteration
+      }
+      
+      // Fix/clarification succeeded, replace validationReport and clear haltReason
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Fix attempt succeeded!`);
+      logVerbose('ControlLoop', 'Fix attempt succeeded', {
+        iteration,
+        task_id: task.task_id,
+        retry_count: retryCount + 1,
+        validation_rules_passed: fixValidationReport.rules_passed?.length || 0,
+      });
+      validationReport = fixValidationReport;
+      haltReason = null; // Clear halt reason since fix succeeded
+    }
+
+    // 12. On success:
+    // - mutate state (iteration++, last_task_id, last_validation_report)
+    const stateUpdateStartTime = Date.now();
+    const previousIteration = state.supervisor.iteration || 0;
+    state.supervisor.iteration = previousIteration + 1;
+    state.supervisor.last_task_id = task.task_id;
+    state.supervisor.last_validation_report = validationReport;
+    
+    logVerbose('ControlLoop', 'Updating state for task completion', {
+      iteration,
+      task_id: task.task_id,
+      previous_iteration: previousIteration,
+      new_iteration: state.supervisor.iteration,
+    });
+    
+    // Mark task as completed
+    if (!state.completed_tasks) {
+      state.completed_tasks = [];
+    }
+    state.completed_tasks.push({
+      task_id: task.task_id,
+      completed_at: new Date().toISOString(),
+      validation_report: validationReport,
+    });
+    
+    // Clear resource_exhausted_retry on successful completion
+    if (state.supervisor.resource_exhausted_retry) {
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Clearing resource_exhausted_retry after successful completion`);
+      delete state.supervisor.resource_exhausted_retry;
+      if (state.supervisor.halt_reason === 'RESOURCE_EXHAUSTED') {
+        delete state.supervisor.halt_reason;
+        delete state.supervisor.halt_details;
+      }
+    }
+    
+    const stateUpdateDuration = Date.now() - stateUpdateStartTime;
+    logPerformance('StateUpdate', stateUpdateDuration, { iteration, task_id: task.task_id });
+
+    log(`[Iteration ${iteration}] Task ${task.task_id}: ✅ COMPLETED`);
+    log(`[Iteration ${iteration}] Completed tasks: ${state.completed_tasks.length}`);
+    logVerbose('ControlLoop', 'Task completed successfully', {
+      iteration,
+      task_id: task.task_id,
+      completed_tasks_count: state.completed_tasks.length,
+      total_iteration: state.supervisor.iteration,
+      validation_rules_passed: validationReport.rules_passed?.length || 0,
+      iteration_duration_ms: Date.now() - iterationStartTime,
+    });
+    logStateTransition('TASK_IN_PROGRESS', 'TASK_COMPLETED', {
+      iteration,
+      task_id: task.task_id,
+    });
+
+    // - persist state with full overwrite
+    const persistStartTime = Date.now();
+    await persistence.writeState(state);
+    const persistDuration = Date.now() - persistStartTime;
+    log(`[Iteration ${iteration}] State persisted`);
+    logPerformance('StatePersist', persistDuration, {
+      iteration,
+      task_id: task.task_id,
+      state_size: JSON.stringify(state).length,
+    });
+    logVerbose('ControlLoop', 'State persisted successfully', {
+      iteration,
+      task_id: task.task_id,
+      state_size_bytes: JSON.stringify(state).length,
+    });
+
+    // - append audit log entry
+    const auditLogStartTime = Date.now();
+    // projectId is already defined earlier in the function scope
+    await appendAuditLog(
+      stateBefore,
+      state,
+      task,
+      validationReport,
+      sandboxRoot,
+      projectId,
+      finalPrompt,
+      finalResponse
+    );
+    const auditLogDuration = Date.now() - auditLogStartTime;
+    log(`[Iteration ${iteration}] Audit log appended`);
+    logPerformance('AuditLogAppend', auditLogDuration, { iteration, task_id: task.task_id });
+    
+    const iterationDuration = Date.now() - iterationStartTime;
+    logPerformance('Iteration', iterationDuration, {
+      iteration,
+      task_id: task.task_id,
+      status: 'completed',
+    });
+    logVerbose('ControlLoop', 'Iteration completed', {
+      iteration,
+      task_id: task.task_id,
+      total_duration_ms: iterationDuration,
+      breakdown: {
+        state_load_ms: stateLoadDuration,
+        task_retrieval_ms: taskRetrievalDuration,
+        prompt_build_ms: promptBuildDuration,
+        cursor_execution_ms: cursorDuration,
+        validation_ms: validationDuration,
+        state_persist_ms: persistDuration,
+        audit_log_ms: auditLogDuration,
+      },
+    });
+  }
+}
+

@@ -1,0 +1,24 @@
+module.exports = {
+  apps: [
+    {
+      name: 'supervisor',
+      script: 'npm',
+      args: 'run cli -- start --redis-host localhost --redis-port 6499 --state-key supervisor:state --queue-name tasks --queue-db 2 --sandbox-root ./sandbox',
+      cwd: '/home/ahmedhaider/work/projects/auto-layer/supervisor',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '1G',
+      env: {
+        NODE_ENV: 'production',
+      },
+      error_file: './logs/supervisor-error.log',
+      out_file: './logs/supervisor-out.log',
+      log_file: './logs/supervisor-combined.log',
+      time: true,
+      merge_logs: true,
+    },
+  ],
+};
+

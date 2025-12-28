@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  dragonflydb:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: dragonflydb
+    ports:
+      - "6499:6379"
+    volumes:
+      - dragonfly-data:/data
+    environment:
+      - DRAGONFLY_LOG_LEVEL=info
+    command: >
+      --logtostderr
+      --alsologtostderr
+    restart: unless-stopped
+    networks:
+      - supervisor-network
+
+volumes:
+  dragonfly-data:
+    driver: local
+
+networks:
+  supervisor-network:
+    driver: bridge

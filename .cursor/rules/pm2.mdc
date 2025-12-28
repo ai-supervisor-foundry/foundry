@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+1. PM2 logs check is always non-streamed, non-interactive.
