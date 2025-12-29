@@ -2,7 +2,7 @@
 // Prompts are data, not instructions
 // No summarization, no paraphrasing, no creativity
 
-import { Task } from './types';
+import { Task, SupervisorState } from './types';
 import { logVerbose, logPerformance } from './logger';
 
 export interface MinimalState {
@@ -262,6 +262,107 @@ export function buildClarificationPrompt(
     prompt_length: prompt.length,
   });
   return prompt;
+}
+
+/**
+ * Build prompt to ask agent if goal is completed
+ */
+export function buildGoalCompletionPrompt(state: SupervisorState, sandboxRoot: string): string {
+  const sections: string[] = [];
+  
+  sections.push('## Goal Completion Check');
+  sections.push('');
+  sections.push('You are being asked to evaluate if the project goal has been completed.');
+  sections.push('');
+  sections.push('## Goal Description');
+  sections.push(state.goal.description);
+  sections.push('');
+  sections.push('## Completed Tasks');
+  if (state.completed_tasks && state.completed_tasks.length > 0) {
+    sections.push(`Total completed: ${state.completed_tasks.length}`);
+    sections.push('');
+    sections.push('Recent completed tasks:');
+    state.completed_tasks.slice(-10).forEach((task) => {
+      sections.push(`- ${task.task_id} (completed at ${task.completed_at})`);
+    });
+  } else {
+    sections.push('No tasks completed yet.');
+  }
+  sections.push('');
+  sections.push('## Blocked Tasks');
+  if (state.blocked_tasks && state.blocked_tasks.length > 0) {
+    sections.push(`Total blocked: ${state.blocked_tasks.length}`);
+    sections.push('');
+    state.blocked_tasks.forEach((task) => {
+      sections.push(`- ${task.task_id} (blocked: ${task.reason})`);
+    });
+  } else {
+    sections.push('No blocked tasks.');
+  }
+  sections.push('');
+  sections.push('## Project Structure');
+  sections.push(`Frontend: ${sandboxRoot}/easeclassifieds`);
+  sections.push(`Backend: ${sandboxRoot}/easeclassifieds-api`);
+  sections.push('');
+  sections.push('## Your Task');
+  sections.push('Analyze the goal description and the completed tasks.');
+  sections.push('Determine if the goal has been fully achieved based on:');
+  sections.push('1. All major features mentioned in the goal are implemented');
+  sections.push('2. The system is functional and complete');
+  sections.push('3. No critical components are missing');
+  sections.push('');
+  sections.push('## Output Format');
+  sections.push('Respond with JSON in this exact format:');
+  sections.push('```json');
+  sections.push('{');
+  sections.push('  "goal_completed": true or false,');
+  sections.push('  "reasoning": "Brief explanation of your assessment"');
+  sections.push('}');
+  sections.push('```');
+  sections.push('');
+  sections.push('Be honest and thorough in your assessment.');
+  
+  return sections.join('\n');
+}
+
+/**
+ * Parse agent response to determine if goal is completed
+ */
+export function parseGoalCompletionResponse(response: string): boolean {
+  try {
+    // Try to extract JSON from response
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (typeof parsed.goal_completed === 'boolean') {
+        return parsed.goal_completed;
+      }
+    }
+    
+    // Fallback: check for positive/negative indicators in text
+    const responseLower = response.toLowerCase();
+    if (responseLower.includes('goal_completed') && responseLower.includes('true')) {
+      return true;
+    }
+    if (responseLower.includes('goal_completed') && responseLower.includes('false')) {
+      return false;
+    }
+    if (responseLower.includes('yes') && (responseLower.includes('complete') || responseLower.includes('achieved'))) {
+      return true;
+    }
+    if (responseLower.includes('no') && (responseLower.includes('complete') || responseLower.includes('achieved'))) {
+      return false;
+    }
+    
+    // Default to false if unclear
+    return false;
+  } catch (error) {
+    logVerbose('ParseGoalCompletion', 'Failed to parse goal completion response', {
+      error: error instanceof Error ? error.message : String(error),
+      response_preview: response.substring(0, 200),
+    });
+    return false;
+  }
 }
 
 // Legacy PromptBuilder class for backward compatibility

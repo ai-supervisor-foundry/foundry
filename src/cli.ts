@@ -488,6 +488,8 @@ async function resume(
   state.supervisor.status = 'RUNNING';
   state.supervisor.halt_reason = undefined;
   state.supervisor.halt_details = undefined;
+  // Reset queue.exhausted to false when resuming (allows supervisor to check queue again)
+  state.queue.exhausted = false;
   logVerbose('Resume', 'State updated for resume', {
     state_key: stateKey,
     previous_status: previousStatus,

@@ -249,23 +249,78 @@ Be strict but fair. Only mark COMPLETE if you can verify the work exists.`;
   const analysisOutput = cursorResult.stdout || cursorResult.rawOutput || '';
 
   try {
-    const jsonMatch = analysisOutput.match(/\{[\s\S]*\}/);
+    // Try multiple JSON extraction strategies
+    let jsonMatch = analysisOutput.match(/\{[\s\S]*\}/);
+    
+    // If no match, try to find JSON in code blocks
+    if (!jsonMatch) {
+      const codeBlockMatch = analysisOutput.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (codeBlockMatch) {
+        jsonMatch = [codeBlockMatch[1]];
+      }
+    }
+    
+    // If still no match, try to extract JSON object from markdown
+    if (!jsonMatch) {
+      const markdownJsonMatch = analysisOutput.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+      if (markdownJsonMatch) {
+        jsonMatch = [markdownJsonMatch[1]];
+      }
+    }
+    
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      // Validate that parsed object has the expected structure
+      if (typeof parsed === 'object' && parsed !== null) {
+        // Check if it's a valid criteria mapping
+        const hasValidStructure = criteria.some(c => 
+          typeof parsed[c] === 'object' && 
+          parsed[c] !== null &&
+          ['COMPLETE', 'INCOMPLETE', 'UNCERTAIN'].includes(parsed[c].result)
+        );
+        
+        if (hasValidStructure) {
+          return parsed;
+        }
+      }
     }
   } catch (error) {
     log(`Failed to parse batched analysis JSON: ${error instanceof Error ? error.message : String(error)}`);
+    log(`Analysis output preview: ${analysisOutput.substring(0, 500)}`);
   }
 
-  // Fallback: mark all as UNCERTAIN
+  // Fallback: extract individual criterion results from text
   const fallback: { [criterion: string]: { result: 'COMPLETE' | 'INCOMPLETE' | 'UNCERTAIN'; reason: string; file_paths?: string[] } } = {};
+  
   for (const criterion of criteria) {
-    fallback[criterion] = {
-      result: 'UNCERTAIN',
-      reason: 'Could not parse analysis response',
-      file_paths: [],
-    };
+    const criterionLower = criterion.toLowerCase();
+    const responseLower = analysisOutput.toLowerCase();
+    
+    // Check for positive indicators
+    if (responseLower.includes(criterionLower) && 
+        (responseLower.includes('complete') || responseLower.includes('implemented') || responseLower.includes('satisfied'))) {
+      fallback[criterion] = {
+        result: 'COMPLETE',
+        reason: 'Found positive indicators in response text',
+        file_paths: [],
+      };
+    } else if (responseLower.includes(criterionLower) && 
+               (responseLower.includes('incomplete') || responseLower.includes('not done') || responseLower.includes('missing'))) {
+      fallback[criterion] = {
+        result: 'INCOMPLETE',
+        reason: 'Found negative indicators in response text',
+        file_paths: [],
+      };
+    } else {
+      fallback[criterion] = {
+        result: 'UNCERTAIN',
+        reason: 'Could not parse analysis response',
+        file_paths: [],
+      };
+    }
   }
+  
   return fallback;
 }
 

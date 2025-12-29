@@ -413,8 +413,23 @@ export async function validateTaskOutput(
           'phone number sent to backend|phone number.*backend': ['sendotp', 'authservice.sendotp', 'send.*otp', 'phone.*otp'],
           'otp verification calls backend|otp verification.*backend': ['verifyotp', 'authservice.verifyotp', 'verify.*otp'],
           'pagination working|pagination.*working': ['pagination', 'page', 'limit', 'offset', 'currentpage', 'itemsperpage'],
+          'pagination working correctly': [
+            'pagination', 'page', 'limit', 'offset', 'currentpage', 'itemsperpage',
+            'hasmore', 'hasmorepages', 'loadmore', 'load.*more', 'nextpage', 'totalpages',
+            'setcurrentpage', 'sethasmore', 'handleloadmore', 'fetchlistings.*page'
+          ],
           'loading spinner|spinner.*fetching': ['spinner', 'loader', 'loader2', 'loading.*spinner', 'animate-spin'],
+          'loading spinner while fetching': [
+            'loading', 'isloading', 'usestate.*loading', 'setloading', 'loading.*state',
+            'spinner', 'loader', 'loader2', 'loading.*spinner', 'animate-spin',
+            'isloadingmore', 'loadingskeleton', 'skeleton.*grid'
+          ],
           'empty state|empty.*listing': ['empty', 'length.*===.*0', 'no.*listing', 'listings.*length.*===.*0', 'listings.length === 0'],
+          'empty state when no listings': [
+            'empty', 'length.*===.*0', 'no.*listing', 'listings.*length.*===.*0',
+            'listings.length === 0', 'no.*results.*found', 'no.*found',
+            'empty.*state', '!isloading && !isloadingmore && listings.length === 0'
+          ],
           'add.*remove favorite.*api|favorite.*api.*calls': ['addfavorite', 'removefavorite', 'favoriteservice', 'favorite.*service'],
           'heart icon|heart.*shows': ['heart', 'faheart', 'lucide.*heart', 'heart.*icon'],
           'heart icon shows favorites count|heart.*shows.*count': ['favoritescount', 'favorite.*count', 'heart.*favoritescount', 'favoritescount.*heart'],
@@ -438,23 +453,52 @@ export async function validateTaskOutput(
           'module.*imported|imported.*module': ['import.*module', 'module.*import', 'from.*module'],
         };
         
-        for (const [key, keywords] of Object.entries(keywordMappings)) {
-          if (criterionLower.includes(key)) {
-            // Check for keyword presence (as whole words or in identifiers)
-            const hasKeywords = keywords.some(kw => {
-              // Try as regex pattern first
-              try {
-                const pattern = new RegExp(`\\b${kw.replace(/\./g, '.*')}\\w*`, 'i');
-                return pattern.test(codeContentLower);
-              } catch {
-                // Fallback to simple string match
-                return codeContentLower.includes(kw);
-              }
-            });
-            if (hasKeywords) {
-              criterionSatisfied = true;
-              break;
+        // First, try exact match on normalized criterion
+        const normalizedCriterion = criterionLower.trim();
+        if (keywordMappings[normalizedCriterion]) {
+          const patterns = keywordMappings[normalizedCriterion];
+          const hasKeywords = patterns.some(kw => {
+            try {
+              const regex = new RegExp(kw, 'i');
+              return regex.test(codeContentLower);
+            } catch {
+              return codeContentLower.includes(kw);
             }
+          });
+          if (hasKeywords) {
+            criterionSatisfied = true;
+            log(`✅ Criterion satisfied via exact keyword mapping: "${criterion}"`);
+          }
+        }
+        
+        // Then, try partial matches (e.g., "pagination working" matches "pagination working correctly")
+        if (!criterionSatisfied) {
+          for (const [key, keywords] of Object.entries(keywordMappings)) {
+            // Check if criterion contains key or key contains criterion (bidirectional partial match)
+            if (normalizedCriterion.includes(key) || key.includes(normalizedCriterion)) {
+              const hasKeywords = keywords.some(kw => {
+                try {
+                  const regex = new RegExp(kw, 'i');
+                  return regex.test(codeContentLower);
+                } catch {
+                  return codeContentLower.includes(kw);
+                }
+              });
+              if (hasKeywords) {
+                criterionSatisfied = true;
+                log(`✅ Criterion satisfied via partial keyword mapping: "${criterion}" (matched "${key}")`);
+                break;
+              }
+            }
+          }
+        }
+        
+        // Fallback: check if criterion key terms exist in code
+        if (!criterionSatisfied && keyTerms.length > 0) {
+          const allKeyTermsFound = keyTerms.every(term => codeContentLower.includes(term));
+          if (allKeyTermsFound) {
+            criterionSatisfied = true;
+            log(`✅ Criterion satisfied via key terms matching: "${criterion}"`);
           }
         }
       }

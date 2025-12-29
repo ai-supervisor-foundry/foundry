@@ -19,7 +19,9 @@ export type PromptLogType =
   | 'FIX_PROMPT'
   | 'CLARIFICATION_PROMPT'
   | 'HELPER_AGENT_PROMPT'
-  | 'HELPER_AGENT_RESPONSE';
+  | 'HELPER_AGENT_RESPONSE'
+  | 'GOAL_COMPLETION_CHECK'
+  | 'GOAL_COMPLETION_RESPONSE';
 
 export interface PromptLogEntry {
   timestamp: string; // ISO format

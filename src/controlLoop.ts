@@ -3,7 +3,7 @@
 
 import { PersistenceLayer } from './persistence';
 import { QueueAdapter } from './queue';
-import { PromptBuilder, buildPrompt, buildFixPrompt, buildClarificationPrompt, MinimalState } from './promptBuilder';
+import { PromptBuilder, buildPrompt, buildFixPrompt, buildClarificationPrompt, buildGoalCompletionPrompt, parseGoalCompletionResponse, MinimalState } from './promptBuilder';
 import { CLIAdapter } from './cliAdapter';
 import { Validator, validateTaskOutput } from './validator';
 import { AuditLogger, appendAuditLog } from './auditLogger';
@@ -296,26 +296,89 @@ export async function controlLoop(
         logStateTransition('QUEUE_ACTIVE', 'QUEUE_EXHAUSTED', { iteration });
       }
       
-      // if goal not completed → HALT with TASK_LIST_EXHAUSTED_GOAL_INCOMPLETE
+      // if goal not completed → Ask agent if goal is met
       if (!state.goal.completed) {
-        log(`[Iteration ${iteration}] Queue exhausted, goal incomplete - halting`);
-        logVerbose('ControlLoop', 'Halting due to exhausted queue and incomplete goal', {
+        log(`[Iteration ${iteration}] Queue exhausted, checking if goal is met...`);
+        logVerbose('ControlLoop', 'Asking agent if goal is completed', {
           iteration,
           goal_description: state.goal.description,
           completed_tasks_count: state.completed_tasks?.length || 0,
           blocked_tasks_count: state.blocked_tasks?.length || 0,
         });
-        logStateTransition(state.supervisor.status, 'HALTED', {
-          iteration,
-          reason: HALT_REASONS.TASK_LIST_EXHAUSTED_GOAL_INCOMPLETE,
-        });
-        await halt(
-          state,
-          HALT_REASONS.TASK_LIST_EXHAUSTED_GOAL_INCOMPLETE,
-          persistence,
-          auditLogger,
-          'Task queue exhausted but goal is incomplete'
+        
+        // Build goal completion check prompt
+        const goalCheckPrompt = buildGoalCompletionPrompt(state, sandboxRoot);
+        const projectId = state.goal.project_id || 'default';
+        const sandboxCwd = path.join(sandboxRoot, projectId);
+        
+        // Log goal check prompt
+        await appendPromptLog(
+          {
+            task_id: 'goal-completion-check',
+            iteration,
+            type: 'GOAL_COMPLETION_CHECK',
+            content: goalCheckPrompt,
+            metadata: {
+              agent_mode: 'auto',
+              working_directory: sandboxCwd,
+              prompt_length: goalCheckPrompt.length,
+            },
+          },
+          sandboxRoot,
+          projectId
         );
+        
+        // Ask agent if goal is met
+        log(`[Iteration ${iteration}] Asking agent if goal is completed...`);
+        const goalCheckResult = await cliAdapter.execute(goalCheckPrompt, sandboxCwd, 'auto');
+        const goalCheckResponse = goalCheckResult.stdout || goalCheckResult.rawOutput || '';
+        
+        // Log goal check response
+        await appendPromptLog(
+          {
+            task_id: 'goal-completion-check',
+            iteration,
+            type: 'GOAL_COMPLETION_RESPONSE',
+            content: goalCheckResponse,
+            metadata: {
+              agent_mode: 'auto',
+              working_directory: sandboxCwd,
+              response_length: goalCheckResponse.length,
+            },
+          },
+          sandboxRoot,
+          projectId
+        );
+        
+        // Parse agent response to determine if goal is completed
+        const goalCompleted = parseGoalCompletionResponse(goalCheckResponse);
+        
+        if (goalCompleted) {
+          log(`[Iteration ${iteration}] Agent confirmed goal is completed`);
+          state.goal.completed = true;
+          await persistence.writeState(state);
+          // Continue to goal completed handling below
+        } else {
+          log(`[Iteration ${iteration}] Agent confirmed goal is NOT completed - halting`);
+          logVerbose('ControlLoop', 'Halting due to exhausted queue and incomplete goal', {
+            iteration,
+            goal_description: state.goal.description,
+            completed_tasks_count: state.completed_tasks?.length || 0,
+            blocked_tasks_count: state.blocked_tasks?.length || 0,
+            agent_response: goalCheckResponse.substring(0, 200),
+          });
+          logStateTransition(state.supervisor.status, 'HALTED', {
+            iteration,
+            reason: HALT_REASONS.TASK_LIST_EXHAUSTED_GOAL_INCOMPLETE,
+          });
+          await halt(
+            state,
+            HALT_REASONS.TASK_LIST_EXHAUSTED_GOAL_INCOMPLETE,
+            persistence,
+            auditLogger,
+            `Task queue exhausted and agent confirmed goal is incomplete: ${goalCheckResponse.substring(0, 200)}`
+          );
+        }
       }
       
       // else mark supervisor.status = COMPLETED, persist state, exit loop
