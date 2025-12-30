@@ -10,13 +10,139 @@ export interface MinimalState {
     id: string;
     sandbox_root: string;
   };
-  goal: {
+  goal?: {
     id: string;
     description: string;
   };
-  queue: {
+  queue?: {
     last_task_id?: string;
   };
+  completed_tasks?: Array<{
+    task_id: string;
+    completed_at: string;
+  }>;
+  blocked_tasks?: Array<{
+    task_id: string;
+    reason: string;
+  }>;
+}
+
+/**
+ * Build task-aware minimal state context
+ * Reduces prompt size by including only relevant context
+ */
+export function buildMinimalState(task: Task, state: SupervisorState, sandboxCwd: string): MinimalState {
+  const context: MinimalState = {
+    project: {
+      id: state.goal.project_id || 'default',
+      sandbox_root: sandboxCwd,
+    },
+  };
+
+  const instructionsLower = task.instructions.toLowerCase();
+  const intentLower = task.intent.toLowerCase();
+
+  // Include goal only if relevant
+  if (
+    instructionsLower.includes('goal') ||
+    intentLower.includes('goal') ||
+    task.task_id.startsWith('goal-')
+  ) {
+    context.goal = {
+      id: state.goal.project_id || 'default',
+      description: state.goal.description,
+    };
+  }
+
+  // Include queue info only if relevant
+  if (
+    instructionsLower.includes('previous') ||
+    instructionsLower.includes('last task') ||
+    instructionsLower.includes('earlier')
+  ) {
+    context.queue = {
+      last_task_id: state.supervisor.last_task_id,
+    };
+  }
+
+  // Include completed tasks only if relevant
+  if (
+    instructionsLower.includes('extend') ||
+    instructionsLower.includes('build on') ||
+    instructionsLower.includes('previous implementation') ||
+    intentLower.includes('extend')
+  ) {
+    // Include last 5 completed tasks
+    context.completed_tasks = state.completed_tasks?.slice(-5).map(t => ({
+      task_id: t.task_id,
+      completed_at: t.completed_at,
+    }));
+  }
+
+  // Include blocked tasks if task might unblock something
+  if (instructionsLower.includes('unblock')) {
+    context.blocked_tasks = state.blocked_tasks?.map(t => ({
+      task_id: t.task_id,
+      reason: t.reason,
+    }));
+  }
+
+  return context;
+}
+
+type TaskType = 'implementation' | 'configuration' | 'testing' | 'documentation' | 'refactoring';
+
+/**
+ * Detect task type based on intent and instructions
+ */
+function detectTaskType(task: Task): TaskType {
+  const lowerInstructions = task.instructions.toLowerCase();
+  const lowerIntent = task.intent.toLowerCase();
+  
+  if (lowerInstructions.includes('test') || lowerIntent.includes('test')) {
+    return 'testing';
+  }
+  if (lowerInstructions.includes('config') || lowerInstructions.includes('setup') || lowerInstructions.includes('env')) {
+    return 'configuration';
+  }
+  if (lowerInstructions.includes('document') || lowerInstructions.includes('readme') || lowerInstructions.includes('guide')) {
+    return 'documentation';
+  }
+  if (lowerInstructions.includes('refactor') || lowerInstructions.includes('improve') || lowerInstructions.includes('clean')) {
+    return 'refactoring';
+  }
+  return 'implementation';
+}
+
+/**
+ * Add task-type-specific guidelines to the prompt
+ */
+function addTaskTypeGuidelines(sections: string[], taskType: TaskType): void {
+  sections.push('## Guidelines');
+  
+  switch (taskType) {
+    case 'implementation':
+      sections.push('- Focus on clean code structure and established patterns.');
+      sections.push('- Ensure all new components/functions are exported and typed correctly.');
+      break;
+    case 'configuration':
+      sections.push('- Verify configuration file locations and environment variable names.');
+      sections.push('- Ensure fallback values are provided where appropriate.');
+      break;
+    case 'testing':
+      sections.push('- Focus on edge cases and error conditions.');
+      sections.push('- Ensure assertions are descriptive and meaningful.');
+      break;
+    case 'documentation':
+      sections.push('- Ensure clear formatting and consistent terminology.');
+      sections.push('- Verify that all links and references are valid.');
+      break;
+    case 'refactoring':
+      sections.push('- Preserve existing functionality while improving structure.');
+      sections.push('- Verify that no breaking changes are introduced to public APIs.');
+      break;
+  }
+  sections.push('');
 }
 
 /**
@@ -34,9 +160,6 @@ export function buildPrompt(task: Task, minimalState: MinimalState): string {
     project_id: minimalState.project.id,
   });
   
-  // Build prompt following exact structure from TOOL_CONTRACTS.md
-  // No summarization, no paraphrasing, verbatim only
-
   const sections: string[] = [];
 
   // Section 1: Task ID (verbatim)
@@ -60,6 +183,10 @@ export function buildPrompt(task: Task, minimalState: MinimalState): string {
     sections.push(`- ${criterion}`);
   }
   sections.push('');
+
+  // NEW: Task Type Guidelines
+  const taskType = detectTaskType(task);
+  addTaskTypeGuidelines(sections, taskType);
 
   // Section 5: Injected state snapshot (explicit section)
   sections.push('## READ-ONLY CONTEXT — DO NOT MODIFY');
@@ -164,6 +291,10 @@ export function buildFixPrompt(
   }
   sections.push('');
 
+  // NEW: Task Type Guidelines
+  const taskType = detectTaskType(task);
+  addTaskTypeGuidelines(sections, taskType);
+
   // Section 6: Context
   sections.push('## READ-ONLY CONTEXT — DO NOT MODIFY');
   sections.push(JSON.stringify(minimalState, null, 2));
@@ -233,6 +364,10 @@ export function buildClarificationPrompt(
   }
   sections.push('');
 
+  // NEW: Task Type Guidelines
+  const taskType = detectTaskType(task);
+  addTaskTypeGuidelines(sections, taskType);
+
   // Section 5: Context
   sections.push('## READ-ONLY CONTEXT — DO NOT MODIFY');
   sections.push(JSON.stringify(minimalState, null, 2));
@@ -263,6 +398,7 @@ export function buildClarificationPrompt(
   });
   return prompt;
 }
+
 
 /**
  * Build prompt to ask agent if goal is completed
@@ -367,20 +503,9 @@ export function parseGoalCompletionResponse(response: string): boolean {
 
 // Legacy PromptBuilder class for backward compatibility
 export class PromptBuilder {
-  buildMinimalSnapshot(state: any, _task: Task): MinimalState {
-    return {
-      project: {
-        id: state.goal.project_id || 'default',
-        sandbox_root: state.project?.sandbox_root || '/sandbox/default',
-      },
-      goal: {
-        id: state.goal.id || 'default',
-        description: state.goal.description,
-      },
-      queue: {
-        last_task_id: state.queue?.last_task_id,
-      },
-    };
+  buildMinimalSnapshot(state: SupervisorState, task: Task, sandboxCwd?: string): MinimalState {
+    const defaultCwd = state.goal.project_id ? `sandbox/${state.goal.project_id}` : 'sandbox/default';
+    return buildMinimalState(task, state, sandboxCwd || defaultCwd);
   }
 
   buildTaskPrompt(task: Task, stateSnapshot: MinimalState): string {

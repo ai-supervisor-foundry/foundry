@@ -314,6 +314,10 @@ export async function validateTaskOutput(
     log(`Checking ${task.acceptance_criteria.length} acceptance criteria`);
     const uncertainCriteria: string[] = [];
     
+    // Track match quality for confidence scoring
+    type MatchQuality = 'EXACT' | 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE';
+    const criteriaQuality: Record<string, MatchQuality> = {};
+
     for (const criterion of task.acceptance_criteria) {
       log(`Checking criterion: "${criterion}"`);
       const criterionLower = criterion.toLowerCase();
@@ -324,16 +328,15 @@ export async function validateTaskOutput(
         .split(/\s+/)
         .filter(term => term.length > 3 && !['with', 'from', 'the', 'and', 'for', 'that', 'this'].includes(term));
       
-      // Check if criterion is satisfied in code
-      let criterionSatisfied = false;
+      let matchQuality: MatchQuality = 'NONE';
       
       // Method 1: Direct string match (for exact phrases)
       if (codeContentLower.includes(criterionLower)) {
-        criterionSatisfied = true;
+        matchQuality = 'EXACT';
       }
       
       // Method 2: Route/Endpoint parsing for NestJS decorators
-      if (!criterionSatisfied && (criterionLower.includes('endpoint') || criterionLower.includes('get /') || criterionLower.includes('post /') || criterionLower.includes('delete /') || criterionLower.includes('put /'))) {
+      if (matchQuality === 'NONE' && (criterionLower.includes('endpoint') || criterionLower.includes('get /') || criterionLower.includes('post /') || criterionLower.includes('delete /') || criterionLower.includes('put /'))) {
         // Extract HTTP method and path from criterion
         // Examples: "GET /feed/daily endpoint", "DELETE /favorites/:listingId removes from favorites"
         const endpointMatch = criterionLower.match(/(get|post|delete|put|patch)\s+\/?([^\s]+)/);
@@ -355,14 +358,14 @@ export async function validateTaskOutput(
           const decoratorExists = new RegExp(`@${httpMethod}`, 'i').test(allCodeContent);
           
           if (decoratorExists || decoratorPatterns.some(pattern => pattern.test(allCodeContent))) {
-            criterionSatisfied = true;
-            log(`✅ Endpoint found: ${httpMethod} ${endpointPath}`);
+            matchQuality = 'HIGH';
+            log(`✅ Endpoint found (HIGH confidence): ${httpMethod} ${endpointPath}`);
           }
         }
       }
       
       // Method 2b: Check for key functionality indicators
-      if (!criterionSatisfied && keyTerms.length > 0) {
+      if (matchQuality === 'NONE' && keyTerms.length > 0) {
         // Check for class/function names, method definitions, etc.
         const functionalityPatterns = [
           // Class definitions
@@ -375,14 +378,14 @@ export async function validateTaskOutput(
         
         for (const pattern of functionalityPatterns) {
           if (pattern.test(allCodeContent)) {
-            criterionSatisfied = true;
+            matchQuality = 'HIGH';
             break;
           }
         }
       }
       
       // Method 3: Check for specific keywords related to the criterion
-      if (!criterionSatisfied) {
+      if (matchQuality === 'NONE') {
         const keywordMappings: Record<string, string[]> = {
           'query parsing': ['parsequery', 'parsequery', 'parse.*query', 'query.*parse'],
           'keyword extraction': ['extractkeyword', 'extract.*keyword', 'keyword.*extract', 'getkeyword'],
@@ -466,13 +469,13 @@ export async function validateTaskOutput(
             }
           });
           if (hasKeywords) {
-            criterionSatisfied = true;
-            log(`✅ Criterion satisfied via exact keyword mapping: "${criterion}"`);
+            matchQuality = 'HIGH';
+            log(`✅ Criterion satisfied via exact keyword mapping (HIGH): "${criterion}"`);
           }
         }
         
-        // Then, try partial matches (e.g., "pagination working" matches "pagination working correctly")
-        if (!criterionSatisfied) {
+        // Then, try partial matches
+        if (matchQuality === 'NONE') {
           for (const [key, keywords] of Object.entries(keywordMappings)) {
             // Check if criterion contains key or key contains criterion (bidirectional partial match)
             if (normalizedCriterion.includes(key) || key.includes(normalizedCriterion)) {
@@ -485,8 +488,8 @@ export async function validateTaskOutput(
                 }
               });
               if (hasKeywords) {
-                criterionSatisfied = true;
-                log(`✅ Criterion satisfied via partial keyword mapping: "${criterion}" (matched "${key}")`);
+                matchQuality = 'MEDIUM';
+                log(`✅ Criterion satisfied via partial keyword mapping (MEDIUM): "${criterion}" (matched "${key}")`);
                 break;
               }
             }
@@ -494,18 +497,18 @@ export async function validateTaskOutput(
         }
         
         // Fallback: check if criterion key terms exist in code
-        if (!criterionSatisfied && keyTerms.length > 0) {
+        if (matchQuality === 'NONE' && keyTerms.length > 0) {
           const allKeyTermsFound = keyTerms.every(term => codeContentLower.includes(term));
           if (allKeyTermsFound) {
-            criterionSatisfied = true;
-            log(`✅ Criterion satisfied via key terms matching: "${criterion}"`);
+            matchQuality = 'LOW';
+            log(`✅ Criterion satisfied via key terms matching (LOW): "${criterion}"`);
           }
         }
       }
       
       // Method 4: For compound criteria with parentheses, check all components
       // Example: "Feed metadata (limit, remaining, reset time) tracked"
-      if (!criterionSatisfied && criterionLower.includes('(') && criterionLower.includes(')')) {
+      if (matchQuality === 'NONE' && criterionLower.includes('(') && criterionLower.includes(')')) {
         const match = criterionLower.match(/\(([^)]+)\)/);
         if (match) {
           const components = match[1].split(',').map(c => c.trim().toLowerCase());
@@ -536,37 +539,27 @@ export async function validateTaskOutput(
             });
             
             if (allComponentsPresent) {
-              criterionSatisfied = true;
+              matchQuality = 'MEDIUM'; // Compound match is good but heuristic
             }
           }
         }
       }
       
       // Method 5: File structure validation (for project setup tasks)
-      if (!criterionSatisfied && (criterionLower.includes('initialized') || criterionLower.includes('configured') || criterionLower.includes('set up'))) {
+      if (matchQuality === 'NONE' && (criterionLower.includes('initialized') || criterionLower.includes('configured') || criterionLower.includes('set up'))) {
         // Check for Vite configuration
         if (criterionLower.includes('vite') || criterionLower.includes('react project')) {
           const viteConfigPath = path.join(sandboxRoot, 'vite.config.ts');
           const viteConfigJsPath = path.join(sandboxRoot, 'vite.config.js');
           try {
             await fs.access(viteConfigPath);
-            // Also check package.json for vite dependency
-            const packageJsonPath = path.join(sandboxRoot, 'package.json');
-            try {
-              const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
-              const hasVite = packageJson.dependencies?.vite || packageJson.devDependencies?.vite;
-              if (hasVite) {
-                criterionSatisfied = true;
-                log(`✅ Vite project detected: vite.config.ts exists and vite in package.json`);
-              }
-            } catch {
-              // package.json doesn't exist or invalid, skip
-            }
+            matchQuality = 'HIGH';
+            log(`✅ Vite project detected (HIGH): vite.config.ts exists`);
           } catch {
             try {
               await fs.access(viteConfigJsPath);
-              criterionSatisfied = true;
-              log(`✅ Vite project detected: vite.config.js exists`);
+              matchQuality = 'HIGH';
+              log(`✅ Vite project detected (HIGH): vite.config.js exists`);
             } catch {
               // vite.config not found
             }
@@ -583,8 +576,8 @@ export async function validateTaskOutput(
           for (const configPath of tailwindConfigPaths) {
             try {
               await fs.access(configPath);
-              criterionSatisfied = true;
-              log(`✅ Tailwind CSS configured: ${path.basename(configPath)} exists`);
+              matchQuality = 'HIGH';
+              log(`✅ Tailwind CSS configured (HIGH): ${path.basename(configPath)} exists`);
               break;
             } catch {
               // Continue checking other paths
@@ -597,8 +590,8 @@ export async function validateTaskOutput(
           const tsConfigPath = path.join(sandboxRoot, 'tsconfig.json');
           try {
             await fs.access(tsConfigPath);
-            criterionSatisfied = true;
-            log(`✅ TypeScript configured: tsconfig.json exists`);
+            matchQuality = 'HIGH';
+            log(`✅ TypeScript configured (HIGH): tsconfig.json exists`);
           } catch {
             // tsconfig.json not found
           }
@@ -613,8 +606,8 @@ export async function validateTaskOutput(
                             packageJson.dependencies?.['@tanstack/react-router'] ||
                             packageJson.devDependencies?.['react-router-dom'];
             if (hasRouter) {
-              criterionSatisfied = true;
-              log(`✅ React Router detected in package.json`);
+              matchQuality = 'HIGH';
+              log(`✅ React Router detected in package.json (HIGH)`);
             }
           } catch {
             // package.json doesn't exist or invalid, skip
@@ -623,7 +616,7 @@ export async function validateTaskOutput(
       }
       
       // Phase 2: If not satisfied in code, check documentation/design files (for design tasks or if code check failed)
-      if (!criterionSatisfied && (isDesignTask || allCodeContent.length === 0)) {
+      if (matchQuality === 'NONE' && (isDesignTask || allCodeContent.length === 0)) {
         log(`Code check failed for "${criterion}", checking documentation files...`);
         
         // Find documentation files
@@ -667,38 +660,67 @@ export async function validateTaskOutput(
         if (allDocContent.length > 0) {
           const docContentLower = allDocContent.toLowerCase();
           // Check if criterion is mentioned in documentation
-          if (docContentLower.includes(criterionLower) || 
-              keyTerms.some(term => docContentLower.includes(term))) {
-            criterionSatisfied = true;
-            log(`✅ Criterion found in documentation: "${criterion}"`);
+          if (docContentLower.includes(criterionLower)) {
+            matchQuality = 'HIGH';
+            log(`✅ Criterion found in documentation (HIGH): "${criterion}"`);
+          } else if (keyTerms.some(term => docContentLower.includes(term))) {
+            matchQuality = 'MEDIUM';
+            log(`✅ Criterion terms found in documentation (MEDIUM): "${criterion}"`);
           }
         }
       }
       
+      criteriaQuality[criterion] = matchQuality;
+
       // Determine if criterion is uncertain (design task but not found in code or docs)
       const isDesignCriterion = designKeywords.some(keyword => criterionLower.includes(keyword));
-      if (!criterionSatisfied && isDesignCriterion) {
-        log(`⚠️ Criterion is design/planning type but not found: "${criterion}" - marking as UNCERTAIN`);
-        uncertainCriteria.push(criterion);
-      } else if (!criterionSatisfied) {
-        log(`❌ Criterion NOT satisfied: "${criterion}"`);
-        failedCriteria.push(criterion);
+      
+      if (matchQuality === 'NONE') {
+        if (isDesignCriterion) {
+          log(`⚠️ Criterion is design/planning type but not found: "${criterion}" - marking as UNCERTAIN`);
+          uncertainCriteria.push(criterion);
+        } else {
+          log(`❌ Criterion NOT satisfied: "${criterion}"`);
+          failedCriteria.push(criterion);
+        }
       } else {
-        log(`✅ Criterion satisfied: "${criterion}"`);
+        // Satisfied, but check quality for confidence
+        if (matchQuality === 'LOW' || matchQuality === 'MEDIUM') {
+          log(`⚠️ Criterion satisfied but with ${matchQuality} quality - marking as UNCERTAIN for verification`);
+          uncertainCriteria.push(criterion);
+        } else {
+          log(`✅ Criterion satisfied with ${matchQuality} quality`);
+        }
       }
     }
 
-    // Determine validation confidence
+    // Determine overall validation confidence
     let confidence: 'HIGH' | 'LOW' | 'UNCERTAIN' = 'HIGH';
+    
+    // Check quality of satisfied criteria
+    const qualities = Object.values(criteriaQuality).filter(q => q !== 'NONE');
+    const hasLowQuality = qualities.includes('LOW');
+    const hasMediumQuality = qualities.includes('MEDIUM');
+    
     if (uncertainCriteria.length > 0) {
+      // If we explicitly marked things as uncertain
       confidence = 'UNCERTAIN';
-      log(`⚠️ Validation UNCERTAIN: ${uncertainCriteria.length} design/planning criteria need verification`);
-    } else if (failedCriteria.length > 0 && isDesignTask) {
-      confidence = 'LOW';
-      log(`⚠️ Validation LOW confidence: Design task with ${failedCriteria.length} failed criteria`);
+      log(`⚠️ Validation UNCERTAIN: ${uncertainCriteria.length} criteria need verification (LOW/MEDIUM quality or design tasks)`);
     } else if (failedCriteria.length > 0) {
+      // Failures mean low confidence in success
       confidence = 'LOW';
       log(`⚠️ Validation LOW confidence: ${failedCriteria.length} criteria not met`);
+    } else if (hasLowQuality) {
+      // Even if all technically passed, low quality matches degrade confidence
+      confidence = 'UNCERTAIN';
+      log(`⚠️ Validation UNCERTAIN: All passed but some have LOW match quality`);
+    } else if (hasMediumQuality) {
+      // Medium quality is acceptable but maybe flagged?
+      // For now, let MEDIUM pass as HIGH if no UNCERTAIN flagged
+      // Actually, if we flagged them as UNCERTAIN in the loop, confidence is already set above.
+      // If we didn't flag them (e.g. decision changed), then check here.
+      // My loop logic says: "if matchQuality === 'LOW' || matchQuality === 'MEDIUM' -> uncertainCriteria.push"
+      // So confidence will be UNCERTAIN.
     }
 
     if (failedCriteria.length > 0 || uncertainCriteria.length > 0) {

@@ -437,25 +437,18 @@ export async function controlLoop(
       intent: task.intent,
       acceptance_criteria_count: task.acceptance_criteria?.length || 0,
     });
-    const minimalState: MinimalState = {
-      project: {
-        id: state.goal.project_id || 'default',
-        sandbox_root: sandboxCwd, // Use actual working directory being used
-      },
-      goal: {
-        id: state.goal.project_id || 'default', // Use project_id as goal id if no separate id field
-        description: state.goal.description,
-      },
-      queue: {
-        last_task_id: state.supervisor.last_task_id,
-      },
-    };
+    
+    // NEW: Use buildMinimalState for Smart Context Injection
+    const minimalState = promptBuilder.buildMinimalSnapshot(state, task, sandboxCwd);
+    
     logVerbose('ControlLoop', 'Minimal state snapshot created', {
       iteration,
       task_id: task.task_id,
       project_id: minimalState.project.id,
-      goal_id: minimalState.goal.id,
-      last_task_id: minimalState.queue.last_task_id,
+      goal_included: !!minimalState.goal,
+      queue_included: !!minimalState.queue,
+      completed_tasks_included: !!minimalState.completed_tasks,
+      blocked_tasks_included: !!minimalState.blocked_tasks,
     });
     const prompt = buildPrompt(task, minimalState);
     const promptBuildDuration = Date.now() - promptBuildStartTime;
@@ -991,12 +984,21 @@ export async function controlLoop(
       const retryCount = (state.supervisor as any)[retryKey] || 0;
       const maxRetries = task.retry_policy?.max_retries || 3;
       
-      log(`[Iteration ${iteration}] Task ${task.task_id}: Retry needed (attempt ${retryCount + 1}/${maxRetries})`);
+      // NEW: Repeated Error Detection
+      const lastErrorKey = `last_error_${task.task_id}`;
+      const previousError = (state.supervisor as any)[lastErrorKey];
+      const currentError = validationReport.reason;
+      const isRepeatedError = previousError === currentError;
+      
+      (state.supervisor as any)[lastErrorKey] = currentError; // Store for next attempt
+
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Retry needed (attempt ${retryCount + 1}/${maxRetries})${isRepeatedError ? ' [REPEATED ERROR]' : ''}`);
       logVerbose('ControlLoop', 'Retry required', {
         iteration,
         task_id: task.task_id,
         retry_count: retryCount,
         max_retries: maxRetries,
+        is_repeated: isRepeatedError,
         retry_reason: !validationReport.valid ? 'validation_failed' : 'ambiguity_or_question',
         validation_reason: validationReport.reason,
         halt_reason: haltReason,
@@ -1106,9 +1108,13 @@ export async function controlLoop(
       if (!validationReport.valid) {
         // Validation failed - use fix prompt with validation feedback
         log(`[Iteration ${iteration}] Task ${task.task_id}: Building fix prompt (validation failed)`);
-        promptType = 'fix';
+        promptType = isRepeatedError ? 'strict_fix' : 'fix';
         logType = 'FIX_PROMPT';
         fixPrompt = buildFixPrompt(task, minimalState, validationReport);
+        
+        if (isRepeatedError) {
+          fixPrompt += '\n\n**STRICT ADHERENCE REQUIRED**: Your previous attempt failed with the EXACT same error. You MUST change your approach or provide more detailed evidence.';
+        }
       } else if (haltReason && ['AMBIGUITY', 'ASKED_QUESTION'].includes(haltReason)) {
         // Validation passed but ambiguity/question detected - use clarification prompt
         log(`[Iteration ${iteration}] Task ${task.task_id}: Building clarification prompt (${haltReason})`);

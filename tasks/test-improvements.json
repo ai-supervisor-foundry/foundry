@@ -1,0 +1,18 @@
+[
+  {
+    "task_id": "test-supervisor-improvements-001",
+    "intent": "Verify BottomNav implementation state (Read-Only)",
+    "tool": "cursor-cli",
+    "instructions": "Analyze `src/components/BottomNav.tsx`. Confirm that the 'Vehicle' tab appears before the 'Property' tab in the code definition. Check for accessibility attributes. **DO NOT EDIT ANY FILES. READ ONLY.** Report your findings in the output.",
+    "acceptance_criteria": [
+      "Confirmed 'Vehicle' comes before 'Property' in code",
+      "Confirmed existence of semantic HTML or ARIA roles",
+      "No files were modified"
+    ],
+    "working_directory": "easeclassifieds",
+    "status": "pending",
+    "retry_policy": {
+      "max_retries": 2
+    }
+  }
+]

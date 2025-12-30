@@ -5,9 +5,45 @@ import { CLIAdapter } from './cliAdapter';
 import { CommandGenerationResult } from './types';
 import { log as logShared, logVerbose } from './logger';
 import { appendPromptLog } from './promptLogger';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 function log(message: string, ...args: unknown[]): void {
   logShared('CommandGenerator', message, ...args);
+}
+
+/**
+ * Recursively list files in a directory
+ * Limits depth and total file count to prevent huge context
+ */
+async function getFileList(dir: string, maxFiles = 100, depth = 0, maxDepth = 5): Promise<string[]> {
+  const fileList: string[] = [];
+  if (depth > maxDepth) return fileList;
+
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      if (fileList.length >= maxFiles) break;
+      
+      const fullPath = path.join(dir, entry.name);
+      
+      if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'build') {
+        continue; // Skip hidden files and common build/dependency dirs
+      }
+
+      if (entry.isDirectory()) {
+        const subFiles = await getFileList(fullPath, maxFiles - fileList.length, depth + 1, maxDepth);
+        fileList.push(...subFiles);
+      } else {
+        fileList.push(fullPath);
+      }
+    }
+  } catch (error) {
+    log(`Error listing files in ${dir}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  
+  return fileList;
 }
 
 /**
@@ -36,8 +72,18 @@ export async function generateValidationCommands(
   // Use helper agent mode from env or default to 'auto'
   const agentMode = helperAgentMode || process.env.HELPER_AGENT_MODE || 'auto';
 
+  // Discover code files to provide context
+  let codeFiles: string[] = [];
+  try {
+    const files = await getFileList(sandboxCwd);
+    // Convert to relative paths
+    codeFiles = files.map(f => path.relative(sandboxCwd, f));
+  } catch (error) {
+    log(`Failed to discover code files: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
   // Build prompt for Helper Agent
-  const prompt = buildCommandGenerationPrompt(agentResponse, failedCriteria, sandboxCwd);
+  const prompt = buildEnhancedHelperAgentPrompt(agentResponse, failedCriteria, sandboxCwd, codeFiles);
 
   // Log Helper Agent prompt
   if (sandboxRoot && projectId && taskId) {
@@ -119,19 +165,21 @@ export async function generateValidationCommands(
 /**
  * Build prompt for Helper Agent to generate validation commands
  */
-function buildCommandGenerationPrompt(
+function buildEnhancedHelperAgentPrompt(
   agentResponse: string,
   failedCriteria: string[],
-  sandboxCwd: string
+  sandboxCwd: string,
+  codeFiles: string[]
 ): string {
   const sections: string[] = [];
 
-  sections.push('## Command Generation Task');
+  sections.push('## Enhanced Verification Task');
   sections.push('');
-  sections.push('You are a Helper Agent tasked with generating read-only shell commands to verify acceptance criteria.');
+  sections.push('You are a Helper Agent with access to the codebase. Your task is to VERIFY, not assume.');
   sections.push('');
   sections.push('**Context:**');
   sections.push(`- Working Directory: ${sandboxCwd}`);
+  sections.push(`- Available Code Files: ${codeFiles.slice(0, 50).join(', ')}${codeFiles.length > 50 ? '...' : ''}`);
   sections.push(`- An agent has attempted to implement the following acceptance criteria:`);
   sections.push('');
 
@@ -153,36 +201,30 @@ function buildCommandGenerationPrompt(
   sections.push('');
 
   sections.push('**Your Task:**');
-  sections.push('Analyze the agent response and determine:');
-  sections.push('1. If the criteria are actually satisfied (based on the response), return `isValid: true`');
-  sections.push('2. If not, generate read-only shell commands that can verify each failed criterion');
+  sections.push('For EACH criterion, you MUST:');
+  sections.push('1. **Read the actual code files** mentioned in the agent response (if any)');
+  sections.push('2. **Search the codebase** for implementation evidence');
+  sections.push('3. **Verify file existence** and content');
+  sections.push('4. **Check for specific patterns** (endpoints, functions, classes, etc.)');
+  sections.push('');
+  sections.push('**Verification Rules:**');
+  sections.push('- ❌ DO NOT assume based on agent\'s description alone');
+  sections.push('- ✅ DO verify by checking actual code files');
+  sections.push('- ✅ DO generate verification commands if uncertain');
+  sections.push('- ✅ DO mark isValid=true ONLY if you can verify in code');
   sections.push('');
   sections.push('**Command Requirements:**');
   sections.push('- Commands must be READ-ONLY only (no file modifications)');
   sections.push('- Allowed commands: `ls`, `find`, `grep`, `cat`, `head`, `tail`, `wc`, `file`, `stat`, `test`, `[`, `readlink`, `pwd`, `basename`, `dirname`');
   sections.push('- Commands should check for file existence, content patterns, or directory structure');
-  sections.push('- Commands should be specific to verifying the failed criteria');
   sections.push('- **IMPORTANT**: For grep commands, use flexible patterns (without quotes) or regex patterns that match variations');
   sections.push('- Example: Use `grep -n "Load More"` or `grep -n Load.*More` instead of `grep -n \'"Load More"\'`');
   sections.push('- Use absolute paths or paths relative to the working directory');
   sections.push('');
-  sections.push('**Command Examples:**');
-  sections.push('- ✅ Good: `grep -n "Load More" App.tsx` (flexible quotes)');
-  sections.push('- ✅ Good: `grep -n Load.*More App.tsx` (regex pattern)');
-  sections.push('- ✅ Good: `grep -n hasMore App.tsx` (variable name)');
-  sections.push('- ❌ Bad: `grep -n \'"Load More"\' App.tsx` (too strict, exact quotes)');
-  sections.push('- ❌ Bad: `grep -n "exact string with quotes" file.tsx` (may not match code)');
-  sections.push('');
-  sections.push('**Command Generation Guidelines:**');
-  sections.push('- Prefer regex patterns over exact string matches');
-  sections.push('- Use case-insensitive patterns when possible');
-  sections.push('- Check for variable names, function names, and UI text separately');
-  sections.push('- Generate multiple commands to verify different aspects of a criterion');
-  sections.push('');
   sections.push('**Output Format (JSON):**');
   sections.push('```json');
   sections.push('{');
-  sections.push('  "isValid": boolean,  // true if criteria are satisfied, false if commands needed');
+  sections.push('  "isValid": boolean,  // true if criteria are satisfied based on your analysis, false if commands needed');
   sections.push('  "verificationCommands": [  // Array of shell commands (if isValid is false)');
   sections.push('    "command1",');
   sections.push('    "command2"');
@@ -190,12 +232,6 @@ function buildCommandGenerationPrompt(
   sections.push('  "reasoning": "Brief explanation"  // Optional');
   sections.push('}');
   sections.push('```');
-  sections.push('');
-  sections.push('**Important:**');
-  sections.push('- If `isValid` is `true`, `verificationCommands` should be an empty array');
-  sections.push('- If `isValid` is `false`, provide specific commands to verify each criterion');
-  sections.push('- Commands will be executed in the working directory');
-  sections.push('- Only generate commands that are safe and read-only');
 
   return sections.join('\n');
 }

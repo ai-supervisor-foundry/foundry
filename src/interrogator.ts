@@ -136,6 +136,76 @@ async function validateInterrogationResponse(
   return results;
 }
 
+interface InterrogationContext {
+  potentialLocations: { [criterion: string]: string[] };
+}
+
+/**
+ * Recursively list files in a directory
+ */
+async function getFileList(dir: string, maxFiles = 100, depth = 0, maxDepth = 5): Promise<string[]> {
+  const fileList: string[] = [];
+  if (depth > maxDepth) return fileList;
+
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      if (fileList.length >= maxFiles) break;
+      
+      const fullPath = path.join(dir, entry.name);
+      
+      if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'build') {
+        continue;
+      }
+
+      if (entry.isDirectory()) {
+        const subFiles = await getFileList(fullPath, maxFiles - fileList.length, depth + 1, maxDepth);
+        fileList.push(...subFiles);
+      } else {
+        fileList.push(fullPath);
+      }
+    }
+  } catch (error) {
+    log(`Error listing files in ${dir}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  
+  return fileList;
+}
+
+/**
+ * Pre-analyze codebase before interrogation to find relevant files
+ */
+async function preAnalyzeForInterrogation(
+  criteria: string[],
+  sandboxCwd: string
+): Promise<InterrogationContext> {
+  log(`Pre-analyzing codebase for ${criteria.length} criteria`);
+  const context: InterrogationContext = { potentialLocations: {} };
+  
+  try {
+    const allFiles = await getFileList(sandboxCwd, 200); // Check up to 200 files
+    const relativeFiles = allFiles.map(f => path.relative(sandboxCwd, f));
+
+    for (const criterion of criteria) {
+      const criterionLower = criterion.toLowerCase();
+      const keywords = criterionLower.split(/\s+/).filter(w => w.length > 3 && !['with', 'from', 'the', 'and', 'for'].includes(w));
+      
+      // Find files that match keywords in their name
+      const potentialFiles = relativeFiles.filter(file => {
+        const fileName = path.basename(file).toLowerCase();
+        return keywords.some(kw => fileName.includes(kw));
+      });
+
+      context.potentialLocations[criterion] = potentialFiles.slice(0, 5); // Limit to 5 per criterion
+    }
+  } catch (error) {
+    log(`Pre-analysis failed: ${error}`);
+  }
+
+  return context;
+}
+
 /**
  * Build batched interrogation prompt for multiple criteria
  */
@@ -147,7 +217,8 @@ async function buildBatchedInterrogationPrompt(
   minimalState: MinimalState,
   previousRoundResponses: { [criterion: string]: InterrogationResult[] } | undefined,
   sandboxCwd: string,
-  cliAdapter: CLIAdapter
+  cliAdapter: CLIAdapter,
+  interrogationContext?: InterrogationContext
 ): Promise<string> {
   const sections: string[] = [];
   
@@ -162,6 +233,19 @@ async function buildBatchedInterrogationPrompt(
     sections.push(`${index + 1}. ${criterion}`);
   });
   sections.push('');
+
+  // Include Pre-Analysis Results if available
+  if (interrogationContext && Object.keys(interrogationContext.potentialLocations).length > 0) {
+    sections.push('## Pre-Analysis Findings');
+    sections.push('The supervisor found potential implementation locations based on keywords:');
+    for (const criterion of criteria) {
+      const locations = interrogationContext.potentialLocations[criterion] || [];
+      if (locations.length > 0) {
+        sections.push(`- **${criterion}**: Possible files: ${locations.join(', ')}`);
+      }
+    }
+    sections.push('');
+  }
   
   sections.push(`**Question ${questionNumber} of ${maxQuestions}:**`);
   sections.push('');
@@ -184,6 +268,7 @@ async function buildBatchedInterrogationPrompt(
   
   sections.push(`Please provide the location of the implementation for EACH criterion.`);
   sections.push(`If a file path you provided previously was incorrect (e.g., "File not found"), provide the CORRECT path.`);
+  sections.push(`Check if the "Pre-Analysis Findings" above contain the implementation.`);
   sections.push('');
   sections.push(`**REQUIRED RESPONSE FORMAT (JSON ONLY):**`);
   sections.push('```json');
@@ -237,6 +322,9 @@ export async function interrogateAgent(
   const previousRoundResponses: { [criterion: string]: InterrogationResult[] } = {};
   let questionNumber = 1;
 
+  // Perform pre-analysis once before starting rounds
+  const interrogationContext = await preAnalyzeForInterrogation(unresolvedCriteria, sandboxCwd);
+
   // Process in rounds: up to maxQuestionsPerCriterion rounds
   // Each round: one prompt with ALL remaining unresolved criteria → one response → analyze all
   while (questionNumber <= maxQuestionsPerCriterion && unresolvedCriteria.length > 0) {
@@ -258,7 +346,8 @@ export async function interrogateAgent(
       minimalState,
       questionNumber > 1 ? previousRoundResponses : undefined,
       sandboxCwd,
-      cliAdapter
+      cliAdapter,
+      interrogationContext
     );
 
     log(`Built batched interrogation prompt for ${unresolvedCriteria.length} criteria`);
