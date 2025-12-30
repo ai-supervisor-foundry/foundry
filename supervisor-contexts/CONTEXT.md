@@ -663,7 +663,7 @@ tail -f sandbox/<project-id>/audit.log.jsonl
 pm2 logs supervisor --follow
 ```
 
-### 6. Halt/Resume
+### Halt/Resume
 
 ```bash
 # Halt
@@ -682,6 +682,28 @@ npm run cli -- resume \
   --state-key supervisor:state \
   --queue-name tasks \
   --queue-db 2
+```
+
+### State Management
+
+To dump the current state to a JSON file (for debugging or backup):
+
+```bash
+npm run tsx scripts/dump-state.ts -- \
+  --redis-host localhost \
+  --redis-port 6499 \
+  --state-key supervisor:state \
+  --output STATE.json
+```
+
+To load state from a JSON file (overwriting Redis state):
+
+```bash
+npm run tsx scripts/load-state.ts -- \
+  --redis-host localhost \
+  --redis-port 6499 \
+  --state-key supervisor:state \
+  --input STATE.json
 ```
 
 ## Key Components

@@ -13,40 +13,127 @@ function log(message: string, ...args: unknown[]): void {
   logShared('Interrogator', message, ...args);
 }
 
+interface InterrogationAgentResponse {
+  results: {
+    [criterion: string]: {
+      status: "COMPLETE" | "INCOMPLETE" | "NOT_STARTED";
+      file_paths: string[];
+      evidence_snippet?: string;
+    }
+  }
+}
+
 /**
- * Generate a better interrogation question using agent assistance (for 2nd question)
+ * Validate agent response deterministically (no LLM)
+ * Checks file existence and content
  */
-async function generateBetterQuestion(
-  criterion: string,
-  task: Task,
-  sandboxCwd: string,
-  cliAdapter: CLIAdapter,
-  previousResponses: InterrogationResult[],
-  minimalState: MinimalState
-): Promise<string> {
-  const prompt = `You are helping generate a precise interrogation question.
+async function validateInterrogationResponse(
+  criteria: string[],
+  agentResponse: string,
+  sandboxRoot: string
+): Promise<{ [criterion: string]: { result: 'COMPLETE' | 'INCOMPLETE' | 'UNCERTAIN'; reason: string; file_paths?: string[] } }> {
+  log(`Validating interrogation response deterministically`);
+  
+  const results: { [criterion: string]: { result: 'COMPLETE' | 'INCOMPLETE' | 'UNCERTAIN'; reason: string; file_paths?: string[] } } = {};
+  
+  // Initialize all as UNCERTAIN/INCOMPLETE first
+  for (const c of criteria) {
+    results[c] = { result: 'UNCERTAIN', reason: 'No data provided', file_paths: [] };
+  }
 
-Criterion: "${criterion}"
-Task: ${task.intent}
-Working Directory: ${sandboxCwd}
-Sandbox Root: ${minimalState.project.sandbox_root}
+  try {
+    // Parse JSON
+    let parsed: InterrogationAgentResponse | null = null;
+    const jsonMatch = agentResponse.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        log(`JSON parse error: ${e}`);
+      }
+    }
 
-Previous attempt:
-- Question: ${previousResponses[0].question}
-- Response: ${previousResponses[0].agent_response.substring(0, 500)}
+    if (!parsed || !parsed.results) {
+      log('Invalid JSON response format');
+      return criteria.reduce((acc, c) => ({
+        ...acc,
+        [c]: { result: 'UNCERTAIN', reason: 'Invalid JSON response format from agent', file_paths: [] }
+      }), {});
+    }
 
-Based on the criterion, task context, and the previous response, generate a SPECIFIC, targeted question that will help locate where this was implemented.
+    // Validate each criterion
+    for (const criterion of criteria) {
+      const agentResult = parsed.results[criterion];
+      
+      if (!agentResult) {
+        results[criterion] = { 
+          result: 'INCOMPLETE', 
+          reason: 'Agent did not provide result for this criterion', 
+          file_paths: [] 
+        };
+        continue;
+      }
 
-Consider:
-- What file types/locations are likely (e.g., services/, components/, docs/, src/)
-- What specific functionality/keywords to look for
-- If this is a design task, what documentation format to expect
-- What the previous response indicated (or didn't indicate)
+      if (agentResult.status !== 'COMPLETE') {
+        results[criterion] = { 
+          result: 'INCOMPLETE', 
+          reason: `Agent reported status: ${agentResult.status}`, 
+          file_paths: agentResult.file_paths || []
+        };
+        continue;
+      }
 
-Generate ONE specific, actionable question that will help find the implementation. Be more precise than the first question.`;
+      // Check files
+      if (!agentResult.file_paths || agentResult.file_paths.length === 0) {
+        // If it's a design task, maybe no files? But we requested file paths.
+        // For now, assume incomplete if no files for "COMPLETE" status unless explained?
+        // But our protocol demands file paths.
+        results[criterion] = { 
+          result: 'UNCERTAIN', 
+          reason: 'Marked COMPLETE but no file paths provided', 
+          file_paths: [] 
+        };
+        continue;
+      }
 
-  const result = await cliAdapter.execute(prompt, sandboxCwd, 'auto');
-  return result.stdout.trim();
+      const validFiles: string[] = [];
+      const missingFiles: string[] = [];
+
+      for (const filePath of agentResult.file_paths) {
+        const fullPath = path.join(sandboxRoot, filePath);
+        try {
+          await fs.access(fullPath);
+          validFiles.push(filePath);
+        } catch {
+          missingFiles.push(filePath);
+        }
+      }
+
+      if (missingFiles.length > 0) {
+        results[criterion] = { 
+          result: 'INCOMPLETE', 
+          reason: `Files not found: ${missingFiles.join(', ')}`, 
+          file_paths: validFiles 
+        };
+      } else {
+        results[criterion] = { 
+          result: 'COMPLETE', 
+          reason: 'All files verified to exist', 
+          file_paths: validFiles 
+        };
+      }
+    }
+
+  } catch (error) {
+    log(`Validation error: ${error}`);
+    return criteria.reduce((acc, c) => ({
+      ...acc,
+      [c]: { result: 'UNCERTAIN', reason: `Validation error: ${error}`, file_paths: [] }
+    }), {});
+  }
+
+  return results;
 }
 
 /**
@@ -65,7 +152,8 @@ async function buildBatchedInterrogationPrompt(
   const sections: string[] = [];
   
   sections.push('## Interrogation Request');
-  sections.push(`You are being asked to clarify where you implemented the following acceptance criteria:`);
+  sections.push(`You are being asked to clarify where you implemented the following acceptance criteria.`);
+  sections.push(`You MUST respond with a strict JSON object.`);
   sections.push('');
   
   // List all criteria
@@ -80,248 +168,42 @@ async function buildBatchedInterrogationPrompt(
   
   // Include previous responses if this is a follow-up round
   if (previousRoundResponses && Object.keys(previousRoundResponses).length > 0) {
-    sections.push('## Previous Responses');
+    sections.push('## Previous Errors');
     for (const [criterion, responses] of Object.entries(previousRoundResponses)) {
       if (responses.length > 0) {
-        sections.push(`**Criterion:** ${criterion}`);
-        sections.push(`- **Question:** ${responses[responses.length - 1].question}`);
-        sections.push(`  **Your Response:** ${responses[responses.length - 1].agent_response.substring(0, 300)}${responses[responses.length - 1].agent_response.length > 300 ? '...' : ''}`);
-        sections.push('');
-      }
-    }
-    sections.push('## Current Question');
-  }
-  
-  sections.push(`Please provide information for EACH of the ${criteria.length} criteria above. For each criterion, provide ONE of the following:`);
-  sections.push(`1. The exact file path(s) where this criterion is implemented (relative to ${minimalState.project.sandbox_root})`);
-  sections.push(`2. A detailed explanation of how this criterion was satisfied`);
-  sections.push(`3. If this is a design/planning task, where the design document or specification is located`);
-  sections.push('');
-  sections.push(`**Important:**`);
-  sections.push(`- Be specific and concrete for each criterion`);
-  sections.push(`- Provide file paths if applicable`);
-  sections.push(`- If you haven't implemented a criterion yet, say so explicitly`);
-  sections.push(`- Working directory: ${minimalState.project.sandbox_root}`);
-  sections.push('');
-  sections.push(`**Format your response clearly, addressing each criterion separately.**`);
-  
-  return sections.join('\n');
-}
-
-/**
- * Build interrogation prompt for a specific criterion (DEPRECATED - kept for backward compatibility)
- */
-async function buildInterrogationPrompt(
-  task: Task,
-  criterion: string,
-  questionNumber: number,
-  maxQuestions: number,
-  minimalState: MinimalState,
-  previousResponses: InterrogationResult[] | undefined,
-  sandboxCwd: string,
-  cliAdapter: CLIAdapter
-): Promise<string> {
-  // For 2nd question, use agent-assisted question generation
-  if (questionNumber === 2 && previousResponses && previousResponses.length > 0) {
-    log(`Generating agent-assisted question for criterion: "${criterion}"`);
-    const betterQuestion = await generateBetterQuestion(
-      criterion,
-      task,
-      sandboxCwd,
-      cliAdapter,
-      previousResponses,
-      minimalState
-    );
-    
-    const sections: string[] = [];
-    sections.push('## Interrogation Request');
-    sections.push(`You are being asked to clarify where you implemented the following acceptance criterion:`);
-    sections.push('');
-    sections.push(`**Criterion:** ${criterion}`);
-    sections.push('');
-    sections.push(`**Question ${questionNumber} of ${maxQuestions}:**`);
-    sections.push('');
-    sections.push('## Previous Response');
-    sections.push(`- **Question:** ${previousResponses[0].question}`);
-    sections.push(`  **Your Response:** ${previousResponses[0].agent_response}`);
-    sections.push('');
-    sections.push('## Current Question');
-    sections.push(betterQuestion);
-    sections.push('');
-    sections.push(`**Working directory:** ${minimalState.project.sandbox_root}`);
-    sections.push('');
-    
-    return sections.join('\n');
-  }
-
-  // Standard prompt for 1st question and subsequent questions
-  const sections: string[] = [];
-
-  sections.push('## Interrogation Request');
-  sections.push(`You are being asked to clarify where you implemented the following acceptance criterion:`);
-  sections.push('');
-  sections.push(`**Criterion:** ${criterion}`);
-  sections.push('');
-  sections.push(`**Question ${questionNumber} of ${maxQuestions}:**`);
-  sections.push('');
-  
-  if (previousResponses && previousResponses.length > 0) {
-    sections.push('## Previous Responses');
-    for (const prev of previousResponses) {
-      sections.push(`- **Question:** ${prev.question}`);
-      sections.push(`  **Your Response:** ${prev.agent_response}`);
-      sections.push('');
-    }
-    sections.push('## Current Question');
-  }
-  
-  sections.push(`Please provide ONE of the following:`);
-  sections.push(`1. The exact file path(s) where this criterion is implemented (relative to ${minimalState.project.sandbox_root})`);
-  sections.push(`2. A detailed explanation of how this criterion was satisfied`);
-  sections.push(`3. If this is a design/planning task, where the design document or specification is located`);
-  sections.push('');
-  sections.push(`**Important:**`);
-  sections.push(`- Be specific and concrete`);
-  sections.push(`- Provide file paths if applicable`);
-  sections.push(`- If you haven't implemented this yet, say so explicitly`);
-  sections.push(`- Working directory: ${minimalState.project.sandbox_root}`);
-  sections.push('');
-
-  return sections.join('\n');
-}
-
-/**
- * Analyze batched agent response for multiple criteria
- */
-async function analyzeBatchedResponse(
-  criteria: string[],
-  agentResponse: string,
-  sandboxCwd: string,
-  cliAdapter: CLIAdapter,
-  agentMode?: string
-): Promise<{ [criterion: string]: { result: 'COMPLETE' | 'INCOMPLETE' | 'UNCERTAIN'; reason: string; file_paths?: string[] } }> {
-  log(`Analyzing batched response for ${criteria.length} criteria`);
-  
-  const analysisPrompt = `## Analysis Task
-
-You are analyzing an agent's response to determine if multiple acceptance criteria have been satisfied.
-
-**Criteria to analyze:**
-${criteria.map((c, i) => `${i + 1}. ${c}`).join('\n')}
-
-**Agent's Response:**
-${agentResponse}
-
-**Working Directory:** ${sandboxCwd}
-
-**Instructions:**
-For EACH criterion, determine:
-1. Check if the agent provided file paths for this criterion. If so, verify those files exist and contain relevant content.
-2. Check if the agent provided a detailed explanation that demonstrates the criterion is satisfied.
-3. Check if the agent explicitly stated the work is incomplete or not done for this criterion.
-4. For design/planning tasks, check if documentation or design files exist.
-
-**Output Format:**
-Respond with a JSON object where each key is a criterion (exact text) and value is:
-{
-  "result": "COMPLETE" | "INCOMPLETE" | "UNCERTAIN",
-  "reason": "Brief explanation",
-  "file_paths": ["path1", "path2"] // if files were mentioned
-}
-
-Example:
-{
-  "POST /favorites/:listingId adds listing to favorites": {
-    "result": "COMPLETE",
-    "reason": "File src/modules/favorites/favorites.controller.ts contains the endpoint",
-    "file_paths": ["src/modules/favorites/favorites.controller.ts"]
-  },
-  "DELETE /favorites/:listingId removes from favorites": {
-    "result": "UNCERTAIN",
-    "reason": "Response mentions endpoint but no file path provided",
-    "file_paths": []
-  }
-}
-
-Be strict but fair. Only mark COMPLETE if you can verify the work exists.`;
-
-  const cursorResult = await cliAdapter.execute(analysisPrompt, sandboxCwd, agentMode || 'auto');
-  const analysisOutput = cursorResult.stdout || cursorResult.rawOutput || '';
-
-  try {
-    // Try multiple JSON extraction strategies
-    let jsonMatch = analysisOutput.match(/\{[\s\S]*\}/);
-    
-    // If no match, try to find JSON in code blocks
-    if (!jsonMatch) {
-      const codeBlockMatch = analysisOutput.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (codeBlockMatch) {
-        jsonMatch = [codeBlockMatch[1]];
-      }
-    }
-    
-    // If still no match, try to extract JSON object from markdown
-    if (!jsonMatch) {
-      const markdownJsonMatch = analysisOutput.match(/```json\s*(\{[\s\S]*?\})\s*```/);
-      if (markdownJsonMatch) {
-        jsonMatch = [markdownJsonMatch[1]];
-      }
-    }
-    
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      
-      // Validate that parsed object has the expected structure
-      if (typeof parsed === 'object' && parsed !== null) {
-        // Check if it's a valid criteria mapping
-        const hasValidStructure = criteria.some(c => 
-          typeof parsed[c] === 'object' && 
-          parsed[c] !== null &&
-          ['COMPLETE', 'INCOMPLETE', 'UNCERTAIN'].includes(parsed[c].result)
-        );
-        
-        if (hasValidStructure) {
-          return parsed;
+        const lastResponse = responses[responses.length - 1];
+        if (lastResponse.analysis_result !== 'COMPLETE') {
+            sections.push(`**Criterion:** ${criterion}`);
+            sections.push(`- **Issue:** ${lastResponse.analysis_reason}`);
+            sections.push('');
         }
       }
     }
-  } catch (error) {
-    log(`Failed to parse batched analysis JSON: ${error instanceof Error ? error.message : String(error)}`);
-    log(`Analysis output preview: ${analysisOutput.substring(0, 500)}`);
-  }
-
-  // Fallback: extract individual criterion results from text
-  const fallback: { [criterion: string]: { result: 'COMPLETE' | 'INCOMPLETE' | 'UNCERTAIN'; reason: string; file_paths?: string[] } } = {};
-  
-  for (const criterion of criteria) {
-    const criterionLower = criterion.toLowerCase();
-    const responseLower = analysisOutput.toLowerCase();
-    
-    // Check for positive indicators
-    if (responseLower.includes(criterionLower) && 
-        (responseLower.includes('complete') || responseLower.includes('implemented') || responseLower.includes('satisfied'))) {
-      fallback[criterion] = {
-        result: 'COMPLETE',
-        reason: 'Found positive indicators in response text',
-        file_paths: [],
-      };
-    } else if (responseLower.includes(criterionLower) && 
-               (responseLower.includes('incomplete') || responseLower.includes('not done') || responseLower.includes('missing'))) {
-      fallback[criterion] = {
-        result: 'INCOMPLETE',
-        reason: 'Found negative indicators in response text',
-        file_paths: [],
-      };
-    } else {
-      fallback[criterion] = {
-        result: 'UNCERTAIN',
-        reason: 'Could not parse analysis response',
-        file_paths: [],
-      };
-    }
+    sections.push('## Current Request');
   }
   
-  return fallback;
+  sections.push(`Please provide the location of the implementation for EACH criterion.`);
+  sections.push(`If a file path you provided previously was incorrect (e.g., "File not found"), provide the CORRECT path.`);
+  sections.push('');
+  sections.push(`**REQUIRED RESPONSE FORMAT (JSON ONLY):**`);
+  sections.push('```json');
+  sections.push('{');
+  sections.push('  "results": {');
+  sections.push(`    "${criteria[0]}": {`);
+  sections.push('      "status": "COMPLETE" | "INCOMPLETE" | "NOT_STARTED",');
+  sections.push('      "file_paths": ["src/path/to/file.ts"],');
+  sections.push('      "evidence_snippet": "optional code snippet proving implementation"');
+  sections.push('    }');
+  sections.push('  }');
+  sections.push('}');
+  sections.push('```');
+  sections.push('');
+  sections.push(`**Important:**`);
+  sections.push(`- Return ONLY the JSON object.`);
+  sections.push(`- Ensure "file_paths" are relative to: ${minimalState.project.sandbox_root}`);
+  sections.push(`- Verify the files actually exist before responding.`);
+  
+  return sections.join('\n');
 }
 
 /**
@@ -411,13 +293,11 @@ export async function interrogateAgent(
     log(`Batched interrogation response received in ${interrogationDuration}ms`);
     const agentResponse = cursorResult.stdout || cursorResult.rawOutput || '';
 
-    // Analyze response for all criteria
-    const analysisResults = await analyzeBatchedResponse(
+    // Validate response deterministically
+    const analysisResults = await validateInterrogationResponse(
       unresolvedCriteria,
       agentResponse,
-      sandboxCwd,
-      cliAdapter,
-      task.agent_mode
+      minimalState.project.sandbox_root
     );
 
     // Log response
@@ -476,7 +356,7 @@ export async function interrogateAgent(
         log(`✅ Criterion "${criterion}" confirmed COMPLETE in round ${questionNumber}`);
         newlyResolved.push(criterion);
       } else {
-        log(`⚠️ Criterion "${criterion}" still ${analysis.result} after round ${questionNumber}`);
+        log(`⚠️ Criterion "${criterion}" still ${analysis.result} after round ${questionNumber}. Reason: ${analysis.reason}`);
         stillUnresolved.push(criterion);
       }
     }
@@ -514,111 +394,6 @@ export async function interrogateAgent(
     interrogation_results: interrogationResults,
     all_criteria_satisfied: allCriteriaSatisfied,
     remaining_failed_criteria: remainingFailedCriteria,
-  };
-}
-
-/**
- * Analyze agent response using internal agent (Cursor CLI)
- * Determines if work is COMPLETE, INCOMPLETE, or UNCERTAIN
- */
-async function analyzeAgentResponse(
-  criterion: string,
-  agentResponse: string,
-  sandboxCwd: string,
-  cliAdapter: CLIAdapter,
-  agentMode?: string,
-  filePathsFromResponse?: string[]
-): Promise<{ result: 'COMPLETE' | 'INCOMPLETE' | 'UNCERTAIN'; reason: string; file_paths?: string[] }> {
-  log(`Analyzing agent response for criterion: "${criterion}"`);
-  logVerbose('Interrogator', 'Starting internal agent analysis', {
-    criterion,
-    response_length: agentResponse.length,
-  });
-
-  // Build analysis prompt for internal agent
-  const analysisPrompt = `## Analysis Task
-
-You are analyzing an agent's response to determine if an acceptance criterion has been satisfied.
-
-**Criterion:** ${criterion}
-
-**Agent's Response:**
-${agentResponse}
-
-**Working Directory:** ${sandboxCwd}
-
-**Instructions:**
-1. Check if the agent provided file paths. If so, verify those files exist and contain relevant content.
-2. Check if the agent provided a detailed explanation that demonstrates the criterion is satisfied.
-3. Check if the agent explicitly stated the work is incomplete or not done.
-4. For design/planning tasks, check if documentation or design files exist.
-
-**Output Format:**
-Respond with a JSON object:
-{
-  "result": "COMPLETE" | "INCOMPLETE" | "UNCERTAIN",
-  "reason": "Brief explanation of your analysis",
-  "file_paths": ["path1", "path2"] // if files were mentioned
-}
-
-**Analysis Rules:**
-- COMPLETE: Files exist and contain relevant content, OR explanation is sufficient for design tasks
-- INCOMPLETE: Agent explicitly states work not done, OR files don't exist, OR files are empty
-- UNCERTAIN: Cannot determine from response, need more information
-
-Be strict but fair. Only mark COMPLETE if you can verify the work exists.`;
-
-  // Execute analysis via Cursor CLI (use provided agentMode or default to 'auto' for internal agent)
-  const analysisStartTime = Date.now();
-      const cursorResult = await cliAdapter.execute(analysisPrompt, sandboxCwd, agentMode || 'auto');
-  const analysisDuration = Date.now() - analysisStartTime;
-  
-  log(`Internal agent analysis completed in ${analysisDuration}ms`);
-  logVerbose('Interrogator', 'Internal agent analysis completed', {
-    criterion,
-    analysis_duration_ms: analysisDuration,
-    response_length: cursorResult.stdout?.length || 0,
-  });
-
-  const analysisOutput = cursorResult.stdout || cursorResult.rawOutput || '';
-
-  // Parse analysis result
-  try {
-    // Try to extract JSON from response
-    const jsonMatch = analysisOutput.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const analysis = JSON.parse(jsonMatch[0]);
-      return {
-        result: analysis.result || 'UNCERTAIN',
-        reason: analysis.reason || 'Analysis completed',
-        file_paths: analysis.file_paths || [],
-      };
-    }
-  } catch (error) {
-    log(`Failed to parse analysis JSON: ${error instanceof Error ? error.message : String(error)}`);
-  }
-
-  // Fallback: Check response text for indicators
-  const responseLower = analysisOutput.toLowerCase();
-  if (responseLower.includes('complete') && !responseLower.includes('incomplete')) {
-    return {
-      result: 'COMPLETE',
-      reason: 'Internal agent indicated completion',
-      file_paths: [],
-    };
-  } else if (responseLower.includes('incomplete') || responseLower.includes('not done') || responseLower.includes('missing')) {
-    return {
-      result: 'INCOMPLETE',
-      reason: 'Internal agent indicated incompletion',
-      file_paths: [],
-    };
-  }
-
-  // Default to UNCERTAIN
-  return {
-    result: 'UNCERTAIN',
-    reason: 'Could not determine from analysis response',
-    file_paths: [],
   };
 }
 

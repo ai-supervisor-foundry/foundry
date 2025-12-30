@@ -716,6 +716,28 @@ pm2 logs supervisor --lines 200 | grep "\[STATE_TRANSITION\]"
 redis-cli -h localhost -p 6499 DEL supervisor:state
 ```
 
+### State Management
+
+To dump the current state to a JSON file (for debugging or backup):
+
+```bash
+npm run tsx scripts/dump-state.ts -- \
+  --redis-host localhost \
+  --redis-port 6499 \
+  --state-key supervisor:state \
+  --output STATE.json
+```
+
+To load state from a JSON file (overwriting Redis state):
+
+```bash
+npm run tsx scripts/load-state.ts -- \
+  --redis-host localhost \
+  --redis-port 6499 \
+  --state-key supervisor:state \
+  --input STATE.json
+```
+
 ### Reset Queue
 
 ```bash

@@ -59,7 +59,7 @@ export async function dispatchToGemini(
   args.push('--yolo');
   
   // Add prompt as argument
-  args.push(prompt+ ". Dont announce, start on it immediately. Dont waste time in small talk. ");
+  args.push(prompt);
   
   log(`Spawning: ${geminiCommand} ${args.join(' ')}`);
 

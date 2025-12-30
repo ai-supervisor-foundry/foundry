@@ -1,3 +1,96 @@
+# compiled output
+/dist
+/node_modules
+**/node_modules
+node_modules
+/build
+*.js
+!.eslintrc.js
+!jest.config.js
+!ecosystem.config.js
+!test-handlebars-compilation.js
+!utils/**/*.js
+!tests-projects/**/*.js
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+
+# Tests
+/coverage
+/.nyc_output
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+.env.*
+!.env.example
+*.secret
+
+# temp directory
+.temp
+.tmp
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Development helpers / dir
+sandbox
+**/sandbox/**
+postgres
+pgadmin
+.pgpass
+tmp
+
+# Docker Compose data directories
+localstack-data
+**/localstack-data/**
+
+# LocalStack SSL certificates (generated)
+utils/infrastructure/localstack-nginx/ssl/
+**/localstack-nginx/ssl/
+
+# submodules to ignore
+src/etls
+**/etls/.env
+# Metrics stack data
+prometheus_data/
+grafana_data/
+PERFORMANCE_ANALYSIS.md
+
 *.env*
 !.env.example
 
