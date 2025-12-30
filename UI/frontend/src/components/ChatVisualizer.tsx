@@ -37,15 +37,31 @@ export default function ChatVisualizer({ logs, className = '' }: ChatVisualizerP
       
       // Determine if this is a supervisor message (prompt) or agent message (response)
       let messageType: 'supervisor' | 'agent';
-      if (type.includes('PROMPT')) {
+      
+      const supervisorTypes = [
+        'PROMPT',
+        'INTERROGATION_PROMPT',
+        'FIX_PROMPT',
+        'CLARIFICATION_PROMPT',
+        'HELPER_AGENT_PROMPT',
+        'GOAL_COMPLETION_CHECK'
+      ];
+      
+      const agentTypes = [
+        'RESPONSE',
+        'INTERROGATION_RESPONSE',
+        'HELPER_AGENT_RESPONSE',
+        'GOAL_COMPLETION_RESPONSE'
+      ];
+
+      if (supervisorTypes.includes(type)) {
         messageType = 'supervisor';
-      } else if (type.includes('RESPONSE')) {
+      } else if (agentTypes.includes(type)) {
         messageType = 'agent';
+      } else if (type.includes('PROMPT') || type.includes('CHECK')) {
+        messageType = 'supervisor';
       } else {
-        // Default: prompts are supervisor, responses are agent
-        messageType = type === 'PROMPT' || type === 'INTERROGATION_PROMPT' || type === 'FIX_PROMPT' || type === 'CLARIFICATION_PROMPT'
-          ? 'supervisor'
-          : 'agent';
+        messageType = 'agent';
       }
       
       // Extract interrogation details
@@ -88,6 +104,10 @@ export default function ChatVisualizer({ logs, className = '' }: ChatVisualizerP
       'INTERROGATION_RESPONSE': 'Interrogation Response',
       'FIX_PROMPT': 'Fix Request',
       'CLARIFICATION_PROMPT': 'Clarification Request',
+      'HELPER_AGENT_PROMPT': 'Helper Agent Request',
+      'HELPER_AGENT_RESPONSE': 'Helper Agent Response',
+      'GOAL_COMPLETION_CHECK': 'Goal Check',
+      'GOAL_COMPLETION_RESPONSE': 'Goal Check Response',
     };
     return typeMap[type] || type;
   };
