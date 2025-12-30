@@ -46,11 +46,17 @@ export async function dispatchToGemini(
   
   // Set output format to text (for non-interactive mode)
   args.push('--output-format', 'text');
+
+  // eg: gemini --include-directories ../lib,../docs
+  args.push('--include-directories', './');
   
   // Set model if provided (agentMode maps to Gemini model)
   if (agentMode && agentMode !== 'auto') {
     args.push('--model', agentMode);
   }
+
+  // Yolo by default
+  args.push('--yolo');
   
   // Add prompt as argument
   args.push(prompt+ ". Dont announce, start on it immediately. Dont waste time in small talk. ");
