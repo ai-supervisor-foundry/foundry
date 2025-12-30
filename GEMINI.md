@@ -1,4 +1,60 @@
-# Supervisor Specifications
+# Main overview (This project):
+# Supervisor
+
+A **persistent orchestration layer for AI-assisted software development** that enables long-running, restart-safe project execution with full operator control and auditability.
+
+## What This Is
+
+The Supervisor is a control plane for AI development that externalizes memory, intent, and control so work can continue across interruptions, sleep, crashes, or session loss. You define a goal and break it into explicit tasks with acceptance criteria. The supervisor executes tasks autonomously using Cursor CLI (in AUTO mode) while maintaining persistent state, deterministic validation, and full auditability.
+
+**Workflow**:
+```
+Operator provides:
+  ├─ Code Boilerplates (in sandbox/<project-id>/)
+  ├─ Tasks (via enqueue command)
+  └─ Goal (via set-goal command)
+         ↓
+Supervisor autonomously:
+  ├─ Executes tasks in order
+  ├─ Works with existing code
+  ├─ Validates outputs
+  ├─ Persists state
+  └─ Continues until goal met or halted
+```
+
+This enables a **"set it and forget it"** workflow where you provide the foundation (boilerplates), the plan (tasks), and the destination (goal), then the supervisor builds the project autonomously.
+
+## The Problem It Solves
+
+AI tools like Cursor are powerful but ephemeral—context is lost on interruption, making long-running projects difficult. The Supervisor provides:
+- **Persistence**: State survives crashes, restarts, and interruptions
+- **Deterministic Control**: No surprises—explicit validation, clear halt conditions
+- **Long-Running Projects**: Work on complex projects over days or weeks
+- **Full Auditability**: Every action is logged and reviewable
+- **Cost-Effective**: Uses free tier tools (Cursor CLI, DragonflyDB)
+
+## How It Works
+
+The supervisor operates as a **strict control mechanism** that executes operator-defined tasks through a fixed control loop. It maintains persistent state in DragonflyDB (Redis-compatible), manages a FIFO task queue, dispatches tasks to Cursor CLI with injected state context, and validates outputs deterministically. The system enforces sandbox isolation per project, provides append-only audit logging, and supports recovery from crashes or restarts by reloading persisted state. The supervisor never invents goals, expands scope, or makes autonomous decisions—all authority remains with the operator who injects goals and tasks explicitly.
+
+## Overview
+
+The supervisor is a **control mechanism** that:
+- Holds externally injected goals
+- Maintains persistent state
+- Executes a fixed control loop
+- Delegates tasks to tools (Cursor CLI)
+- Validates results
+- Retries on validation failures and ambiguity (up to max retries)
+- Halts only on critical failures (execution errors, blocked status)
+
+It does **not**:
+- Invent goals
+- Act independently
+- Replace the operator
+- Make autonomous decisions
+
+## Supervisor Specifications
 
 - The supervisor does not define goals.
 - Operator must inject goals.
@@ -53,3 +109,22 @@ If tempted → HALT.
 3. **File Size**: Each window file targets 50K-100K tokens (30K-60K words) for very large context models.
 4. **Usage**: Use supervisor context files when working on the supervisor system itself (not project tasks).
 5. **Updates**: Window files are manually maintained by the operator—do not auto-generate them.
+
+
+## Supervisor
+1. Supervisor when updated and has to be restarted should follow lifecycle: Halt, stop. Rebuild. Restart. Resume.
+
+## Tasks Specs
+1. Blocked tasks will never be autocompleted, They will always be set to pending and let the supervisor decide.
+
+# Conditional Contexts
+- ONLY When detailed info regarding project is required:
+    - README.md - YES
+    - ./docs/*.md - YES
+    - !./docs/plans - NO
+
+- ONLY When detailed info regarding what supervisor context is
+    - ./supervisor-contexts
+
+- ONLY When detailed info regarding what projects supervisor is working on and what we are doing in there is required:
+    - ./contexts/sandbox/

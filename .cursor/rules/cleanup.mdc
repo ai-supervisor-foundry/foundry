@@ -1,4 +1,5 @@
 ---
 alwaysApply: true
 ---
-1. Always ask me before cleaning up core logic components.
+1. Always ask me before cleaning up or deleting anything.
+2. use ./tmp for *.baks always
