@@ -11,6 +11,8 @@ NestJS backend API for the EaseClassifieds classifieds platform. Provides RESTfu
 - **Cache:** Redis/DragonflyDB
 - **ORM:** TypeORM 0.3.20
 - **Authentication:** JWT with phone OTP
+- **Default Country:** Pakistan (PK) with +92 country code
+- **Default Currency:** PKR (Pakistani Rupee)
 
 ## Key Configuration
 
@@ -65,6 +67,26 @@ AWS_S3_BUCKET=test-bucket
 TWILIO_ACCOUNT_SID=<optional>
 STRIPE_SECRET_KEY=<optional>
 PAYPAL_CLIENT_ID=<optional>
+
+# Development/Sandbox Mode
+# Controls development/sandbox mode explicitly for SMS OTP logging
+# When true, OTPs are logged instead of sent via SMS
+# Defaults to true if NODE_ENV is 'development', false otherwise
+IS_DEV_SANDBOX=true
+
+# OTP Rate Limiting (requests per time window)
+# OTP_RATE_LIMIT_SHORT: requests per minute (default: 1, set to 1000 for testing)
+# OTP_RATE_LIMIT_MEDIUM: requests per hour (default: 5)
+# OTP_RATE_LIMIT_LONG: requests per day (default: 10)
+OTP_RATE_LIMIT_SHORT=1
+OTP_RATE_LIMIT_MEDIUM=5
+OTP_RATE_LIMIT_LONG=10
+
+# Disable Rate Limits in Development
+# Set to 'true' to disable all rate limiting in development mode
+# Defaults to true if NODE_ENV is 'development', false otherwise
+# When enabled, both decorator-level and service-level rate limiting are bypassed
+DISABLE_RATE_LIMITS=true
 ```
 
 ## API Endpoints
@@ -215,14 +237,26 @@ PAYPAL_CLIENT_ID=<optional>
 
 ## Rate Limiting
 
+### Rate Limiting Architecture
+Rate limiting is implemented at two levels:
+1. **Decorator-level** (using `@nestjs/throttler`): Applied via `@ThrottleOTPRequest()` decorator
+2. **Service-level** (custom Redis logic): Implemented in `phone-auth.service.ts` `checkRateLimits()` method
+
+Both levels respect the `DISABLE_RATE_LIMITS` environment variable.
+
 ### OTP Request Limits
-- **Short-term:** 1 request per minute (60 seconds) per phone number
-- **Medium-term:** 5 requests per hour (3600 seconds) per phone number
-- **Long-term:** 10 requests per day (86400 seconds) per phone number
+- **Short-term:** 1 request per minute (60 seconds) per phone number (configurable via `OTP_RATE_LIMIT_SHORT`)
+- **Medium-term:** 5 requests per hour (3600 seconds) per phone number (configurable via `OTP_RATE_LIMIT_MEDIUM`)
+- **Long-term:** 10 requests per day (86400 seconds) per phone number (configurable via `OTP_RATE_LIMIT_LONG`)
 
 ### IP-based Limits
 - **Short-term:** 10 requests per minute per IP address
 - **Medium-term:** 50 requests per hour per IP address
+
+### Development Mode
+- Set `DISABLE_RATE_LIMITS=true` to bypass all rate limiting in development
+- When `NODE_ENV=development`, rate limiting is disabled by default unless explicitly set to `false`
+- Both decorator-level and service-level rate limiting are bypassed when disabled
 
 ## Development Commands
 

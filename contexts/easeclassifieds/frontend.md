@@ -11,6 +11,8 @@ React + TypeScript + Tailwind CSS frontend application for a full-stack classifi
 - **State Management:** React hooks (useState, useEffect, useContext)
 - **Routing:** React Router
 - **API Client:** Axios-based service layer
+- **Default Country:** Pakistan (PK) with +92 country code
+- **Default Currency:** PKR (Pakistani Rupee)
 
 ## Key Configuration
 
@@ -83,11 +85,13 @@ React + TypeScript + Tailwind CSS frontend application for a full-stack classifi
 ## Features Implemented
 
 ### Authentication Flow
-- Phone number input screen
+- Phone number input screen with country code selector
+- Default country: Pakistan (+92)
 - OTP verification screen
 - Token management (JWT)
 - Auto-refresh token logic
 - Rate limiting error handling
+- International phone number support
 
 ### Main Features
 - Daily curated feed
@@ -108,8 +112,13 @@ React + TypeScript + Tailwind CSS frontend application for a full-stack classifi
 - **Short-term:** 10 requests per minute per IP
 - **Medium-term:** 50 requests per hour per IP
 
+### Development Mode
+- Rate limiting can be disabled in development by setting `DISABLE_RATE_LIMITS=true` in backend `.env`
+- When disabled, no rate limit errors will occur during testing
+
 ### Testing Notes
-- Wait 60 seconds between attempts for same number
+- In development mode with `DISABLE_RATE_LIMITS=true`, no waiting required
+- Otherwise, wait 60 seconds between attempts for same number
 - Use different phone numbers to bypass limits
 - Service worker cache may require hard refresh
 

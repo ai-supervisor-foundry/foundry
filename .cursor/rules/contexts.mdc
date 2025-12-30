@@ -3,8 +3,18 @@ description: Instructions for using context files
 alwaysApply: false
 ---
 
+## Project Context Files (`contexts/`)
+
 1. Context files in `contexts/` provide detailed project documentation for agents with zero context.
 2. Read relevant context file before working on a project (e.g., `contexts/easeclassifieds/frontend.md` for FE work).
 3. Context files contain project structure, recent fixes, configuration, and common issues.
 4. Update context files when making significant changes to keep them current.
 5. Use context files to quickly onboard new agents or understand project state.
+
+## Supervisor Context Files (`supervisor-contexts/`)
+
+1. **Main Context**: Read `supervisor-contexts/CONTEXT.md` first for complete supervisor system documentation (architecture, state management, validation, tool contracts, etc.).
+2. **Sliding Window**: Check `supervisor-contexts/windows/` for the 10 latest context files with recent changes, updates, and critical information.
+3. **File Size**: Each window file targets 50K-100K tokens (30K-60K words) for very large context models.
+4. **Usage**: Use supervisor context files when working on the supervisor system itself (not project tasks).
+5. **Updates**: Window files are manually maintained by the operator—do not auto-generate them.

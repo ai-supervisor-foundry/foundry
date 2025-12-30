@@ -6,6 +6,38 @@ A **persistent orchestration layer for AI-assisted software development** that e
 
 The Supervisor is a control plane for AI development that externalizes memory, intent, and control so work can continue across interruptions, sleep, crashes, or session loss. You define a goal and break it into explicit tasks with acceptance criteria. The supervisor executes tasks autonomously using Cursor CLI (in AUTO mode) while maintaining persistent state, deterministic validation, and full auditability.
 
+### Software Factory Concept
+
+The Supervisor operates like a **software factory** or **Replit-like environment** where you provide:
+
+1. **Code Boilerplates**: Initial project structure, existing codebase, or starter templates (placed in `sandbox/<project-id>/`)
+2. **Tasks**: Explicit task definitions with acceptance criteria (what needs to be built)
+3. **Goal**: High-level project objective (what the project should achieve)
+
+The Supervisor then **autonomously works on the project** by:
+- Executing tasks sequentially in the sandbox environment
+- Building upon existing code and boilerplates
+- Validating each task's completion
+- Maintaining persistent state across sessions
+- Continuing work until the goal is achieved or tasks are exhausted
+
+**Workflow**:
+```
+Operator provides:
+  ├─ Code Boilerplates (in sandbox/<project-id>/)
+  ├─ Tasks (via enqueue command)
+  └─ Goal (via set-goal command)
+         ↓
+Supervisor autonomously:
+  ├─ Executes tasks in order
+  ├─ Works with existing code
+  ├─ Validates outputs
+  ├─ Persists state
+  └─ Continues until goal met or halted
+```
+
+This enables a **"set it and forget it"** workflow where you provide the foundation (boilerplates), the plan (tasks), and the destination (goal), then the supervisor builds the project autonomously.
+
 ## The Problem It Solves
 
 AI tools like Cursor are powerful but ephemeral—context is lost on interruption, making long-running projects difficult. The Supervisor provides:
@@ -92,6 +124,51 @@ docker-compose down -v
 
 ## Usage
 
+### Software Factory Workflow
+
+The typical workflow follows this pattern:
+
+1. **Prepare Code Boilerplates** (optional but recommended)
+2. **Initialize Supervisor State**
+3. **Set Goal**
+4. **Enqueue Tasks**
+5. **Start Supervisor** (autonomous execution)
+
+### 0. Prepare Code Boilerplates (Optional)
+
+Before starting the supervisor, you can prepare initial code in the sandbox directory:
+
+```bash
+# Create project directory
+mkdir -p sandbox/my-project
+
+# Copy boilerplate/starter code
+cp -r my-boilerplate/* sandbox/my-project/
+
+# Or initialize a new project structure
+cd sandbox/my-project
+npm init -y
+# ... add initial files, dependencies, etc.
+```
+
+**What to include in boilerplates**:
+- Project structure (directories, config files)
+- Initial dependencies (`package.json`, `requirements.txt`, etc.)
+- Starter templates (React components, API routes, etc.)
+- Configuration files (`.env.example`, `tsconfig.json`, etc.)
+- Existing codebase (if continuing work on an existing project)
+
+The supervisor will **work with and build upon** this existing code. Tasks can reference existing files, extend functionality, or create new features.
+
+**Example**: If you have a React boilerplate with `src/App.tsx`, tasks can extend it:
+```json
+{
+  "task_id": "add-auth",
+  "instructions": "Extend the existing App.tsx component to add user authentication. The component is located at src/App.tsx and uses React Router. Follow the existing code style and patterns.",
+  ...
+}
+```
+
 ### 1. Initialize Supervisor State
 
 Before using the supervisor, initialize the state key:
@@ -126,13 +203,15 @@ npm run cli -- set-goal \
   --state-key supervisor:state \
   --queue-name tasks \
   --queue-db 2 \
-  --description "A simplified, senior-friendly classifieds super app built with React and Tailwind CSS that aggregates property and vehicle listings, featuring a daily curated feed based on subscription tiers, and a clean, accessible mobile interface with phone authentication. The frontend is in ./sandbox/easeclassifieds, the backend is in ./sandbox/easeclassifieds-api" \
+  --description "A simplified, senior-friendly classifieds super app built with React and Tailwind CSS that aggregates property and vehicle listings into a single, accessible mobile-first experience. The platform combines a robust backend aggregation and scraping system that continuously collects, normalizes, and enriches listings from multiple external sources with a subscription-based daily curated feed that prioritizes relevance, freshness, and user preferences. Featuring phone-only authentication, clear navigation, large readable UI elements, and intelligent search, the system is designed to reduce noise and complexity for end users while delivering a reliable, scalable, and continuously updated marketplace, with the frontend located in ./sandbox/easeclassifieds and the backend and aggregation services in ./sandbox/easeclassifieds-api." \
   --project-id easeclassifieds
 ```
 
 **Parameters**:
 - `--description`: Goal description (required)
 - `--project-id`: Project identifier (optional, used for sandbox directory)
+
+**Important**: The `--project-id` should match the directory name in `sandbox/` where your boilerplates are located (e.g., if you created `sandbox/my-project/`, use `--project-id my-project`).
 
 ### 3. Create Task File(s)
 
@@ -171,17 +250,19 @@ Create task JSON file(s) following the task schema. You can create either:
 ```
 
 **Example: Array of tasks file `tasks.json`**
+
+Tasks can reference existing files from your boilerplates. For example:
 ```json
 [
   {
     "task_id": "frontend-001",
-    "intent": "Create React component structure",
+    "intent": "Extend existing React component",
     "tool": "cursor-cli",
-    "instructions": "Create React components with TypeScript. Set up component structure.",
+    "instructions": "Extend the existing App.tsx component (located at src/App.tsx) to add user authentication. Follow the existing code style and patterns.",
     "acceptance_criteria": [
-      "React components created",
-      "TypeScript configured",
-      "Component structure in place"
+      "App.tsx includes authentication logic",
+      "Uses existing React Router setup",
+      "Follows existing code style"
     ],
     "retry_policy": {
       "max_retries": 2
@@ -286,7 +367,7 @@ npm run cli -- enqueue \
   --task-file tasks/tasks.json
 ```
 
-All tasks will be enqueued in the order they appear (FIFO execution).
+All tasks will be enqueued in the order they appear (FIFO execution). Tasks are processed in strict First-In-First-Out order: the first task enqueued is the first task processed. The queue uses Redis List with LPUSH (left push) for enqueue and RPOP (right pop) for dequeue to maintain FIFO ordering.
 
 ### 5. Start Supervisor Control Loop
 
@@ -777,10 +858,21 @@ supervisor/
 ├── sandbox/              # Sandbox root (default: ./sandbox)
 │   ├── project-1/        # Project-specific directory
 │   │   ├── audit.log.jsonl
-│   │   └── ...
+│   │   ├── logs/
+│   │   │   └── prompts.log.jsonl
+│   │   ├── src/          # Your boilerplate/initial code
+│   │   ├── package.json   # Dependencies, scripts
+│   │   ├── tsconfig.json # Configuration files
+│   │   └── ...           # All project files
 │   └── project-2/
 │       └── ...
 ```
+
+**Key Points**:
+- Place your **code boilerplates** in `sandbox/<project-id>/` before starting
+- The supervisor will **work with and build upon** existing files
+- All project files, logs, and artifacts are contained within the project directory
+- Tasks execute in this directory context, so they can reference existing files
 
 ## Programmatic Usage
 

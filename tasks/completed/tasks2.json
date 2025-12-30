@@ -1,0 +1,207 @@
+[
+  {
+    "task_id": "bugfix-001",
+    "intent": "Fix Stripe publishable key initialization error",
+    "tool": "cursor-cli",
+    "instructions": "Fix the Stripe initialization error that occurs when VITE_STRIPE_PUBLISHABLE_KEY is empty. Update services/paymentService.ts to check if the key is empty before initializing Stripe, and prevent Stripe from being loaded if the key is not configured. Also update PaymentModal.tsx to handle the case when Stripe is not available gracefully without throwing console errors.",
+    "acceptance_criteria": [
+      "Stripe only initializes when VITE_STRIPE_PUBLISHABLE_KEY is set and not empty",
+      "No console errors when Stripe key is missing",
+      "PaymentModal handles missing Stripe key gracefully",
+      "Error message shown to user if Stripe is not configured",
+      "Stripe-related features disabled when key is not available"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds"
+  },
+  {
+    "task_id": "bugfix-002",
+    "intent": "Fix rate limit error message showing negative seconds",
+    "tool": "cursor-cli",
+    "instructions": "Fix the rate limit error message that displays negative seconds (e.g., 'Please try again in -10310 seconds'). Update the error handling in App.tsx and services/api.ts to validate retryAfter values from the backend. If retryAfter is negative or invalid, display a generic message like 'Please try again later' or calculate a reasonable wait time. Also check the backend rate limiting logic to ensure it returns valid retryAfter values.",
+    "acceptance_criteria": [
+      "Rate limit error messages never show negative seconds",
+      "Frontend validates retryAfter values before displaying",
+      "Generic fallback message shown for invalid retryAfter values",
+      "Backend rate limiting returns valid retryAfter values",
+      "Error messages are user-friendly and actionable"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds"
+  },
+  {
+    "task_id": "bugfix-003",
+    "intent": "Make OTP rate limiting configurable via environment variables",
+    "tool": "cursor-cli",
+    "instructions": "Update throttle-otp.decorator.ts to read rate limit values from environment variables instead of hardcoded values. Add env vars OTP_RATE_LIMIT_SHORT (default 1), OTP_RATE_LIMIT_MEDIUM (default 5), OTP_RATE_LIMIT_LONG (default 10) to .env.example and env.ts. Update ThrottleOTPRequest() to use these env vars. For development/testing, allow setting OTP_RATE_LIMIT_SHORT to 1000 per minute via .env file to bypass strict limits during testing.",
+    "acceptance_criteria": [
+      "OTP rate limits configurable via environment variables",
+      "OTP_RATE_LIMIT_SHORT, OTP_RATE_LIMIT_MEDIUM, OTP_RATE_LIMIT_LONG env vars added",
+      "Default values match current hardcoded values (1, 5, 10)",
+      "Can set OTP_RATE_LIMIT_SHORT=1000 in .env to bypass limits for testing",
+      "ThrottleOTPRequest() uses env vars instead of hardcoded values",
+      "Environment variables documented in .env.example"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds-api"
+  },
+  {
+    "task_id": "bugfix-004",
+    "intent": "Change default country to Pakistan (PK) and currency to PKR, make application globally compatible",
+    "tool": "cursor-cli",
+    "instructions": "Change all default country references from UAE (+971) to Pakistan (+92) and default currency from 'AED' to 'PKR'. Update frontend App.tsx to use +92 as default country code instead of hardcoded +971, and add country code selector for international support. Update backend phone-auth.service.ts to set default country to 'PK' instead of 'AE', and ensure Pakistan is in SUPPORTED_COUNTRIES. Change all currency defaults from 'AED' to 'PKR' in DTOs, entities, migrations, and components. Change regional_specs default from 'gcc' to 'other' or make it optional. Update all DTOs, entities, and components that hardcode these values. Use libphonenumber or similar library for proper international phone number validation while maintaining PK as the default. Note: This task affects both frontend and backend - start with backend changes, then frontend.",
+    "acceptance_criteria": [
+      "Default country code changed from +971 to +92 (Pakistan) in frontend",
+      "Default country changed from 'AE' to 'PK' in backend",
+      "Default currency changed from 'AED' to 'PKR' everywhere",
+      "Country code selector added in frontend phone input",
+      "Backend supports all international phone numbers with PK as default",
+      "Regional specs default changed from 'gcc' to 'other' or optional",
+      "All DTOs and entities updated with PKR currency default",
+      "International phone number validation working",
+      "Application works with any country code, defaults to Pakistan"
+    ],
+    "retry_policy": {
+      "max_retries": 3,
+      "backoff_strategy": "exponential"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds-api"
+  },
+  {
+    "task_id": "bugfix-005",
+    "intent": "Add IS_DEV_SANDBOX flag for explicit dev mode control and improve OTP visibility",
+    "tool": "cursor-cli",
+    "instructions": "Add IS_DEV_SANDBOX environment variable to control development/sandbox mode explicitly, instead of relying on Twilio absence. Update sms.service.ts to check IS_DEV_SANDBOX flag (defaults to true if NODE_ENV is 'development', false otherwise). When IS_DEV_SANDBOX is true, log OTPs using logger.log instead of logger.debug for better visibility. Add IS_DEV_SANDBOX to .env.example and env.ts validation schema. Update documentation to explain how to enable/disable dev mode using IS_DEV_SANDBOX flag. Remove dependency on Twilio credentials for determining dev mode.",
+    "acceptance_criteria": [
+      "IS_DEV_SANDBOX environment variable added to .env.example and env.ts",
+      "sms.service.ts uses IS_DEV_SANDBOX flag instead of Twilio absence for dev mode",
+      "IS_DEV_SANDBOX defaults to true when NODE_ENV is 'development'",
+      "Dev mode OTP log message uses logger.log instead of logger.debug",
+      "OTP is clearly logged when IS_DEV_SANDBOX is true",
+      "Documentation explains how to use IS_DEV_SANDBOX flag",
+      "Dev mode can be explicitly controlled independent of Twilio configuration"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds-api"
+  },
+  {
+    "task_id": "bugfix-006",
+    "intent": "Fix favorites endpoint database schema error - column listing.make does not exist",
+    "tool": "cursor-cli",
+    "instructions": "Fix the database query error in favorites.service.ts where it tries to access listing.make which doesn't exist on the base Listing entity. The 'make' column exists only in ListingVehicle entity. Update the getFavorites query to properly handle the relationship between Listing and ListingVehicle/ListingProperty entities. Use proper TypeORM joins to load vehicle/property data only when needed, or use select() to specify which columns to load. Ensure the query doesn't try to access columns that don't exist on the base Listing entity.",
+    "acceptance_criteria": [
+      "Favorites endpoint no longer throws 'column listing.make does not exist' error",
+      "Query properly handles Listing entity without trying to access vehicle-specific columns",
+      "Vehicle and property data loaded correctly when available",
+      "Query uses proper TypeORM joins and selects",
+      "No database schema errors when fetching favorites",
+      "Favorites endpoint returns correct data structure"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds-api"
+  },
+  {
+    "task_id": "bugfix-007",
+    "intent": "Complete frontend country code migration to Pakistan - remove remaining +971 hardcoding",
+    "tool": "cursor-cli",
+    "instructions": "Update frontend App.tsx to complete the country code migration from +971 (UAE) to +92 (Pakistan). Replace all hardcoded +971 references with +92. Update handleSendCode and handleVerifyCode functions to use +92 instead of +971 for phone number normalization. Update the UI display to show +92 as the default country code. Ensure the phone input placeholder and display text use Pakistan format. This completes bugfix-004 which updated the backend but left frontend with hardcoded +971 values.",
+    "acceptance_criteria": [
+      "All +971 hardcoded values replaced with +92 in App.tsx",
+      "Phone number normalization uses +92 instead of +971",
+      "UI displays +92 as default country code",
+      "Phone input placeholder updated for Pakistan format",
+      "OTP verification screen shows +92 country code",
+      "No remaining +971 references in frontend code"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds"
+  },
+  {
+    "task_id": "bugfix-008",
+    "intent": "Disable all rate limits in development mode",
+    "tool": "cursor-cli",
+    "instructions": "Add DISABLE_RATE_LIMITS environment variable to disable all rate limiting in development mode. Update app.module.ts ThrottlerModule configuration to check DISABLE_RATE_LIMITS env var (defaults to true if NODE_ENV is 'development', false otherwise). When DISABLE_RATE_LIMITS is true, set all throttle limits to very high values (e.g., 10000) or use SkipThrottle globally. Update throttle-otp.decorator.ts to check DISABLE_RATE_LIMITS and return NoThrottle() when enabled. Add DISABLE_RATE_LIMITS to .env.example and env.ts validation schema. Ensure all throttle decorators (ThrottleOTPRequest, ThrottleSensitive, ThrottleAuth) respect this flag. This allows development without rate limit restrictions.",
+    "acceptance_criteria": [
+      "DISABLE_RATE_LIMITS environment variable added to .env.example and env.ts",
+      "DISABLE_RATE_LIMITS defaults to true when NODE_ENV is 'development'",
+      "ThrottlerModule configuration respects DISABLE_RATE_LIMITS flag",
+      "All throttle decorators check DISABLE_RATE_LIMITS and skip throttling when enabled",
+      "Rate limits disabled in dev mode without breaking production behavior",
+      "Environment variable documented in .env.example",
+      "No rate limit errors in development when DISABLE_RATE_LIMITS is true"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds-api"
+  },
+  {
+    "task_id": "bugfix-009",
+    "intent": "Fix infinite loop on profile subscription reloading",
+    "tool": "cursor-cli",
+    "instructions": "Fix the infinite loop where profile page continuously reloads subscription data causing 429 rate limit errors. The issue is in App.tsx ProfileRoute component (line 1190) and services/api.ts retry logic. Update services/api.ts shouldRetry() method to NOT retry 429 errors for GET requests, or add a maximum retry limit for 429 errors (e.g., max 1 retry). Update ProfileRoute component to prevent multiple simultaneous fetchSubscription calls by adding a loading state check or request deduplication. Add error handling to prevent infinite retries when subscription endpoint returns 429. Consider adding a debounce or cooldown period after 429 errors before allowing another request. Ensure fetchSubscription is only called once on mount and after explicit user actions (upgrade/cancel), not on every render or error.",
+    "acceptance_criteria": [
+      "No infinite loop of subscription requests on profile page",
+      "429 errors do not trigger automatic retries for GET requests",
+      "Maximum retry limit enforced for 429 errors (e.g., max 1 retry)",
+      "ProfileRoute prevents multiple simultaneous fetchSubscription calls",
+      "Subscription only fetched once on mount and after user actions",
+      "Error handling prevents infinite retries on rate limit errors",
+      "No console spam of 429 errors when viewing profile page",
+      "Profile page loads subscription data correctly without rate limit issues"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds"
+  },
+  {
+    "task_id": "bugfix-010",
+    "intent": "Fix service-level rate limiting to respect DISABLE_RATE_LIMITS flag",
+    "tool": "cursor-cli",
+    "instructions": "Update phone-auth.service.ts checkRateLimits() method to respect DISABLE_RATE_LIMITS environment variable. Add a check at the beginning of checkRateLimits() method (line 682) to return early if DISABLE_RATE_LIMITS is 'true' or if NODE_ENV is 'development' (matching the logic in throttle-otp.decorator.ts isRateLimitingDisabled() function). This ensures service-level rate limiting (which tracks per-phone-number limits) is disabled in development mode, matching the decorator-level rate limiting behavior. The method should check process.env.DISABLE_RATE_LIMITS and process.env.NODE_ENV before executing any rate limit checks.",
+    "acceptance_criteria": [
+      "checkRateLimits() method checks DISABLE_RATE_LIMITS flag at the start",
+      "Method returns early (no rate limit checks) when DISABLE_RATE_LIMITS is 'true'",
+      "Method respects NODE_ENV='development' as default (same as decorator logic)",
+      "Service-level rate limiting disabled in dev mode matches decorator behavior",
+      "No 429 errors from service-level rate limiting when DISABLE_RATE_LIMITS is true",
+      "Rate limiting still works in production when DISABLE_RATE_LIMITS is false"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds-api"
+  }
+]

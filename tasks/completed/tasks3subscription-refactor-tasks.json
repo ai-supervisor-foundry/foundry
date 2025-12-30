@@ -1,0 +1,155 @@
+[
+  {
+    "task_id": "refactor-001",
+    "intent": "Extract ProfileRoute component outside MainDashboard and create ProfileRouteProps interface (structural only)",
+    "tool": "cursor-cli",
+    "instructions": "Extract the ProfileRoute component (currently defined inside MainDashboard starting at line 1198) to be defined outside MainDashboard, before the MainDashboard component definition. Create a ProfileRouteProps interface with the following properties: subscription (UserSubscription | null), userTier (UserTier), isLoadingSubscription (boolean), subscriptionError (string | null), onSubscriptionRefresh (() => Promise<void>), onSubscriptionUpgrade ((tier: UserTier, paymentMethodId: string) => Promise<{ success: boolean; message?: string }>), onSubscriptionCancel (() => Promise<{ success: boolean; message?: string }>), onLogout (() => void). Update ProfileRoute function signature to accept ProfileRouteProps. IMPORTANT: Keep ALL existing functionality intact - do not remove any code, state, or function calls yet. This is a structural change only (moving code location).",
+    "acceptance_criteria": [
+      "ProfileRoute component is defined outside MainDashboard (before MainDashboard definition)",
+      "ProfileRouteProps interface exists with exactly 8 properties: subscription, userTier, isLoadingSubscription, subscriptionError, onSubscriptionRefresh, onSubscriptionUpgrade, onSubscriptionCancel, onLogout",
+      "ProfileRoute function signature is: const ProfileRoute: React.FC<ProfileRouteProps> = ({ ... }) => { ... }",
+      "MainDashboard Route element (around line 1752) passes all 8 props to ProfileRoute",
+      "grep -n 'const ProfileRoute' App.tsx shows line number less than grep -n 'const MainDashboard' App.tsx",
+      "grep -n 'interface ProfileRouteProps' App.tsx returns exactly 1 line",
+      "grep -n 'ProfileRouteProps' App.tsx | wc -l shows at least 2 matches (interface definition and function signature)",
+      "No TypeScript compilation errors (run: cd sandbox/easeclassifieds && npx tsc --noEmit)"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds"
+  },
+  {
+    "task_id": "refactor-002",
+    "intent": "Consolidate subscription state management in MainDashboard - add loading and error states",
+    "tool": "cursor-cli",
+    "instructions": "In MainDashboard component, add new state variables: isLoadingSubscription (boolean, default true) and subscriptionError (string | null, default null). Update the existing fetchSubscription useEffect (line 706-719) to set these new state variables appropriately. Add refs: isFetchingSubscriptionRef (useRef(false)) and last429ErrorTimeRef (useRef<number | null>(null)) for deduplication and cooldown tracking. Convert the fetchSubscription function inside useEffect to a useCallback named fetchSubscription that accepts a force parameter (boolean, default false). Move the cooldown logic from ProfileRoute (lines 1221-1232) into this fetchSubscription function. Ensure fetchSubscription sets isLoadingSubscription and subscriptionError states.",
+    "acceptance_criteria": [
+      "grep -n 'const \\[isLoadingSubscription' App.tsx | grep -v ProfileRoute returns 1 line (in MainDashboard)",
+      "grep -n 'const \\[subscriptionError' App.tsx | grep -v ProfileRoute returns 1 line (in MainDashboard)",
+      "grep -n 'isFetchingSubscriptionRef' App.tsx | grep -v ProfileRoute returns at least 1 line (in MainDashboard)",
+      "grep -n 'last429ErrorTimeRef' App.tsx | grep -v ProfileRoute returns at least 1 line (in MainDashboard)",
+      "grep -n 'const fetchSubscription = useCallback' App.tsx | grep -v ProfileRoute returns 1 line (in MainDashboard)",
+      "grep -n 'fetchSubscription.*force.*boolean' App.tsx | grep -v ProfileRoute returns at least 1 line",
+      "fetchSubscription function in MainDashboard sets isLoadingSubscription and subscriptionError states",
+      "No TypeScript compilation errors"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds"
+  },
+  {
+    "task_id": "refactor-003",
+    "intent": "Remove duplicate subscription fetching and setUserTier calls from ProfileRoute",
+    "tool": "cursor-cli",
+    "instructions": "In ProfileRoute component, remove the fetchSubscription function definition (lines 1215-1260) and the useEffect that calls fetchSubscription on mount (lines 1262-1266). Remove all calls to setUserTier (lines 1240 and 1255). Remove the refs isFetchingRef and last429ErrorTimeRef and cooldownPeriodMs constant (lines 1209-1212). Remove the subscription state (line 1199) and isLoadingSubscription state (line 1200) and subscriptionError state (line 1201) - these will come from props. Keep all other local state (showPaymentModal, selectedUpgradeTier, isUpgrading, upgradeError, showCancelConfirm, isCancelling). Update currentTierConfig calculation (line 1269) to use props.subscription and props.userTier instead of local state.",
+    "acceptance_criteria": [
+      "grep -n 'const fetchSubscription' App.tsx | grep ProfileRoute returns 0 lines (function removed from ProfileRoute)",
+      "grep -n 'fetchSubscription()' App.tsx | grep -A 5 'useEffect' | grep ProfileRoute returns 0 lines (useEffect removed)",
+      "grep -n 'setUserTier' App.tsx | grep ProfileRoute returns 0 lines (all setUserTier calls removed)",
+      "grep -n 'const \\[subscription, setSubscription\\]' App.tsx | grep ProfileRoute returns 0 lines (local subscription state removed)",
+      "grep -n 'const \\[isLoadingSubscription' App.tsx | grep ProfileRoute returns 0 lines (local loading state removed)",
+      "grep -n 'const \\[subscriptionError' App.tsx | grep ProfileRoute returns 0 lines (local error state removed)",
+      "grep -n 'isFetchingRef\\|last429ErrorTimeRef\\|cooldownPeriodMs' App.tsx | grep ProfileRoute returns 0 lines (refs and constant removed)",
+      "grep -n 'props\\.subscription\\|props\\.userTier' App.tsx | grep ProfileRoute returns at least 1 line (using props for currentTierConfig)",
+      "All other ProfileRoute local state (showPaymentModal, selectedUpgradeTier, etc.) remains intact",
+      "No TypeScript compilation errors"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds"
+  },
+  {
+    "task_id": "refactor-004",
+    "intent": "Create mutation callbacks in MainDashboard for subscription upgrades and cancellations",
+    "tool": "cursor-cli",
+    "instructions": "In MainDashboard component, create three useCallback functions: 1) handleSubscriptionUpgrade that accepts (tier: UserTier, paymentMethodId: string) and returns Promise<{ success: boolean; message?: string }>. This function should call apiSubscriptionService.upgradeSubscription with the upgrade request, and if successful, call fetchSubscription(true) to refresh. 2) handleSubscriptionCancel that returns Promise<{ success: boolean; message?: string }>. This function should call apiSubscriptionService.cancelSubscription, and if successful, call fetchSubscription(true) to refresh. 3) handleSubscriptionRefresh that is simply fetchSubscription wrapped (for consistency). All callbacks should use useCallback with fetchSubscription as a dependency. Include proper error handling with sanitizeErrorMessage for user-friendly error messages.",
+    "acceptance_criteria": [
+      "grep -n 'const handleSubscriptionUpgrade = useCallback' App.tsx | grep -v ProfileRoute returns 1 line (in MainDashboard)",
+      "grep -n 'const handleSubscriptionCancel = useCallback' App.tsx | grep -v ProfileRoute returns 1 line (in MainDashboard)",
+      "grep -n 'const handleSubscriptionRefresh = useCallback\\|const handleSubscriptionRefresh =' App.tsx | grep -v ProfileRoute returns 1 line (in MainDashboard)",
+      "grep -n 'handleSubscriptionUpgrade.*tier.*UserTier.*paymentMethodId' App.tsx | grep -v ProfileRoute returns at least 1 line",
+      "grep -n 'sanitizeErrorMessage' App.tsx | grep -A 2 'handleSubscriptionUpgrade\\|handleSubscriptionCancel' returns at least 1 line (error handling present)",
+      "grep -n 'fetchSubscription(true)' App.tsx | grep -A 2 'handleSubscriptionUpgrade\\|handleSubscriptionCancel' returns at least 2 lines (refresh after mutations)",
+      "All three callbacks are wrapped with useCallback",
+      "Type signatures match ProfileRouteProps interface (onSubscriptionUpgrade, onSubscriptionCancel, onSubscriptionRefresh)",
+      "No TypeScript compilation errors"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds"
+  },
+  {
+    "task_id": "refactor-005",
+    "intent": "Update ProfileRoute to use props and callbacks instead of local subscription state",
+    "tool": "cursor-cli",
+    "instructions": "In ProfileRoute component, update all references to use props instead of local state: replace subscription with props.subscription, isLoadingSubscription with props.isLoadingSubscription, subscriptionError with props.subscriptionError. Update handlePaymentSuccess (or equivalent upgrade handler) to call props.onSubscriptionUpgrade instead of making direct API calls. Update handleCancelSubscription to call props.onSubscriptionCancel. Update the 'Try Again' button (line 1380) to call props.onSubscriptionRefresh(true) instead of fetchSubscription(true). Remove any direct calls to apiSubscriptionService from ProfileRoute - all mutations should go through props callbacks. Ensure all UI rendering uses props values correctly.",
+    "acceptance_criteria": [
+      "grep -n 'props\\.subscription\\|props\\.isLoadingSubscription\\|props\\.subscriptionError' App.tsx | grep ProfileRoute returns at least 3 lines (using props for data)",
+      "grep -n 'props\\.onSubscriptionUpgrade' App.tsx | grep ProfileRoute returns at least 1 line (upgrade uses callback)",
+      "grep -n 'props\\.onSubscriptionCancel' App.tsx | grep ProfileRoute returns at least 1 line (cancel uses callback)",
+      "grep -n 'props\\.onSubscriptionRefresh' App.tsx | grep ProfileRoute returns at least 1 line (refresh uses callback)",
+      "grep -n 'apiSubscriptionService\\.' App.tsx | grep ProfileRoute returns 0 lines (no direct API calls)",
+      "grep -n 'subscription\\|isLoadingSubscription\\|subscriptionError' App.tsx | grep ProfileRoute | grep -v 'props\\.' | grep -v 'interface\\|const ProfileRoute' returns 0 lines (no local state references)",
+      "All UI rendering (JSX) uses props.subscription, props.isLoadingSubscription, props.subscriptionError",
+      "No TypeScript compilation errors"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds"
+  },
+  {
+    "task_id": "refactor-006",
+    "intent": "Update MainDashboard Route definition to pass props to ProfileRoute and wrap with React.memo",
+    "tool": "cursor-cli",
+    "instructions": "In MainDashboard component, update the ProfileRoute Route definition (line 1646) to pass all required props: subscription={userSubscription}, userTier={userTier}, isLoadingSubscription={isLoadingSubscription}, subscriptionError={subscriptionError}, onSubscriptionRefresh={handleSubscriptionRefresh}, onSubscriptionUpgrade={handleSubscriptionUpgrade}, onSubscriptionCancel={handleSubscriptionCancel}, onLogout={onLogout}. Wrap ProfileRoute component definition with React.memo. Add ProfileRoute.displayName = 'ProfileRoute' for better debugging. Ensure all props passed are stable (use useCallback for callbacks, which should already be done in refactor-004).",
+    "acceptance_criteria": [
+      "grep -n '<ProfileRoute' App.tsx | grep -A 8 returns all 8 props: subscription=, userTier=, isLoadingSubscription=, subscriptionError=, onSubscriptionRefresh=, onSubscriptionUpgrade=, onSubscriptionCancel=, onLogout=",
+      "grep -n 'React\\.memo(ProfileRoute)\\|export default React\\.memo(ProfileRoute)' App.tsx returns at least 1 line (component wrapped with memo)",
+      "grep -n 'ProfileRoute\\.displayName' App.tsx returns 1 line with value 'ProfileRoute'",
+      "grep -n 'handleSubscriptionRefresh\\|handleSubscriptionUpgrade\\|handleSubscriptionCancel' App.tsx | grep -B 2 'useCallback' returns at least 3 lines (callbacks are memoized)",
+      "All props passed to ProfileRoute match ProfileRouteProps interface exactly",
+      "No TypeScript compilation errors"
+    ],
+    "retry_policy": {
+      "max_retries": 2,
+      "backoff_strategy": "linear"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds"
+  },
+  {
+    "task_id": "refactor-007",
+    "intent": "Verify no infinite loops and test subscription flow",
+    "tool": "cursor-cli",
+    "instructions": "Verify that ProfileRoute no longer calls setUserTier or any parent state setters. Check that fetchSubscription in MainDashboard is only called: 1) once on mount via useEffect, 2) after successful upgrade via handleSubscriptionUpgrade, 3) after successful cancel via handleSubscriptionCancel, 4) when explicitly requested via handleSubscriptionRefresh. Verify ProfileRoute is memoized and won't recreate on parent re-renders. Test that subscription data flows correctly: MainDashboard fetches → passes as props → ProfileRoute displays. Test upgrade flow: ProfileRoute calls onSubscriptionUpgrade → MainDashboard handles → refreshes → props update → ProfileRoute re-renders with new data. Verify no continuous API calls in browser network tab when on profile page.",
+    "acceptance_criteria": [
+      "grep -n 'setUserTier' App.tsx | grep ProfileRoute returns 0 lines (no setUserTier calls in ProfileRoute)",
+      "grep -n 'fetchSubscription' App.tsx | grep -v ProfileRoute | grep -E 'useEffect|handleSubscriptionUpgrade|handleSubscriptionCancel|handleSubscriptionRefresh' returns at least 4 lines (only called in expected places)",
+      "grep -n 'React\\.memo.*ProfileRoute' App.tsx returns at least 1 line (component is memoized)",
+      "grep -n 'ProfileRoute' App.tsx | grep -E 'const.*=.*React\\.memo' returns at least 1 line (memoization applied)",
+      "No TypeScript compilation errors",
+      "Manual verification: Browser network tab shows /api/subscription called only: 1) on page load, 2) after upgrade, 3) after cancel, 4) on manual refresh - NOT continuously"
+    ],
+    "retry_policy": {
+      "max_retries": 3,
+      "backoff_strategy": "exponential"
+    },
+    "status": "pending",
+    "working_directory": "easeclassifieds"
+  }
+]

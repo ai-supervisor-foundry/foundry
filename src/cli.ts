@@ -28,11 +28,11 @@ const program = new Command();
 
 // Global options
 program
-  .requiredOption('--redis-host <host>', 'DragonflyDB host')
-  .requiredOption('--redis-port <port>', 'DragonflyDB port')
-  .requiredOption('--state-key <key>', 'Supervisor state key (operator-defined, fixed)')
-  .requiredOption('--queue-name <name>', 'Task queue name')
-  .requiredOption('--queue-db <index>', 'Queue database index (must differ from state DB)', (value: string) => parseInt(value, 10))
+  .requiredOption('--redis-host <host>', 'DragonflyDB host', 'localhost')
+  .requiredOption('--redis-port <port>', 'DragonflyDB port', '6499')
+  .requiredOption('--state-key <key>', 'Supervisor state key (operator-defined, fixed)', 'supervisor:state')
+  .requiredOption('--queue-name <name>', 'Task queue name', 'tasks')
+  .requiredOption('--queue-db <index>', 'Queue database index (must differ from state DB)', (value: string) => parseInt(value, 10), 2)
   .option('--state-db <index>', 'State database index', (value: string) => parseInt(value || '0', 10), 0)
   .option('--sandbox-root <path>', 'Sandbox root directory (relative to project root or absolute)', './sandbox');
 

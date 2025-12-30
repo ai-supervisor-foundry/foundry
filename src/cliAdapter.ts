@@ -27,11 +27,11 @@ function logPerformance(operation: string, duration: number, metadata?: Record<s
   logPerformanceShared(`[CLIAdapter] ${operation}`, duration, metadata);
 }
 
-// Default priority order: Cursor → Gemini → Codex → Claude
-// Claude moved to end due to payment requirements
+// Default priority order: Gemini → Cursor → Codex → Claude
+// Gemini first for better performance, Claude moved to end due to payment requirements
 const DEFAULT_PRIORITY: Provider[] = [
-  Provider.CURSOR,
   Provider.GEMINI,
+  Provider.CURSOR,
   Provider.CODEX,
   Provider.CLAUDE,
 ];
