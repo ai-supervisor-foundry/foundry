@@ -1,6 +1,6 @@
 // Tasks Page
 // Current task, queue, completed tasks, and blocked tasks
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../services/api';
 import TaskCard from '../components/TaskCard';
 import AutoRefresh from '../components/AutoRefresh';
@@ -68,8 +68,7 @@ export default function Tasks() {
     onPageChange,
     totalItems,
     perPage,
-    onPerPageChange,
-    sectionName
+    onPerPageChange
   }: { 
     currentPage: number; 
     totalPages: number; 
@@ -77,7 +76,6 @@ export default function Tasks() {
     totalItems: number;
     perPage: number;
     onPerPageChange: (perPage: number) => void;
-    sectionName: string;
   }) => {
     // Reset to page 1 when per page changes
     const handlePerPageChange = (newPerPage: number) => {
@@ -223,7 +221,6 @@ export default function Tasks() {
                         totalItems={queuePagination.totalItems}
                         perPage={queuePerPage}
                         onPerPageChange={setQueuePerPage}
-                        sectionName="queue"
                       />
                     </>
                   );
@@ -271,7 +268,6 @@ export default function Tasks() {
                         totalItems={completedPagination.totalItems}
                         perPage={completedPerPage}
                         onPerPageChange={setCompletedPerPage}
-                        sectionName="completed"
                       />
                     </>
                   );
@@ -319,7 +315,6 @@ export default function Tasks() {
                         totalItems={blockedPagination.totalItems}
                         perPage={blockedPerPage}
                         onPerPageChange={setBlockedPerPage}
-                        sectionName="blocked"
                       />
                     </>
                   );

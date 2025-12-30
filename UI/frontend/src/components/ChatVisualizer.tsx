@@ -1,6 +1,6 @@
 // ChatVisualizer Component
 // Visualizes supervisor-agent conversation as a chat interface
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 interface ChatMessage {
   id: string;

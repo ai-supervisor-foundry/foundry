@@ -1,6 +1,6 @@
 // TaskCard Component
 // Display task information with status badge and expandable details
-import React, { useState } from 'react';
+import { useState } from 'react';
 import StatusBadge from './StatusBadge';
 
 interface TaskCardProps {

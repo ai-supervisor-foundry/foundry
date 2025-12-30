@@ -1,6 +1,6 @@
 // Dashboard Page
 // Supervisor status, goal, queue status, and quick stats
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../services/api';
 import StatusBadge from '../components/StatusBadge';
 import AutoRefresh from '../components/AutoRefresh';

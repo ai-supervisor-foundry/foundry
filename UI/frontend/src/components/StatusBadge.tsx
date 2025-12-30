@@ -1,6 +1,6 @@
 // StatusBadge Component
 // Color-coded status indicator
-import React from 'react';
+
 
 type SupervisorStatus = 'RUNNING' | 'HALTED' | 'BLOCKED' | 'COMPLETED';
 

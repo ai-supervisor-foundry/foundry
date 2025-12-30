@@ -1,6 +1,6 @@
 // Command Executor Page
 // Supervisor commands and shell commands tabs
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { apiClient } from '../services/api';
 import CommandOutput from '../components/CommandOutput';
 

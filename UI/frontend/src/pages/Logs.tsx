@@ -1,6 +1,6 @@
 // Logs Page
 // Audit log timeline and prompt log list
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../services/api';
 import LogViewer from '../components/LogViewer';
 import ChatVisualizer from '../components/ChatVisualizer';

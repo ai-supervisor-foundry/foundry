@@ -1,6 +1,6 @@
 // CommandOutput Component
 // Terminal-style output display
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface CommandOutputProps {
   stdout: string;
