@@ -218,7 +218,7 @@ export async function interrogateAgent(
   minimalState: MinimalState,
   sandboxCwd: string,
   cliAdapter: CLIAdapter,
-  maxQuestionsPerCriterion: number = 4,
+  maxQuestionsPerCriterion: number = 2, // Default reduced to 2 per Enhanced Strategy
   sandboxRoot?: string,
   projectId?: string
 ): Promise<InterrogationSession> {
@@ -356,19 +356,32 @@ export async function interrogateAgent(
         log(`✅ Criterion "${criterion}" confirmed COMPLETE in round ${questionNumber}`);
         newlyResolved.push(criterion);
       } else {
-        log(`⚠️ Criterion "${criterion}" still ${analysis.result} after round ${questionNumber}. Reason: ${analysis.reason}`);
-        stillUnresolved.push(criterion);
+        // Enhanced Conditional Logic: Check for explicit admission of failure
+        const isExplicitFailure = analysis.reason.includes('Agent reported status: NOT_STARTED') || 
+                                 analysis.reason.includes('Agent reported status: INCOMPLETE');
+        
+        if (isExplicitFailure) {
+          log(`🛑 Criterion "${criterion}" explicitly marked INCOMPLETE/NOT_STARTED by agent. Dropping from further interrogation.`);
+          // Do NOT add to stillUnresolved - we stop asking about this one.
+        } else {
+          log(`⚠️ Criterion "${criterion}" still ${analysis.result} after round ${questionNumber}. Reason: ${analysis.reason}`);
+          stillUnresolved.push(criterion);
+        }
       }
     }
 
-    log(`Round ${questionNumber} results: ${newlyResolved.length} resolved, ${stillUnresolved.length} still unresolved`);
+    log(`Round ${questionNumber} results: ${newlyResolved.length} resolved, ${stillUnresolved.length} queued for next round`);
 
+    // "Stop the Line" Logic: If Round 1 yielded 0 successes and everyone failed explicitly (or just failed), 
+    // and we have nothing left to ask about (or we decide 0% success is enough to halt).
+    // Logic: If stillUnresolved is empty but we had failures (explicit ones dropped), loop ends naturally.
+    
     // Update unresolved criteria for next round
     unresolvedCriteria = stillUnresolved;
 
-    // If all criteria resolved, stop early
+    // If all criteria resolved or dropped, stop early
     if (unresolvedCriteria.length === 0) {
-      log(`✅ All criteria resolved after ${questionNumber} round(s)`);
+      log(`✅ All criteria resolved or explicitly failed after ${questionNumber} round(s)`);
       break;
     }
 

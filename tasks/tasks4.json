@@ -1,0 +1,19 @@
+[
+  {
+    "task_id": "ui-nav-swap-001",
+    "intent": "Swap Vehicle and Property items in Bottom Navigation",
+    "tool": "cursor-cli",
+    "instructions": "Locate the Bottom Navigation component in the frontend project (likely src/components/BottomNav.tsx or similar). Swap the display order of the 'Vehicle' and 'Property' navigation items. Ensure that their respective icons and route links are moved with the labels so functionality remains correct.",
+    "acceptance_criteria": [
+      "The position of Vehicle and Property items in the Bottom Navigation is swapped",
+      "Clicking 'Vehicle' still navigates to the vehicle section",
+      "Clicking 'Property' still navigates to the property section",
+      "Icons are correctly associated with their respective labels after the swap"
+    ],
+    "working_directory": "easeclassifieds",
+    "status": "pending",
+    "retry_policy": {
+      "max_retries": 2
+    }
+  }
+]
