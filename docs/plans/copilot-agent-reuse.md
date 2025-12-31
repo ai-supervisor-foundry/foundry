@@ -59,17 +59,28 @@ interface SessionInfo {
 ## Adapter implementation details
 
 - Command builder:
-  - Use `copilot` command; prefer a configured `COPILOT_CLI_PATH` env var.
+  - Use `copilot` command (check existence) or fallback to `gh copilot`; prefer a configured `COPILOT_CLI_PATH` env var.
   - Core call examples:
-    - Start new session (non-interactive prompt): `copilot --agent=<agent> --prompt "<prompt>"`
-    - Resume specific session: `copilot --resume <sessionId> --prompt "<prompt>"` or emulate by sending selection to stdin if necessary.
-    - Get usage: run `copilot --usage` in session context or `copilot` with `/usage` command sent via stdin.
+    - Start new session (non-interactive prompt): `copilot --model <model> --prompt "<prompt>"` (Note: some models like `claude-sonnet-4.5` may require interactive mode initially; use `gpt-4.1` or `gpt-4o` as reliable non-interactive fallbacks if needed).
+    - Resume specific session: `copilot --resume <sessionId> --prompt "<prompt>"`
+    - Get usage: parse the stdout footer (e.g., "Total usage est: ...") or rely on session log analysis.
   - Implement careful timeout handling (30 minutes by default), capture stdout/stderr verbatim.
 
+- Session Discovery & Persistence:
+  - **Discovery**: The CLI does not have a machine-readable `list-sessions` command. However, session state is stored in `~/.copilot/session-state/*.jsonl`.
+    - The adapter will implement `listSessions()` by scanning this directory.
+    - Parse the most recent `.jsonl` files to extract `sessionId`, `startTime`, and `last_used` (from file mtime or last log entry).
+    - This allows discovering sessions even if they weren't created by this specific adapter instance (e.g. user created one interactively).
+  - **Persistence**: We will still track sessions in our `state.json` to map them to `feature_id` or `task_id`.
+  - **Resume Logic**:
+    1. Check `state.active_sessions`.
+    2. If not found, scan `~/.copilot/session-state/` for a recent session (optional heuristic).
+    3. Else start new.
+
 - Session id extraction & usage parsing:
-  - If `copilot` prints session metadata (session id, usage), parse stdout with robust regexes.
-  - If `copilot` exposes `/usage` and we can run it programmatically, parse the lines to get `tokens` and `duration`.
-  - Provide best-effort token usage reporting (may be `undefined` if not available).
+  - When starting a new session, the CLI output does *not* explicitly print the Session ID in non-interactive mode.
+  - **Strategy**: After starting a session, scan `~/.copilot/session-state/` for the most recently modified file. The filename or the first line of the JSONL content contains the `sessionId`.
+  - Usage parsing: Parse the "Total usage est" and "Usage by model" sections from stdout to approximate token usage.
 
 - Tool approval handling:
   - Detect prompts that ask for approval (e.g., `Allow Copilot to use (tool)...`); surface a special error and do not auto-approve.
@@ -85,31 +96,34 @@ interface SessionInfo {
 ## Tests & verification
 
 - Unit tests for `src/providers/copilotCLI.ts`:
-  - Mock subprocess outputs for: start session, resume session, tool approval prompt, `/usage` output, error conditions.
+  - Mock subprocess outputs for: start session, resume session, tool approval prompt, usage stats.
+  - Mock file system for `~/.copilot/session-state/` to test session discovery.
   - Validate session_id extraction, usage parsing, and rejection on approval request.
-- Integration tests (optional): run small local Copilot CLI tasks in a trusted sandbox (manual approval required); verify session resume between attempts.
+- Integration tests (optional): run small local Copilot CLI tasks in a trusted sandbox; verify session resume between attempts.
 
 ## Acceptance criteria
 
 - New `copilotCLI` adapter exists and exposes `dispatchToCopilot` with session resume support.
+- Adapter can discover session IDs by inspecting `~/.copilot/session-state/`.
 - State stores session metadata and updates it after each successful call.
-- Adapter fails clearly when tool-approval or trust is required and surfaces a `TOOL_APPROVAL_REQUIRED` error in the result.
-- Tests exist for parsing session id and usage from sample outputs.
+- Adapter fails clearly when tool-approval or trust is required.
+- Tests exist for parsing session logs and usage from sample outputs.
 
 ## Implementation plan (Milestones)
 
-1. Research CLI flags & output (non-interactive listing & resume) — experimental shell checks. (2d)
-2. Implement `src/providers/copilotCLI.ts` — start/resume/list/usage APIs. (2d)
-3. Add state schema and small helper in `persistence.ts` for storing sessions. (0.5d)
-4. Integrate into `src/cliAdapter.ts` as a Provider option and add provider-specific error detection in `shouldTriggerCircuitBreaker`. (1d)
-5. Add unit tests (mocked subprocesses) and basic integration tests (if feasible). (1.5d)
-6. Documentation: add README notes and update `docs/plans`. (0.5d)
+1. **Session Discovery POC**: Write a script/helper to parse `~/.copilot/session-state/` and extract session IDs reliable. (0.5d)
+2. **Adapter Core**: Implement `src/providers/copilotCLI.ts` — start/resume/list. (1.5d)
+   - Include logic to find the new session ID after a `start` command by checking file mtimes.
+3. **State Integration**: Add schema support in `types.ts` and `persistence.ts`. (0.5d)
+4. **Main Integration**: Hook into `src/cliAdapter.ts` and `shouldTriggerCircuitBreaker`. (0.5d)
+5. **Testing**: Unit tests for log parsing and command construction. (1d)
+6. **Documentation**: Update `docs/plans` and `README`. (0.5d)
 
 ## Open questions / Risks
 
-- Exact non-interactive session listing and programmatic `session_id` extraction need verification — may require trial with actual `copilot` CLI outputs.
-- Automating approvals is risky; safer choice is to require operator prior trust/approval for directories and fail with a clear message if interactive approval is demanded.
-- Copilot CLI may change (preview) — adapter must be resilient to CLI output changes and have clear fallbacks.
+- Race conditions: If multiple sessions start simultaneously, identifying the correct file in `session-state` by mtime might be flaky. (Mitigation: wait a split second or check content for model/prompt match if possible, but strict process isolation in Supervisor helps).
+- Directory structure changes: GitHub Copilot CLI internals (log paths) may change. Adapter needs error handling if paths don't exist.
+
 
 ---
 
