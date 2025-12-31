@@ -177,7 +177,7 @@ export class CLIAdapter {
       case Provider.GEMINI:
         return await dispatchToGemini(prompt, cwd, agentMode, sessionId, featureId);
       case Provider.COPILOT:
-        return await dispatchToCopilot(prompt, cwd, agentMode, sessionId);
+        return await dispatchToCopilot(prompt, cwd, agentMode, sessionId, featureId);
       default:
         throw new Error(`Unknown provider: ${provider}`);
     }

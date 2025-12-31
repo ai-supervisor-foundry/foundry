@@ -1,5 +1,7 @@
 // Type definitions for supervisor state and related structures
 
+import { Provider } from "../agents/enums/provider";
+
 export type SupervisorStatus = 'RUNNING' | 'BLOCKED' | 'HALTED' | 'COMPLETED';
 
 export interface SupervisorState {
@@ -48,7 +50,7 @@ export interface SessionInfo {
 export interface Task {
   task_id: string;
   intent: string;
-  tool: 'cursor-cli' | 'gemini' | 'copilot'; // Expanded tools
+  tool: Provider;
   instructions: string;
   acceptance_criteria: string[];
   retry_policy?: RetryPolicy;

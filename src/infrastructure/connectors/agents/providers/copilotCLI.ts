@@ -148,26 +148,80 @@ export class CopilotCLI {
     };
   }
 
-  async listSessions(): Promise<string[]> {
+  async listSessions(): Promise<Array<{ snippet: string, timeRelative: string, sessionId: string }>> {
      if (!fs.existsSync(SESSION_DIR)) return [];
-     const files = await fs.promises.readdir(SESSION_DIR);
-     return files.filter(f => f.endsWith('.jsonl')).map(f => path.basename(f, '.jsonl'));
+     
+     try {
+       const files = await fs.promises.readdir(SESSION_DIR);
+       const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
+       
+       const sessions: Array<{ snippet: string, timeRelative: string, sessionId: string }> = [];
+       
+       for (const file of jsonlFiles) {
+         try {
+           const filePath = path.join(SESSION_DIR, file);
+           const stats = await fs.promises.stat(filePath);
+           const content = await fs.promises.readFile(filePath, 'utf-8');
+           const firstLine = content.split('\n')[0];
+           
+           if (firstLine) {
+             const json = JSON.parse(firstLine);
+             // Copilot doesn't give us a clear "snippet" or "timeRelative" easily without parsing more
+             // But we can use mtime for timeRelative logic approximation
+             
+             // Try to find the first user message for the snippet
+             const userMsgLine = content.split('\n').find(l => l.includes('user.message'));
+             let snippet = 'Unknown session';
+             if (userMsgLine) {
+                try {
+                    const userMsg = JSON.parse(userMsgLine);
+                    if (userMsg.data && userMsg.data.content) {
+                        snippet = userMsg.data.content.substring(0, 50);
+                    }
+                } catch (e) {}
+             }
+
+             if (json.data && json.data.sessionId) {
+               sessions.push({
+                 sessionId: json.data.sessionId,
+                 timeRelative: stats.mtime.toISOString(), // Standard ISO for now
+                 snippet: snippet
+               });
+             }
+           }
+         } catch (e) {
+           // Ignore unreadable files
+         }
+       }
+       
+       // Sort by time descending
+       return sessions.sort((a, b) => new Date(b.timeRelative).getTime() - new Date(a.timeRelative).getTime());
+     } catch (error) {
+       return [];
+     }
   }
 }
 
-const copilotProvider = new CopilotCLI(true);
+export const copilotCLI = new CopilotCLI(true);
 
 export async function dispatchToCopilot(
   prompt: string,
   cwd: string,
   agentMode?: string,
-  sessionId?: string
+  sessionId?: string,
+  featureId?: string
 ): Promise<CursorResult> {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] [CopilotCLI] Executing in directory: ${cwd}`);
   
+  // Prepend feature tag if starting new session
+  let finalPrompt = prompt;
+  if (!sessionId && featureId) {
+    finalPrompt = `[Feature: ${featureId}]\n\n${prompt}`;
+  }
+  
   try {
-    const result = await copilotProvider.dispatch(prompt, sessionId, {
+    const result = await copilotCLI.dispatch(finalPrompt, sessionId, {
       model: agentMode
     });
 

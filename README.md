@@ -945,7 +945,7 @@ const queue = createQueue('tasks', { host: 'localhost', port: 6499 }, 2);
 const task: Task = {
   task_id: 'task-001',
   intent: 'Create API endpoint',
-  tool: 'cursor-cli',
+  tool: 'cursor',
   instructions: 'Create Express.js endpoint...',
   acceptance_criteria: ['Server starts', 'Endpoint responds'],
   retry_policy: { max_retries: 3 },

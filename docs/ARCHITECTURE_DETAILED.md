@@ -919,7 +919,7 @@ npm run cli -- status
 interface Task {
   task_id: string;                    // Unique identifier
   intent: string;                      // Brief description
-  tool: 'cursor-cli';                  // Must be 'cursor-cli'
+  tool: 'cursor';                  // Must be 'cursor'
   instructions: string;                 // Detailed instructions for Cursor CLI
   acceptance_criteria: string[];       // ALL must be met
   retry_policy: {
