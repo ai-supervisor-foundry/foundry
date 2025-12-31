@@ -191,7 +191,7 @@ graph TB
 
 ### Component Responsibilities
 
-#### 1. CLI Layer (`src/cli.ts`)
+#### 1. CLI Layer (`src/infrastructure/tooling/project-cli/cli.ts`)
 
 **Purpose**: Operator interface for controlling supervisor
 
@@ -209,7 +209,7 @@ graph TB
 - No autonomous recovery
 - All commands require explicit parameters
 
-#### 2. Control Loop (`src/controlLoop.ts`)
+#### 2. Control Loop (`src/application/entrypoint/controlLoop.ts`)
 
 **Purpose**: Main orchestration engine
 
@@ -225,7 +225,7 @@ graph TB
    - If goal complete → COMPLETED
 6. Determine Working Directory
 7. Build Prompt (with minimal state snapshot)
-8. Dispatch to Cursor CLI
+8. Dispatch to CLI Adapter
 9. Check Hard Halts (critical failures only)
 10. Validate Output
 11. Handle Retries/Interrogation:
@@ -244,7 +244,7 @@ graph TB
 - Automatic retry with fix/clarification prompts
 - Interrogation phase for uncertain validation
 
-#### 3. Persistence Layer (`src/persistence.ts`)
+#### 3. Persistence Layer (`src/application/services/persistence.ts`)
 
 **Purpose**: State management in DragonflyDB
 
@@ -285,7 +285,7 @@ graph TB
 }
 ```
 
-#### 4. Queue Adapter (`src/queue.ts`)
+#### 4. Queue Adapter (`src/domain/executors/taskQueue.ts`)
 
 **Purpose**: Task queue management using Redis Lists
 
@@ -309,9 +309,9 @@ queue:tasks (Redis List)
 └─ [Task JSON] (newest)
 ```
 
-#### 5. Prompt Builder (`src/promptBuilder.ts`)
+#### 5. Prompt Builder (`src/domain/agents/promptBuilder.ts`)
 
-**Purpose**: Construct prompts for Cursor CLI with minimal state context
+**Purpose**: Construct prompts for CLI providers with minimal state context
 
 **Functions**:
 - `buildPrompt()`: Initial task prompt
@@ -334,12 +334,12 @@ queue:tasks (Redis List)
 }
 ```
 
-#### 6. Cursor CLI Dispatcher (`src/cursorCLI.ts`)
+#### 6. Tool Dispatcher (`src/infrastructure/connectors/agents/providers/cursorCLI.ts`, `copilotCLI.ts`, etc.)
 
-**Purpose**: Execute Cursor CLI commands in sandboxed environment
+**Purpose**: Execute CLI commands in sandboxed environment via various providers
 
 **Operations**:
-- `execute()`: Spawn cursor CLI process with prompt
+- `execute()`: Spawn CLI process with prompt
 
 **Key Characteristics**:
 - Enforces cwd strictly (must exist and be directory)
@@ -348,12 +348,7 @@ queue:tasks (Redis List)
 - 30-minute timeout per task
 - Supports agent modes (auto, opus, etc.)
 
-**Command Format**:
-```bash
-cursor agent --print --force --output-format text [--model <mode>] "<prompt>"
-```
-
-#### 7. Validator (`src/validator.ts`)
+#### 7. Validator (`src/application/services/validator.ts`)
 
 **Purpose**: Deterministic, rule-based validation of task output
 
@@ -362,7 +357,7 @@ cursor agent --print --force --output-format text [--model <mode>] "<prompt>"
 2. **Acceptance Criteria**: Check if all criteria are met (file-based checks)
 3. **Test Command**: Execute test command if provided
 4. **JSON Schema**: Validate JSON output against expected schema
-5. **Exit Code**: Check Cursor CLI exit code
+5. **Exit Code**: Check CLI exit code
 
 **Advanced Features**:
 - **Confidence Scoring**: Assigns `MatchQuality` (EXACT, HIGH, MEDIUM, LOW) to each criterion. Overall confidence determines need for interrogation.
@@ -377,13 +372,13 @@ cursor agent --print --force --output-format text [--model <mode>] "<prompt>"
   - `failed_criteria`: string[]
   - `uncertain_criteria`: string[]
 
-#### 8. Halt Detection (`src/haltDetection.ts`)
+#### 8. Halt Detection (`src/domain/executors/haltDetection.ts`)
 
-**Purpose**: Detect hard halt conditions in Cursor CLI output
+**Purpose**: Detect hard halt conditions in CLI output
 
 **Halt Conditions**:
 - `CURSOR_EXEC_FAILURE`: Process failed to execute
-- `BLOCKED`: Cursor explicitly reported blocked status
+- `BLOCKED`: Agent explicitly reported blocked status
 - `OUTPUT_FORMAT_INVALID`: Output doesn't match expected format
 - `ASKED_QUESTION`: Agent asked a question (non-critical, triggers retry)
 - `AMBIGUITY`: Ambiguous language detected (non-critical, triggers retry)
@@ -393,7 +388,7 @@ cursor agent --print --force --output-format text [--model <mode>] "<prompt>"
 - Critical halts stop immediately
 - Non-critical halts trigger retry with clarification
 
-#### 9. Interrogator (`src/interrogator.ts`)
+#### 9. Interrogator (`src/domain/executors/interrogator.ts`)
 
 **Purpose**: Ask agent about uncertain/failed validation criteria
 
@@ -410,7 +405,7 @@ cursor agent --print --force --output-format text [--model <mode>] "<prompt>"
 - Max questions per criterion (default: 4)
 - Final interrogation before blocking task
 
-#### 10. Audit Logger (`src/auditLogger.ts`)
+#### 10. Audit Logger (`src/infrastructure/adapters/logging/auditLogger.ts`)
 
 **Purpose**: Append-only audit trail of all supervisor actions
 
@@ -434,7 +429,7 @@ cursor agent --print --force --output-format text [--model <mode>] "<prompt>"
 - Includes full state snapshots (before/after)
 - Includes prompts and responses
 
-#### 11. Prompt Logger (`src/promptLogger.ts`)
+#### 11. Prompt Logger (`src/infrastructure/adapters/logging/promptLogger.ts`)
 
 **Purpose**: Log all prompts and responses for debugging
 

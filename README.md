@@ -556,18 +556,14 @@ pm2 logs supervisor --follow
 
 ## Architecture
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture.
-
-### Key Components
-
-- **Operator Interface** (`src/cli.ts`): CLI commands for operator control
-- **Supervisor Core** (`src/controlLoop.ts`): Main control loop
-- **Tool Dispatcher** (`src/cursorCLI.ts`, `src/promptBuilder.ts`): Cursor CLI integration
-- **Persistence Layer** (`src/persistence.ts`): DragonflyDB state management
-- **Queue Adapter** (`src/queue.ts`): Redis List-based task queue
-- **Validator** (`src/validator.ts`): Deterministic validation
-- **Audit Logger** (`src/auditLogger.ts`): Append-only logging
-- **Logger** (`src/logger.ts`): Centralized verbose logging with stdout flushing for PM2
+- **Operator Interface** (`src/infrastructure/tooling/project-cli/cli.ts`): CLI commands for operator control
+- **Supervisor Core** (`src/application/entrypoint/controlLoop.ts`): Main control loop
+- **Tool Dispatcher** (`src/infrastructure/connectors/agents/providers/*`, `src/domain/agents/promptBuilder.ts`): CLI integration
+- **Persistence Layer** (`src/application/services/persistence.ts`): DragonflyDB state management
+- **Queue Adapter** (`src/domain/executors/taskQueue.ts`): Redis List-based task queue
+- **Validator** (`src/application/services/validator.ts`): Deterministic validation
+- **Audit Logger** (`src/infrastructure/adapters/logging/auditLogger.ts`): Append-only logging
+- **Logger** (`src/infrastructure/adapters/logging/logger.ts`): Centralized verbose logging with stdout flushing for PM2
 
 ## Documentation
 

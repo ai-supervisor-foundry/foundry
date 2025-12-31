@@ -1,11 +1,12 @@
 {
   "task_id": "string",
   "intent": "string",
-  "tool": "cursor-cli",
+  "tool": "cursor-cli | gemini | copilot",
   "instructions": "string",
   "acceptance_criteria": ["string"],
   "retry_policy": "object",
   "status": "string",
   "working_directory": "string (optional, relative path from sandboxRoot, overrides project_id-based default)",
-  "agent_mode": "string (optional, e.g., 'auto', 'opus', defaults to 'auto')"
+  "agent_mode": "string (optional, e.g., 'auto', 'opus', defaults to 'auto')",
+  "meta": "object (optional, for session tracking, e.g., { session_id: '...' })"
 }

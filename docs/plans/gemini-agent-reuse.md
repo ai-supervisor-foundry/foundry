@@ -23,7 +23,7 @@ Enable the Supervisor to reuse Gemini CLI sessions for related tasks, preserving
 
 ## Architecture Changes
 
-### 1. Task Schema Update (`TASK_SCHEMA.json` & `src/types.ts`)
+### 1. Task Schema Update (`TASK_SCHEMA.json` & `src/domain/types/types.ts`)
 Add metadata to link tasks to features/sessions.
 ```typescript
 interface Task {
@@ -35,7 +35,7 @@ interface Task {
 }
 ```
 
-### 2. State Management (`STATE_SCHEMA.json` & `src/types.ts`)
+### 2. State Management (`STATE_SCHEMA.json` & `src/domain/types/types.ts`)
 Track active sessions in Supervisor state.
 ```typescript
 interface SessionInfo {
@@ -54,7 +54,7 @@ interface SupervisorState {
 }
 ```
 
-### 3. Gemini CLI Dispatcher (`src/providers/geminiCLI.ts`)
+### 3. Gemini CLI Dispatcher (`src/infrastructure/connectors/agents/providers/geminiCLI.ts`)
 Refactor to support JSON output, Session ID injection, and List parsing.
 
 *   **Command Execution**:
@@ -72,7 +72,7 @@ Refactor to support JSON output, Session ID injection, and List parsing.
     *   Parses text output with regex: `^\s+\d+\.\s+(.*)\s+\((.*)\)\s+\[(.*)\]`.
     *   Returns array of `{ snippet, timeRelative, uuid }`.
 
-### 4. Control Loop Integration (`src/controlLoop.ts`)
+### 4. Control Loop Integration (`src/application/entrypoint/controlLoop.ts`)
 
 #### A. Session Resolution
 1.  **Check State**: Look for `state.active_sessions[feature_id]`.
@@ -95,9 +95,9 @@ Refactor to support JSON output, Session ID injection, and List parsing.
 
 ## Implementation Steps
 
-1.  **Schema**: Update `src/types.ts` with `SessionInfo` and `meta` fields.
+1.  **Schema**: Update `src/domain/types/types.ts` with `SessionInfo` and `meta` fields.
 2.  **CLI Refactor**: Implement `geminiCLI.ts` changes (JSON support, `listSessions` parser).
-3.  **Control Logic**: Implement session resolution, recovery, and policy logic in `controlLoop.ts`.
+3.  **Control Logic**: Implement session resolution, recovery, and policy logic in `src/application/entrypoint/controlLoop.ts`.
 4.  **Verification**: Test with specific feature tags and verify reuse/recovery.
 
 ## Constraints

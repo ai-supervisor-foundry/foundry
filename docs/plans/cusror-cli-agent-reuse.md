@@ -102,21 +102,21 @@ The adapter doesn't need to know about threads, but the layer below can reuse th
 
 #### Implementation points
 
-1. `cursorCLI.ts`:
+1. `src/infrastructure/connectors/agents/providers/cursorCLI.ts`:
    - Add `threadId?: string` parameter to `dispatchToCursor`
    - Modify command args to include `--resume` when `threadId` is provided
    - Extract thread ID from first execution output
 
-2. `cliAdapter.ts`:
+2. `src/infrastructure/adapters/agents/providers/cliAdapter.ts`:
    - Pass thread ID through the adapter layer
    - Maintain thread ID mapping per task
 
-3. `controlLoop.ts`:
+3. `src/application/entrypoint/controlLoop.ts`:
    - Track thread IDs per task
    - Pass thread ID on retries
    - Store thread ID after first execution
 
-4. State management:
+4. State management (`src/application/services/persistence.ts` and `src/domain/types/types.ts`):
    - Add thread tracking to state schema
    - Persist thread IDs with state
    - Clean up completed task threads (optional)
