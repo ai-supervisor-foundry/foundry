@@ -16,6 +16,19 @@ export default function Tasks() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [editingTask, setEditingTask] = useState<any>(null);
+  const [isAddingTask, setIsAddingTask] = useState(false);
+  const [newTaskJson, setNewTaskJson] = useState(`{
+  "task_id": "task-${Date.now()}",
+  "intent": "Example task",
+  "tool": "cursor",
+  "instructions": "Describe what needs to be done...",
+  "acceptance_criteria": [
+    "Criteria 1"
+  ],
+  "working_directory": ".",
+  "agent_mode": "auto"
+}`);
+
   const [editForm, setEditForm] = useState<{ status: string; reason: string; otherFields: string }>({
     status: '',
     reason: '',
@@ -93,6 +106,55 @@ export default function Tasks() {
     } catch (error) {
       console.error('Error updating task:', error);
       alert('Failed to update task');
+    }
+  };
+
+  const handleDumpTasks = async () => {
+    try {
+      const response = await apiClient.dumpTasks();
+      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tasks-dump-${new Date().toISOString()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error dumping tasks:', error);
+      alert('Failed to dump tasks');
+    }
+  };
+
+  const handleAddTask = async () => {
+    try {
+      let task;
+      try {
+        task = JSON.parse(newTaskJson);
+      } catch (e) {
+        alert('Invalid JSON');
+        return;
+      }
+      
+      await apiClient.enqueueTask(task);
+      setIsAddingTask(false);
+      // Reset form with new timestamp
+      setNewTaskJson(`{
+  "task_id": "task-${Date.now()}",
+  "intent": "Example task",
+  "tool": "cursor",
+  "instructions": "Describe what needs to be done...",
+  "acceptance_criteria": [
+    "Criteria 1"
+  ],
+  "working_directory": ".",
+  "agent_mode": "auto"
+}`);
+      fetchData();
+    } catch (error) {
+      console.error('Error adding task:', error);
+      alert('Failed to add task');
     }
   };
 
@@ -208,6 +270,19 @@ export default function Tasks() {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">Tasks</h2>
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsAddingTask(true)}
+              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm font-medium"
+            >
+              + Add Task
+            </button>
+            <button
+              onClick={handleDumpTasks}
+              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm font-medium"
+            >
+              ⬇ Dump
+            </button>
+            <div className="h-6 w-px bg-gray-300"></div>
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -467,6 +542,56 @@ export default function Tasks() {
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                   >
                     Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Task Modal */}
+        {isAddingTask && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setIsAddingTask(false)}
+          >
+            <div
+              className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold">Add New Task</h3>
+                <button
+                  onClick={() => setIsAddingTask(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  Enter the task JSON below. Ensure it has <code>task_id</code>, <code>instructions</code>, and <code>acceptance_criteria</code>.
+                </p>
+                
+                <textarea
+                  value={newTaskJson}
+                  onChange={(e) => setNewTaskJson(e.target.value)}
+                  className="w-full border rounded px-3 py-2 font-mono text-sm h-96"
+                />
+                
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={() => setIsAddingTask(false)}
+                    className="px-4 py-2 border rounded hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddTask}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    Add Task
                   </button>
                 </div>
               </div>

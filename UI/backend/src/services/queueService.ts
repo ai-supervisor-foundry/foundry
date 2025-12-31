@@ -77,6 +77,43 @@ export async function peekQueue(limit: number = 10): Promise<string[]> {
 }
 
 /**
+ * Enqueue a task
+ */
+export async function enqueueTask(task: any): Promise<void> {
+  try {
+    const client = getQueueClient();
+    const key = getQueueKey();
+    const taskJson = JSON.stringify(task);
+    await client.lpush(key, taskJson);
+  } catch (error) {
+    console.error('Error enqueuing task:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get all pending tasks (for dump)
+ */
+export async function getAllPendingTasks(): Promise<any[]> {
+  try {
+    const client = getQueueClient();
+    const key = getQueueKey();
+    const items = await client.lrange(key, 0, -1);
+    
+    return items.map(item => {
+      try {
+        return JSON.parse(item);
+      } catch {
+        return { error: 'Failed to parse task', raw: item };
+      }
+    });
+  } catch (error) {
+    console.error('Error getting all pending tasks:', error);
+    return [];
+  }
+}
+
+/**
  * Close queue connection
  */
 export async function closeConnection(): Promise<void> {

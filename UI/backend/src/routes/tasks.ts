@@ -1,9 +1,48 @@
 // Tasks API routes
 import { Router } from 'express';
 import { loadSupervisorState, updateTaskInState } from '../services/supervisorState.js';
-import { getQueueLength, peekQueue } from '../services/queueService.js';
+import { getQueueLength, peekQueue, enqueueTask, getAllPendingTasks } from '../services/queueService.js';
 
 const router = Router();
+
+// POST /api/tasks/enqueue
+router.post('/enqueue', async (req, res, next) => {
+  try {
+    const task = req.body;
+    
+    if (!task || !task.task_id || !task.instructions || !task.acceptance_criteria) {
+      return res.status(400).json({ error: 'Invalid task: must have task_id, instructions, and acceptance_criteria' });
+    }
+    
+    // Ensure task_id is unique? The supervisor generally handles duplicates gracefully or the queue just grows.
+    // For now, just enqueue.
+    
+    await enqueueTask(task);
+    res.json({ success: true, message: `Task ${task.task_id} enqueued` });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/tasks/dump
+router.get('/dump', async (req, res, next) => {
+  try {
+    const state = await loadSupervisorState();
+    const pending = await getAllPendingTasks();
+    
+    const dump = {
+      pending: pending,
+      completed: state?.completed_tasks || [],
+      blocked: state?.blocked_tasks || [],
+      in_progress: state?.current_task ? [state.current_task] : [],
+      dumped_at: new Date().toISOString()
+    };
+    
+    res.json(dump);
+  } catch (error) {
+    next(error);
+  }
+});
 
 // POST /api/tasks/update
 router.post('/update', async (req, res, next) => {

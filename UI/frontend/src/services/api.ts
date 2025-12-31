@@ -72,6 +72,8 @@ export const apiClient = {
   getQueue: (limit?: number) => api.get('/api/tasks/queue', { params: { limit } }),
   updateTask: (taskId: string, updates: Record<string, any>) => 
     api.post('/api/tasks/update', { taskId, updates }),
+  enqueueTask: (task: any) => api.post('/api/tasks/enqueue', task),
+  dumpTasks: () => api.get('/api/tasks/dump'),
   
   // Logs endpoints
   getProjects: () => api.get('/api/logs/projects'),
