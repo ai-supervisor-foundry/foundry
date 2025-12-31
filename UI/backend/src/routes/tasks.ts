@@ -1,6 +1,6 @@
 // Tasks API routes
 import { Router } from 'express';
-import { loadSupervisorState, updateTaskInState } from '../services/supervisorState.js';
+import { loadSupervisorState, saveSupervisorState } from '../services/supervisorState.js';
 import { getQueueLength, peekQueue, enqueueTask, getAllPendingTasks } from '../services/queueService.js';
 
 const router = Router();
@@ -14,10 +14,15 @@ router.post('/enqueue', async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid task: must have task_id, instructions, and acceptance_criteria' });
     }
     
-    // Ensure task_id is unique? The supervisor generally handles duplicates gracefully or the queue just grows.
-    // For now, just enqueue.
-    
     await enqueueTask(task);
+
+    // Update state to reflect queue is no longer exhausted
+    const state = await loadSupervisorState();
+    if (state && state.queue.exhausted) {
+      state.queue.exhausted = false;
+      await saveSupervisorState(state);
+    }
+    
     res.json({ success: true, message: `Task ${task.task_id} enqueued` });
   } catch (error) {
     next(error);

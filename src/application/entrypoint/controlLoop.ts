@@ -297,6 +297,12 @@ export async function controlLoop(
         logStateTransition('QUEUE_ACTIVE', 'QUEUE_EXHAUSTED', { iteration });
       }
       
+      // Clear current_task if no task available
+      if (state.current_task) {
+        state.current_task = undefined;
+        await persistence.writeState(state);
+      }
+      
       // if goal not completed → Ask agent if goal is met
       if (!state.goal.completed) {
         log(`[Iteration ${iteration}] Queue exhausted, checking if goal is met...`);
@@ -412,6 +418,14 @@ export async function controlLoop(
       
       return; // Exit loop
     }
+
+    // Set current_task in state and persist
+    // This allows UI to see what's running
+    state.current_task = task;
+    const currentTaskPersistStartTime = Date.now();
+    await persistence.writeState(state);
+    const currentTaskPersistDuration = Date.now() - currentTaskPersistStartTime;
+    logPerformance('CurrentTaskStatePersist', currentTaskPersistDuration, { iteration, task_id: task.task_id });
 
     // 6. Determine working directory (task override or default from project_id)
     const cwdDeterminationStartTime = Date.now();
@@ -1096,6 +1110,9 @@ export async function controlLoop(
             reason: `Validation failed after ${maxRetries} retries and final interrogation confirmed incomplete: ${finalInterrogation.remaining_failed_criteria.join(', ')}`,
           });
           
+          // Clear current_task
+          state.current_task = undefined;
+          
           // Log the blocked task
           await auditLogger.append({
             event: 'TASK_BLOCKED',
@@ -1378,6 +1395,9 @@ export async function controlLoop(
       completed_at: new Date().toISOString(),
       validation_report: validationReport,
     });
+    
+    // Clear current_task
+    state.current_task = undefined;
     
     // Clear resource_exhausted_retry on successful completion
     if (state.supervisor.resource_exhausted_retry) {

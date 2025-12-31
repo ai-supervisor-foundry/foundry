@@ -301,12 +301,21 @@ export default function Tasks() {
         </div>
 
         <div className="space-y-6">
-          {currentTask && (
-            <div>
-              <h3 className="text-lg font-semibold mb-3">Current Task</h3>
-              <TaskCard task={currentTask} isCurrent={true} />
+          <div className="border-l-4 border-blue-500 pl-4">
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-lg font-semibold">
+                In Progress
+              </h3>
+              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+                {currentTask ? 1 : 0}
+              </span>
             </div>
-          )}
+            {currentTask ? (
+              <TaskCard task={currentTask} isCurrent={true} />
+            ) : (
+              <p className="text-gray-500 italic">No task in progress</p>
+            )}
+          </div>
 
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -324,13 +333,11 @@ export default function Tasks() {
                         {queuePagination.items.map((task: any, index: number) => {
                           // Check if this task matches the current task being processed
                           const isCurrentTask = currentTask?.task_id === task.task_id;
-                          // First task in queue is "next" to be processed
-                          const isNext = queuePage === 1 && index === 0 && !currentTask;
                           return (
                             <TaskCard 
                               key={task.task_id || index} 
                               task={task} 
-                              isCurrent={isCurrentTask || isNext}
+                              isCurrent={isCurrentTask}
                             />
                           );
                         })}
