@@ -33,9 +33,10 @@ interface TaskCardProps {
   };
   className?: string;
   isCurrent?: boolean;
+  onEdit?: (task: any) => void;
 }
 
-export default function TaskCard({ task, className = '', isCurrent = false }: TaskCardProps) {
+export default function TaskCard({ task, className = '', isCurrent = false, onEdit }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const hasDetails = task.instructions || 
@@ -140,24 +141,37 @@ export default function TaskCard({ task, className = '', isCurrent = false }: Ta
             </div>
           )}
         </div>
-        {hasDetails && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded font-medium text-sm flex items-center gap-1.5 shadow-sm ml-4"
-          >
-            {expanded ? (
-              <>
-                <span className="text-base">−</span>
-                <span>Collapse</span>
-              </>
-            ) : (
-              <>
-                <span className="text-base">+</span>
-                <span>Expand</span>
-              </>
-            )}
-          </button>
-        )}
+        <div className="flex gap-2 ml-4">
+          {onEdit && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(task);
+              }}
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-medium text-sm border shadow-sm"
+            >
+              Edit
+            </button>
+          )}
+          {hasDetails && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded font-medium text-sm flex items-center gap-1.5 shadow-sm"
+            >
+              {expanded ? (
+                <>
+                  <span className="text-base">−</span>
+                  <span>Collapse</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-base">+</span>
+                  <span>Expand</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
       
       {expanded && (

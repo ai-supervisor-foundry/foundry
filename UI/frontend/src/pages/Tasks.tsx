@@ -15,6 +15,12 @@ export default function Tasks() {
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [editingTask, setEditingTask] = useState<any>(null);
+  const [editForm, setEditForm] = useState<{ status: string; reason: string; otherFields: string }>({
+    status: '',
+    reason: '',
+    otherFields: '{}'
+  });
   
   // Pagination state for each section
   const [queuePage, setQueuePage] = useState(1);
@@ -49,6 +55,46 @@ export default function Tasks() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleEdit = (task: any) => {
+    setEditingTask(task);
+    // Separate status/reason from other fields for easier editing
+    const { status, reason, task_id, ...others } = task;
+    
+    // We don't want to edit task_id
+    setEditForm({
+      status: status || (task.completed_at ? 'completed' : task.blocked_at ? 'blocked' : 'pending'),
+      reason: reason || '',
+      otherFields: JSON.stringify(others, null, 2)
+    });
+  };
+
+  const handleSaveTask = async () => {
+    if (!editingTask) return;
+    
+    try {
+      let parsedOthers = {};
+      try {
+        parsedOthers = JSON.parse(editForm.otherFields);
+      } catch (e) {
+        alert('Invalid JSON in other fields');
+        return;
+      }
+
+      const updates = {
+        ...parsedOthers,
+        status: editForm.status,
+        reason: editForm.reason
+      };
+
+      await apiClient.updateTask(editingTask.task_id, updates);
+      setEditingTask(null);
+      fetchData(); // Refresh data
+    } catch (error) {
+      console.error('Error updating task:', error);
+      alert('Failed to update task');
+    }
+  };
 
   // Pagination helpers
   const paginate = <T,>(items: T[], page: number, perPage: number) => {
@@ -258,6 +304,7 @@ export default function Tasks() {
                             key={task.task_id} 
                             task={task} 
                             isCurrent={currentTask?.task_id === task.task_id}
+                            onEdit={handleEdit}
                           />
                         ))}
                       </div>
@@ -305,6 +352,7 @@ export default function Tasks() {
                             key={task.task_id} 
                             task={task} 
                             isCurrent={currentTask?.task_id === task.task_id}
+                            onEdit={handleEdit}
                           />
                         ))}
                       </div>
@@ -326,6 +374,7 @@ export default function Tasks() {
           </div>
         </div>
 
+        {/* View Details Modal */}
         {selectedTask && (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
@@ -347,6 +396,80 @@ export default function Tasks() {
               <pre className="bg-gray-100 p-4 rounded text-sm overflow-auto">
                 {JSON.stringify(selectedTask, null, 2)}
               </pre>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Task Modal */}
+        {editingTask && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setEditingTask(null)}
+          >
+            <div
+              className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold">Edit Task: {editingTask.task_id}</h3>
+                <button
+                  onClick={() => setEditingTask(null)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    className="w-full border rounded px-3 py-2"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="blocked">Blocked</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reason / Notes</label>
+                  <textarea
+                    value={editForm.reason}
+                    onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })}
+                    className="w-full border rounded px-3 py-2"
+                    rows={2}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Other Fields (JSON)</label>
+                  <textarea
+                    value={editForm.otherFields}
+                    onChange={(e) => setEditForm({ ...editForm, otherFields: e.target.value })}
+                    className="w-full border rounded px-3 py-2 font-mono text-sm"
+                    rows={10}
+                  />
+                </div>
+                
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={() => setEditingTask(null)}
+                    className="px-4 py-2 border rounded hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveTask}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

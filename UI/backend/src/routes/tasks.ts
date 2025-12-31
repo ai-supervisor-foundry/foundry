@@ -1,9 +1,30 @@
 // Tasks API routes
 import { Router } from 'express';
-import { loadSupervisorState } from '../services/supervisorState.js';
+import { loadSupervisorState, updateTaskInState } from '../services/supervisorState.js';
 import { getQueueLength, peekQueue } from '../services/queueService.js';
 
 const router = Router();
+
+// POST /api/tasks/update
+router.post('/update', async (req, res, next) => {
+  try {
+    const { taskId, updates } = req.body;
+    
+    if (!taskId || !updates) {
+      return res.status(400).json({ error: 'taskId and updates are required' });
+    }
+    
+    const success = await updateTaskInState(taskId, updates);
+    
+    if (success) {
+      res.json({ success: true, message: `Task ${taskId} updated` });
+    } else {
+      res.status(404).json({ error: `Task ${taskId} not found in state (completed or blocked)` });
+    }
+  } catch (error) {
+    next(error);
+  }
+});
 
 // GET /api/tasks/completed
 router.get('/completed', async (req, res, next) => {

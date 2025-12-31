@@ -70,6 +70,8 @@ export const apiClient = {
   getCompletedTasks: () => api.get('/api/tasks/completed'),
   getBlockedTasks: () => api.get('/api/tasks/blocked'),
   getQueue: (limit?: number) => api.get('/api/tasks/queue', { params: { limit } }),
+  updateTask: (taskId: string, updates: Record<string, any>) => 
+    api.post('/api/tasks/update', { taskId, updates }),
   
   // Logs endpoints
   getProjects: () => api.get('/api/logs/projects'),
