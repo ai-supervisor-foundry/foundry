@@ -63,6 +63,8 @@ export const apiClient = {
   getState: () => api.get('/api/state'),
   getStatus: () => api.get('/api/state/status'),
   getCurrentTask: () => api.get('/api/state/current-task'),
+  setGoal: (description: string, projectId?: string) => 
+    apiClient.executeSupervisorCommand('set-goal', { description, 'project-id': projectId }),
   
   // Tasks endpoints
   getCompletedTasks: () => api.get('/api/tasks/completed'),

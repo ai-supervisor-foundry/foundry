@@ -28,6 +28,8 @@ export default function Dashboard() {
   const [queue, setQueue] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
+  const [editedGoal, setEditedGoal] = useState('');
 
   const fetchData = useCallback(async () => {
     try {
@@ -37,6 +39,9 @@ export default function Dashboard() {
       ]);
       setState(stateRes.data);
       setQueue(queueRes.data);
+      if (stateRes.data.goal) {
+        setEditedGoal(stateRes.data.goal.description);
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -47,6 +52,17 @@ export default function Dashboard() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleSaveGoal = async () => {
+    if (!state) return;
+    try {
+      await apiClient.setGoal(editedGoal, state.goal.project_id);
+      setIsEditingGoal(false);
+      fetchData(); // Refresh data after saving
+    } catch (error) {
+      console.error('Error saving goal:', error);
+    }
+  };
 
   if (loading) {
     return <div className="text-center py-8">Loading...</div>;
@@ -103,18 +119,58 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold mb-4">Goal</h3>
-            <p className="text-gray-700 mb-2">{state.goal.description || 'No goal set'}</p>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">Status:</span>
-              {state.goal.completed ? (
-                <span className="text-green-600 font-medium">Completed</span>
-              ) : (
-                <span className="text-yellow-600 font-medium">In Progress</span>
+            <div className="flex justify-between items-start">
+              <h3 className="text-lg font-semibold mb-4">Goal</h3>
+              {!isEditingGoal && (
+                <button 
+                  onClick={() => setIsEditingGoal(true)}
+                  className="text-sm text-blue-500 hover:underline"
+                >
+                  Edit
+                </button>
               )}
             </div>
-            {state.goal.project_id && (
-              <p className="text-sm text-gray-500 mt-2">Project: {state.goal.project_id}</p>
+            {isEditingGoal ? (
+              <div>
+                <textarea
+                  className="w-full p-2 border rounded"
+                  value={editedGoal}
+                  onChange={(e) => setEditedGoal(e.target.value)}
+                  rows={4}
+                />
+                <div className="flex gap-2 mt-2">
+                  <button 
+                    onClick={handleSaveGoal}
+                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                  >
+                    Save
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setIsEditingGoal(false);
+                      setEditedGoal(state.goal.description);
+                    }}
+                    className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-gray-700 mb-2">{state.goal.description || 'No goal set'}</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">Status:</span>
+                  {state.goal.completed ? (
+                    <span className="text-green-600 font-medium">Completed</span>
+                  ) : (
+                    <span className="text-yellow-600 font-medium">In Progress</span>
+                  )}
+                </div>
+                {state.goal.project_id && (
+                  <p className="text-sm text-gray-500 mt-2">Project: {state.goal.project_id}</p>
+                )}
+              </>
             )}
           </div>
 

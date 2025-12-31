@@ -54,7 +54,7 @@ export const geminiCLI = new GeminiCLI();
 
 export async function dispatchToGemini(
   prompt: string,
-  cwd: string,
+  cwd: string = './',
   agentMode?: string,
   sessionId?: string,
   featureId?: string
@@ -92,7 +92,7 @@ export async function dispatchToGemini(
   }
 
   // eg: gemini --include-directories ../lib,../docs
-  args.push('--include-directories', './');
+  args.push('--include-directories', cwd);
   
   // Set model if provided (agentMode maps to Gemini model)
   if (agentMode && agentMode !== 'auto') {
