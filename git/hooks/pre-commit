@@ -1,41 +1,70 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-# Patterns to block (regex)
-BLOCKED_PATTERNS=(
-  "console\.log"
-  "TODO"
-  "FIXME"
-  "debugger"
-  "\*\*/\*\.ts"
+# 1. Content-based regex patterns (search anywhere in file)
+CONTENT_BLOCKED_PATTERNS=(
+  'console\.log'
+  'TODO'
+  'FIXME'
+  'debugger'
 )
 
-# File types to scan
+# 2. Exact disallowed ignore rules
+EXACT_BLOCKED_LINES=(
+  '**/*.ts'
+)
+
+# 3. Glob-style disallowed ignore rules
+GLOB_BLOCKED_PATTERNS=(
+  '**/*.ts*'
+)
+
+# Files to scan
 FILE_REGEX='(\.(js|ts|tsx|py|sh)$|(^|/)\.(git|cursor|copilot|gemini|ai)ignore$)'
 
-# Get staged files
 FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E "$FILE_REGEX" || true)
-
-if [ -z "$FILES" ]; then
-  exit 0
-fi
-
-FAILED=0
+[ -z "$FILES" ] && exit 0
 
 for file in $FILES; do
-  for pattern in "${BLOCKED_PATTERNS[@]}"; do
-    if git show ":$file" | grep -nE "$pattern" >/dev/null; then
+  staged_content="$(git show ":$file" || true)"
+
+  # --- 1. Content-based regex checks ---
+  for pattern in "${CONTENT_BLOCKED_PATTERNS[@]}"; do
+    if printf '%s\n' "$staged_content" | grep -nE "$pattern" >/dev/null; then
       echo "❌ Commit blocked:"
-      echo "   Pattern '$pattern' found in $file"
-      FAILED=1
+      echo "   Content pattern '$pattern' found in $file"
+      exit 1
     fi
   done
-done
 
-if [ "$FAILED" -eq 1 ]; then
-  echo
-  echo "Fix the issues or use --no-verify to bypass (not recommended)."
-  exit 1
-fi
+  # --- 2. Ignore-file semantic checks ---
+  case "$file" in
+    .*ignore)
+      printf '%s\n' "$staged_content" | while IFS= read -r line; do
+        # Skip comments and empty lines
+        [ -z "$line" ] && continue
+        case "$line" in \#*) continue ;; esac
+
+        # Exact match
+        for exact in "${EXACT_BLOCKED_LINES[@]}"; do
+          if [ "$line" = "$exact" ]; then
+            echo "❌ Commit blocked:"
+            echo "   Exact disallowed ignore rule in $file: $line"
+            exit 1
+          fi
+        done
+
+        # Glob match
+        for glob in "${GLOB_BLOCKED_PATTERNS[@]}"; do
+          if [[ "$line" == $glob ]]; then
+            echo "❌ Commit blocked:"
+            echo "   Pattern disallowed ignore rule in $file: $line"
+            exit 1
+          fi
+        done
+      done
+      ;;
+  esac
+done
 
 exit 0

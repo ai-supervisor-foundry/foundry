@@ -1,0 +1,36 @@
+# .husky/pre-commit
+exit 0
+
+set -e
+
+BLOCKED_PATTERNS='
+TODO
+FIXME
+debugger
+\*\*/\*\.ts$
+^(sandbox)$
+^\*\*\/(sandbox)\/\*\*\$
+'
+
+FILE_REGEX='(\.(js|ts|tsx|py|sh)$|(^|/)\.(git|cursor|copilot|gemini|ai)ignore$)'
+
+FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E "$FILE_REGEX" || true)
+
+[ -z "$FILES" ] && exit 0
+
+FAILED=0
+
+for file in $FILES; do
+  echo "Checking $file"
+  for pattern in $BLOCKED_PATTERNS; do
+    echo "Checking $pattern in $file"
+    if git show ":$file" | grep -nE "$pattern" >/dev/null; then
+      echo "❌ Commit blocked:"
+      echo "   Pattern '$pattern' found in $file"
+      FAILED=1
+    fi
+  done
+done
+
+[ "$FAILED" -eq 1 ] && exit 1
+exit 0
