@@ -1,3 +1,5 @@
+First read the doc [Cursor CLI Params](/docs/plans/helper-docs/cursor-cli-params.md)
+
 ## Analysis: Cursor CLI thread/agent reuse enhancements
 
 ### Current implementation

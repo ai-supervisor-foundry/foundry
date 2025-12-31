@@ -3,7 +3,7 @@
 
 import { CursorResult } from './haltDetection';
 import { CircuitBreakerManager, Provider } from './circuitBreaker';
-import { dispatchToCursor } from './cursorCLI';
+import { dispatchToCursor } from './providers/cursorCLI';
 import { dispatchToClaude } from './providers/claudeCLI';
 import { dispatchToCodex } from './providers/codexCLI';
 import { dispatchToGemini } from './providers/geminiCLI';
@@ -126,10 +126,10 @@ export class CLIAdapter {
           errorText.includes('resource_exhausted')
         );
       case Provider.CLAUDE:
-        // TODO: Implement Claude-specific error detection
+        // @todo: Implement Claude-specific error detection
         return errorText.includes('rate limit') || errorText.includes('quota exceeded');
       case Provider.CODEX:
-        // TODO: Implement Codex-specific error detection
+        // @todo: Implement Codex-specific error detection
         return errorText.includes('api error') || errorText.includes('rate limit');
       case Provider.GEMINI:
         // Gemini CLI error detection

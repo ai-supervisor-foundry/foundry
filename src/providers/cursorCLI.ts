@@ -1,7 +1,7 @@
 // Cursor CLI - Thin dispatcher
 // No interpretation, no retries, no validation, no logging
 
-import { CursorResult } from './haltDetection';
+import { CursorResult } from '../haltDetection';
 import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';

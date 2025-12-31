@@ -318,6 +318,10 @@ queue:tasks (Redis List)
 - `buildFixPrompt()`: Retry prompt with validation feedback
 - `buildClarificationPrompt()`: Retry prompt for ambiguity/questions
 
+**Features**:
+- **Smart Context Injection**: Only includes state relevant to the current task (e.g., excludes goal description if task is a simple fix, excludes queue history if not referencing previous work).
+- **Task-Type Guidelines**: Detects task type (Implementation, Config, Test, Doc, Refactor) and appends specific best-practice instructions.
+
 **Minimal State Snapshot**:
 ```typescript
 {
@@ -325,21 +329,10 @@ queue:tasks (Redis List)
     id: "project-id",
     sandbox_root: "/path/to/sandbox/project-id"
   },
-  goal: {
-    id: "project-id",
-    description: "Goal description"
-  },
-  queue: {
-    last_task_id: "task-001"
-  }
+  goal: { ... }, // Included only if relevant
+  queue: { ... } // Included only if relevant
 }
 ```
-
-**Key Characteristics**:
-- Injects minimal state (not full state)
-- Includes task instructions and acceptance criteria
-- Includes validation feedback for retries
-- Includes ambiguity clarification for retries
 
 #### 6. Cursor CLI Dispatcher (`src/cursorCLI.ts`)
 
@@ -371,13 +364,15 @@ cursor agent --print --force --output-format text [--model <mode>] "<prompt>"
 4. **JSON Schema**: Validate JSON output against expected schema
 5. **Exit Code**: Check Cursor CLI exit code
 
+**Advanced Features**:
+- **Confidence Scoring**: Assigns `MatchQuality` (EXACT, HIGH, MEDIUM, LOW) to each criterion. Overall confidence determines need for interrogation.
+- **Proactive Helper Agent (V2)**: If validation fails, automatically triggers a Helper Agent with **Code Discovery** (list of actual files) to generate verification commands.
+
 **Key Characteristics**:
 - Rule-based only, no LLM calls
 - No side effects
 - Returns ValidationReport with:
   - `valid`: boolean
-  - `rules_passed`: string[]
-  - `rules_failed`: string[]
   - `confidence`: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNCERTAIN'
   - `failed_criteria`: string[]
   - `uncertain_criteria`: string[]
@@ -403,11 +398,12 @@ cursor agent --print --force --output-format text [--model <mode>] "<prompt>"
 **Purpose**: Ask agent about uncertain/failed validation criteria
 
 **Flow**:
-1. For each uncertain/failed criterion, ask agent directly
-2. Agent responds with yes/no or explanation
-3. Update validation report based on responses
-4. If all criteria satisfied → mark task complete
-5. If criteria still failed → proceed with retry
+1. **Pre-Analysis**: Scan codebase for keywords related to criteria to find potential file locations.
+2. For each uncertain/failed criterion, ask agent directly (injecting pre-analysis findings).
+3. Agent responds with yes/no or explanation.
+4. Update validation report based on responses.
+5. If all criteria satisfied → mark task complete.
+6. If criteria still failed → proceed with retry.
 
 **Key Characteristics**:
 - Used when validation confidence is UNCERTAIN or LOW
@@ -785,7 +781,8 @@ flowchart TD
 - If no task: Mark queue exhausted and check goal completion
 
 #### Step 4: Build Prompt
-- Create minimal state snapshot (project, goal, queue.last_task_id)
+- Create minimal state snapshot (Smart Context Injection: includes only relevant goal, queue, or completed tasks based on intent)
+- Detect task type (Implementation, Config, Test, etc.) and inject specific guidelines
 - Build prompt with task instructions and acceptance criteria
 - Log prompt to `prompts.log.jsonl`
 
@@ -803,13 +800,18 @@ flowchart TD
 #### Step 7: Validate Output
 - Rule-based validation (no LLM calls)
 - Check required artifacts, acceptance criteria, test commands
+- Calculate MatchQuality (EXACT/HIGH/MEDIUM/LOW) and Confidence Score
+- Proactive Helper Agent (V2): If validation fails, automatically trigger Helper Agent to verify with code discovery
 - Return ValidationReport with confidence level
 
 #### Step 8: Handle Retries/Interrogation
 - If validation fails or ambiguity detected:
   - Check retry count < max_retries
-  - If needs interrogation (UNCERTAIN confidence): Interrogate agent
+  - If needs interrogation (UNCERTAIN/LOW confidence): 
+    - Perform Pre-Analysis (search codebase for keywords)
+    - Interrogate agent with targeted questions
   - Build fix/clarification prompt
+  - **Smart Retry**: If agent fails with the exact same error twice, switch to "Strict Mode" fix prompt
   - Execute Cursor CLI with fix prompt
   - Re-validate output
   - If still fails: Store retry_task for next iteration
