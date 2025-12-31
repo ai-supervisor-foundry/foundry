@@ -154,7 +154,8 @@ export class CLIAdapter {
     prompt: string,
     cwd: string,
     agentMode?: string,
-    sessionId?: string
+    sessionId?: string,
+    featureId?: string
   ): Promise<CursorResult> {
     log(`Executing provider: ${provider}`);
     logVerbose('ExecuteProvider', 'Executing provider', {
@@ -163,6 +164,7 @@ export class CLIAdapter {
       cwd,
       agent_mode: agentMode,
       session_id: sessionId,
+      feature_id: featureId,
     });
 
     switch (provider) {
@@ -173,7 +175,7 @@ export class CLIAdapter {
       case Provider.CODEX:
         return await dispatchToCodex(prompt, cwd, agentMode);
       case Provider.GEMINI:
-        return await dispatchToGemini(prompt, cwd, agentMode);
+        return await dispatchToGemini(prompt, cwd, agentMode, sessionId, featureId);
       case Provider.COPILOT:
         return await dispatchToCopilot(prompt, cwd, agentMode, sessionId);
       default:
@@ -188,7 +190,8 @@ export class CLIAdapter {
     prompt: string,
     workingDirectory: string,
     agentMode?: string,
-    sessionId?: string
+    sessionId?: string,
+    featureId?: string
   ): Promise<CursorResult> {
     const startTime = Date.now();
     log(`Executing CLI adapter for prompt (${prompt.length} chars) in directory: ${workingDirectory}${sessionId ? ` (Session: ${sessionId})` : ''}`);
@@ -197,6 +200,7 @@ export class CLIAdapter {
       working_directory: workingDirectory,
       agent_mode: agentMode,
       session_id: sessionId,
+      feature_id: featureId,
     });
 
     // Select first available provider
@@ -244,7 +248,7 @@ export class CLIAdapter {
           priority_index: i,
         });
 
-        const result = await this.executeProvider(provider, prompt, workingDirectory, agentMode, sessionId);
+        const result = await this.executeProvider(provider, prompt, workingDirectory, agentMode, sessionId, featureId);
         const duration = Date.now() - startTime;
         logPerformance('CLIAdapterExecution', duration, {
           provider,

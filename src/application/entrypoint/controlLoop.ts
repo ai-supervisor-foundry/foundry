@@ -5,6 +5,7 @@ import { PersistenceLayer } from '../services/persistence';
 import { QueueAdapter } from '../../domain/executors/taskQueue';
 import { PromptBuilder, buildPrompt, buildFixPrompt, buildClarificationPrompt, buildGoalCompletionPrompt, parseGoalCompletionResponse, MinimalState } from '../../domain/agents/promptBuilder';
 import { CLIAdapter } from '../../infrastructure/adapters/agents/providers/cliAdapter';
+import { sessionManager } from '../../domain/agents/sessionManager';
 import { Validator, validateTaskOutput } from '../services/validator';
 import { AuditLogger, appendAuditLog } from '../../infrastructure/adapters/logging/auditLogger';
 import { appendPromptLog } from '../../infrastructure/adapters/logging/promptLogger';
@@ -469,7 +470,15 @@ export async function controlLoop(
     // 8. Dispatch to Cursor CLI with enforced sandbox cwd
     const agentMode = task.agent_mode || 'auto';
     const projectId = state.goal.project_id || 'default';
-    const sessionId = task.meta?.session_id || (task.meta?.feature_id ? state.active_sessions?.[task.meta.feature_id]?.session_id : undefined);
+    
+    // Session Resolution & Smart Recovery
+    const sessionId = await sessionManager.resolveSession(
+      task.tool,
+      task.meta?.feature_id,
+      task.meta?.session_id,
+      state
+    );
+    const featureId = task.meta?.feature_id;
 
     // Log full prompt to prompts.log.jsonl
     await appendPromptLog(
@@ -497,9 +506,10 @@ export async function controlLoop(
       prompt_length: prompt.length,
       agent_mode: agentMode,
       session_id: sessionId,
+      feature_id: featureId,
     });
     const cursorStartTime = Date.now();
-    const cursorResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, sessionId);
+    const cursorResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, sessionId, featureId);
     const cursorDuration = Date.now() - cursorStartTime;
 
     // Save sessionId back to state if returned and not already there
