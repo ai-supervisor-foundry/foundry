@@ -5,6 +5,9 @@
 node_modules
 /build
 *.js
+**/*.js.map
+**/*.d.ts*
+**/*.jsonl
 !.eslintrc.js
 !jest.config.js
 !ecosystem.config.js
@@ -68,6 +71,11 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Development helpers / dir
+sandbox/*
+sandbox/**
+sandbox/
+sandbox
+**/sandbox/**
 postgres
 pgadmin
 .pgpass

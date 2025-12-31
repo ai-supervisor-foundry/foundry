@@ -5,7 +5,6 @@
 node_modules
 /build
 *.js
-# **/*.js
 **/*.js.map
 **/*.d.ts*
 **/*.jsonl
