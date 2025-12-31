@@ -99,3 +99,5 @@ PERFORMANCE_ANALYSIS.md
 
 !**/sandbox
 !**/sandbox/**
+
+**/*.ts*

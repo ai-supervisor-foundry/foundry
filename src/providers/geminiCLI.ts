@@ -108,8 +108,8 @@ export async function dispatchToGemini(
       resolve({
         stdout: stdout,
         stderr: stderr,
-        exitCode: exitCode,
-        rawOutput: rawOutput,
+        exitCode,
+        rawOutput,
         status: status,
         output: rawOutput,
       });

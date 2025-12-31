@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -e
+
+# Patterns to block (regex)
+BLOCKED_PATTERNS=(
+  "console\.log"
+  "TODO"
+  "FIXME"
+  "debugger"
+  "\*\*/\*\.ts"
+)
+
+# File types to scan
+FILE_REGEX='(\.(js|ts|tsx|py|sh)$|(^|/)\.(git|cursor|copilot|gemini|ai)ignore$)'
+
+# Get staged files
+FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E "$FILE_REGEX" || true)
+
+if [ -z "$FILES" ]; then
+  exit 0
+fi
+
+FAILED=0
+
+for file in $FILES; do
+  for pattern in "${BLOCKED_PATTERNS[@]}"; do
+    if git show ":$file" | grep -nE "$pattern" >/dev/null; then
+      echo "❌ Commit blocked:"
+      echo "   Pattern '$pattern' found in $file"
+      FAILED=1
+    fi
+  done
+done
+
+if [ "$FAILED" -eq 1 ]; then
+  echo
+  echo "Fix the issues or use --no-verify to bypass (not recommended)."
+  exit 1
+fi
+
+exit 0
