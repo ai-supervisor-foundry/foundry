@@ -114,8 +114,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <div className="bg-white col-span-2 rounded-lg shadow p-6">
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-sm font-medium text-gray-500">Status</h3>
               <button
