@@ -234,14 +234,25 @@ export async function controlLoop(
     
     logStateTransition('CHECKING', 'RUNNING', { iteration });
 
-    // 4. Check for retry task first, then dequeue from queue
+    // 4. Check for current_task (recovery), then retry_task, then dequeue
     const taskRetrievalStartTime = Date.now();
     logVerbose('ControlLoop', 'Retrieving task', { iteration });
     let task: Task | null = null;
     let taskSource = '';
     
+    // Check if there's an interrupted task (current_task)
+    if (state.current_task) {
+      task = state.current_task;
+      taskSource = 'current_task_recovery';
+      log(`[Iteration ${iteration}] Recovering interrupted task: ${task.task_id}`);
+      logVerbose('ControlLoop', 'Recovered interrupted task from state', {
+        iteration,
+        task_id: task.task_id,
+        intent: task.intent,
+      });
+    }
     // Check if there's a retry task stored in state
-    if ((state.supervisor as any).retry_task) {
+    else if ((state.supervisor as any).retry_task) {
       task = (state.supervisor as any).retry_task;
       taskSource = 'retry_task';
       if (task) {

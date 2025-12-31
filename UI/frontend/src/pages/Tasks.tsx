@@ -311,17 +311,26 @@ export default function Tasks() {
               </span>
             </div>
             {currentTask ? (
-              <TaskCard task={currentTask} isCurrent={true} />
+              <TaskCard 
+                task={currentTask} 
+                isCurrent={true} 
+                onEdit={handleEdit}
+              />
             ) : (
               <p className="text-gray-500 italic">No task in progress</p>
             )}
           </div>
 
-          <div>
+          <div className="border-l-4 border-gray-300 pl-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold">
-                Queue ({queue?.length || 0} pending)
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold">
+                  Queue
+                </h3>
+                <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-medium rounded">
+                  {queue?.length || 0}
+                </span>
+              </div>
             </div>
             {queue?.pending && queue.pending.length > 0 ? (
               <>
@@ -338,6 +347,7 @@ export default function Tasks() {
                               key={task.task_id || index} 
                               task={task} 
                               isCurrent={isCurrentTask}
+                              onEdit={handleEdit}
                             />
                           );
                         })}

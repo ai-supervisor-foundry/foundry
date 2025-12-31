@@ -97,6 +97,11 @@ export const apiClient = {
   // Config endpoint
   getConfig: () => api.get('/api/config'),
   updateConfig: (config: Record<string, any>) => api.post('/api/config', config),
+  
+  // Supervisor control
+  haltSupervisor: (reason: string = 'User requested halt via UI') => 
+    apiClient.executeSupervisorCommand('halt', { reason }),
+  resumeSupervisor: () => apiClient.executeSupervisorCommand('resume'),
 };
 
 export default api;

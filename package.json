@@ -4,9 +4,9 @@
   "description": "Deterministic control-plane system for long-running, restart-safe software work",
   "main": "index.ts",
   "scripts": {
-    "cli": "tsx src/cli.ts",
+    "cli": "tsx src/infrastructure/tooling/project-cli/cli.ts",
     "build": "tsc",
-    "dev": "tsx watch src/cli.ts",
+    "dev": "tsx watch src/infrastructure/tooling/project-cli/cli.ts",
     "prepare": "husky"
   },
   "dependencies": {

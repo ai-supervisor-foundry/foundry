@@ -114,6 +114,84 @@ export async function getAllPendingTasks(): Promise<any[]> {
 }
 
 /**
+ * Update a task in the queue
+ * Warning: O(N) operation where N is queue length
+ */
+export async function updateTaskInQueue(taskId: string, updates: Record<string, any>): Promise<boolean> {
+  try {
+    const client = getQueueClient();
+    const key = getQueueKey();
+    
+    // We need to find the task first.
+    // LPOS would be ideal but it returns index matching element, not partial match.
+    // So we must fetch all (or scan). For simplicity/safety, fetch all.
+    const items = await client.lrange(key, 0, -1);
+    
+    let foundIndex = -1;
+    let foundTask: any = null;
+    
+    for (let i = 0; i < items.length; i++) {
+      try {
+        const task = JSON.parse(items[i]);
+        if (task.task_id === taskId) {
+          foundIndex = i;
+          foundTask = task;
+          break;
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    
+    if (foundIndex !== -1 && foundTask) {
+      const updatedTask = { ...foundTask, ...updates };
+      await client.lset(key, foundIndex, JSON.stringify(updatedTask));
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Error updating task in queue:', error);
+    return false;
+  }
+}
+
+/**
+ * Remove a task from the queue (by ID)
+ * Returns the removed task object if found
+ */
+export async function removeTaskFromQueue(taskId: string): Promise<any | null> {
+  try {
+    const client = getQueueClient();
+    const key = getQueueKey();
+    const items = await client.lrange(key, 0, -1);
+    
+    let foundTask: any = null;
+    
+    for (const item of items) {
+      try {
+        const task = JSON.parse(item);
+        if (task.task_id === taskId) {
+          foundTask = task;
+          // Remove this specific item string
+          // Count 1 means remove first occurrence (though there should be only one)
+          // LREM is safe here
+          await client.lrem(key, 1, item);
+          break;
+        }
+      } catch (e) {
+        // Ignore
+      }
+    }
+    
+    return foundTask;
+  } catch (error) {
+    console.error('Error removing task from queue:', error);
+    return null;
+  }
+}
+
+/**
  * Close queue connection
  */
 export async function closeConnection(): Promise<void> {
