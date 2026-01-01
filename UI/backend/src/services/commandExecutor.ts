@@ -99,7 +99,7 @@ function buildSupervisorCommand(
   options: Record<string, string | number> = {}
 ): string {
   // Resolve path from UI/backend/src to supervisor/
-  const projectRoot = path.resolve(process.cwd(), '../../'); 
+  const projectRoot = path.resolve(process.cwd(), './'); 
   const cliPath = path.join(projectRoot, 'src', 'infrastructure', 'tooling', 'project-cli', 'cli.ts');
   
   // Base command
@@ -138,6 +138,7 @@ export async function executeSupervisorCommand(
   
   // Build command
   const fullCommand = buildSupervisorCommand(command, options);
+  console.log('Full supervisor command:', fullCommand);
   
   const startTime = Date.now();
   

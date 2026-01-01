@@ -116,7 +116,7 @@ export async function updateTaskInState(taskId: string, updates: Record<string, 
   if (state.completed_tasks) {
     const index = state.completed_tasks.findIndex((t: any) => t.task_id === taskId);
     if (index !== -1) {
-      state.completed_tasks[index] = { ...state.completed_tasks[index], ...updates };
+      state.completed_tasks[index] = { ...(state.completed_tasks[index] as object), ...updates };
       found = true;
     }
   }
@@ -125,7 +125,7 @@ export async function updateTaskInState(taskId: string, updates: Record<string, 
   if (!found && state.blocked_tasks) {
     const index = state.blocked_tasks.findIndex((t: any) => t.task_id === taskId);
     if (index !== -1) {
-      state.blocked_tasks[index] = { ...state.blocked_tasks[index], ...updates };
+      state.blocked_tasks[index] = { ...(state.blocked_tasks[index] as object), ...updates };
       found = true;
     }
   }
