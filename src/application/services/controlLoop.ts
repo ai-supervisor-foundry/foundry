@@ -347,6 +347,7 @@ export async function controlLoop(
             content: goalCheckPrompt,
             metadata: {
               agent_mode: 'auto',
+              provider: cliAdapter.getProviderInUse(),
               working_directory: sandboxCwd,
               prompt_length: goalCheckPrompt.length,
             },
@@ -370,6 +371,7 @@ export async function controlLoop(
             content: goalCheckResponse,
             metadata: {
               agent_mode: 'auto',
+              provider: cliAdapter.getProviderInUse(),
               working_directory: sandboxCwd,
               response_length: goalCheckResponse.length,
             },
@@ -523,6 +525,7 @@ export async function controlLoop(
         content: prompt,
         metadata: {
           agent_mode: agentMode,
+          provider: cliAdapter.getProviderInUse(),
           working_directory: sandboxCwd,
           prompt_length: prompt.length,
           intent: task.intent,
@@ -594,6 +597,7 @@ export async function controlLoop(
         content: responseContent,
         metadata: {
           agent_mode: agentMode,
+          provider: cliAdapter.getProviderInUse(),
           working_directory: sandboxCwd,
           response_length: responseContent.length,
           stdout_length: cursorResult.stdout?.length || 0,
@@ -880,6 +884,7 @@ export async function controlLoop(
                 type: 'RESPONSE', // Using RESPONSE type for command execution results
                 content: `Command execution results:\n${commandResults.results.map(r => `${r.command}: ${r.passed ? 'PASSED' : 'FAILED'} (exitCode=${r.exitCode})`).join('\n')}`,
                 metadata: {
+                  provider: cliAdapter.getProviderInUse(),
                   working_directory: sandboxCwd,
                   prompt_type: 'command_execution',
                   command_execution_passed: commandResults.passed,
@@ -1222,6 +1227,7 @@ export async function controlLoop(
           content: fixPrompt,
           metadata: {
             agent_mode: agentMode,
+            provider: cliAdapter.getProviderInUse(),
             working_directory: sandboxCwd,
             prompt_length: fixPrompt.length,
             intent: task.intent,
@@ -1265,6 +1271,7 @@ export async function controlLoop(
           content: fixResponseContent,
           metadata: {
             agent_mode: agentMode,
+            provider: cliAdapter.getProviderInUse(),
             working_directory: sandboxCwd,
             response_length: fixResponseContent.length,
             stdout_length: fixCursorResult.stdout?.length || 0,

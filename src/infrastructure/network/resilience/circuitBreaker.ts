@@ -33,8 +33,8 @@ export class CircuitBreakerManager {
   }
 
   /**
-   * Check if circuit breaker is open (provider is available)
-   * Returns true if breaker is open (can use provider), false if closed (circuit-broken)
+   * Check if circuit breaker is open (provider is not available - circuit-broken)
+   * Returns false if breaker is closed (can use provider), true if open (circuit-broken)
    */
   async isOpen(provider: Provider): Promise<boolean> {
     const startTime = Date.now();
@@ -50,7 +50,7 @@ export class CircuitBreakerManager {
       if (value === null) {
         // No circuit breaker set, provider is available
         logVerbose('IsOpen', 'Circuit breaker not set, provider is open', { provider });
-        return true;
+        return false;
       }
       
       // Circuit breaker exists, check if expired
@@ -60,31 +60,31 @@ export class CircuitBreakerManager {
       
       if (now >= expiresAt) {
         // Circuit breaker expired, provider is available again
-        logVerbose('IsOpen', 'Circuit breaker expired, provider is open', {
+        logVerbose('IsOpen', 'Circuit breaker expired, provider is available', {
           provider,
           expired_at: status.expires_at,
         });
         // Clean up expired breaker
         await this.redisClient.del(key);
-        return true;
+        return false;
       }
       
       // Circuit breaker is active, provider is closed
-      logVerbose('IsOpen', 'Circuit breaker is active, provider is closed', {
+      logVerbose('IsOpen', 'Circuit breaker is open, provider is not available', {
         provider,
         triggered_at: status.triggered_at,
         expires_at: status.expires_at,
         error_type: status.error_type,
       });
-      return false;
+      return true;
     } catch (error) {
       const duration = Date.now() - startTime;
       logPerformance('CircuitBreakerCheck', duration, { provider, error: true });
-      logVerbose('IsOpen', 'Error checking circuit breaker, defaulting to open', {
+      logVerbose('IsOpen', 'Error checking circuit breaker, defaulting to open (provider is not available)', {
         provider,
         error: error instanceof Error ? error.message : String(error),
       });
-      // On error, default to open (allow provider usage)
+      // On error, default to open (provider is not available)
       return true;
     }
   }

@@ -6,6 +6,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { log as logShared } from './logger';
+import { Provider } from '../../../domain/agents/enums/provider';
 
 function logMessage(message: string, ...args: unknown[]): void {
   logShared('PromptLogger', message, ...args);
@@ -31,6 +32,8 @@ export interface PromptLogEntry {
   content: string; // Full prompt/response content (may be truncated if >100KB)
   metadata: {
     agent_mode?: string;
+    provider?: Provider | null;
+    model?: string;
     working_directory?: string;
     prompt_length?: number;
     response_length?: number;

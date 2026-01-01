@@ -32,7 +32,8 @@ function logPerformance(operation: string, duration: number, metadata?: Record<s
 
 export class CLIAdapter {
   private circuitBreaker: CircuitBreakerManager;
-  private priority: Provider[];
+  private readonly priority: Provider[];
+  private providerInUse: Provider | null = null;
 
   constructor(
     redisClient: Redis,
@@ -81,7 +82,7 @@ export class CLIAdapter {
 
     for (const provider of this.priority) {
       const isOpen = await this.circuitBreaker.isOpen(provider);
-      if (isOpen) {
+      if (!isOpen) {
         const duration = Date.now() - startTime;
         logPerformance('ProviderSelection', duration, { selected_provider: provider });
         log(`Selected provider: ${provider} (priority ${this.priority.indexOf(provider) + 1})`);
@@ -89,6 +90,7 @@ export class CLIAdapter {
           provider,
           priority_index: this.priority.indexOf(provider),
         });
+        this.providerInUse = provider;
         return provider;
       } else {
         logVerbose('SelectProvider', 'Provider is circuit-broken, trying next', {
@@ -335,6 +337,10 @@ export class CLIAdapter {
       status: 'FAILED',
       output: errorMessage,
     };
+  }
+
+  getProviderInUse(): Provider | null {
+    return this.providerInUse;
   }
 
   /**

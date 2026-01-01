@@ -62,6 +62,7 @@ export async function generateValidationCommands(
         content: prompt,
         metadata: {
           agent_mode: agentMode,
+          provider: cliAdapter.getProviderInUse(),
           working_directory: sandboxCwd,
           prompt_length: prompt.length,
           prompt_type: 'helper_agent_command_generation',
@@ -102,6 +103,7 @@ export async function generateValidationCommands(
         content: helperResponse,
         metadata: {
           agent_mode: agentMode,
+          provider: cliAdapter.getProviderInUse(),
           working_directory: sandboxCwd,
           response_length: helperResponse.length,
           stdout_length: helperResult.stdout?.length || 0,

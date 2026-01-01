@@ -362,6 +362,7 @@ export async function interrogateAgent(
           content: interrogationPrompt,
           metadata: {
             agent_mode: task.agent_mode || 'auto',
+            provider: cliAdapter.getProviderInUse(),
             working_directory: sandboxCwd,
             prompt_length: interrogationPrompt.length,
             criteria_count: unresolvedCriteria.length,
@@ -400,6 +401,7 @@ export async function interrogateAgent(
           content: agentResponse,
           metadata: {
             agent_mode: task.agent_mode || 'auto',
+            provider: cliAdapter.getProviderInUse(),
             working_directory: sandboxCwd,
             response_length: agentResponse.length,
             stdout_length: cursorResult.stdout?.length || 0,
