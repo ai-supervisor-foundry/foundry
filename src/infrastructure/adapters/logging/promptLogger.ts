@@ -6,7 +6,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { log as logShared } from './logger';
-import { Provider } from '../../../domain/agents/enums/provider';
 import { PromptLogEntry } from '../../../domain/types/promptLogEntry';
 
 function logMessage(message: string, ...args: unknown[]): void {
