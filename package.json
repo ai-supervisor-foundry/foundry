@@ -4,13 +4,14 @@
   "description": "Deterministic control-plane system for long-running, restart-safe software work",
   "main": "index.ts",
   "scripts": {
-    "cli": "tsx src/infrastructure/tooling/project-cli/cli.ts",
+    "cli": "tsx src/application/entrypoint/cli.ts",
     "build": "tsc",
-    "dev": "tsx watch src/infrastructure/tooling/project-cli/cli.ts",
+    "dev": "tsx watch src/application/entrypoint/cli.ts",
     "prepare": "husky"
   },
   "dependencies": {
     "commander": "^11.1.0",
+    "dotenv": "^17.2.3",
     "ioredis": "^5.3.2"
   },
   "devDependencies": {

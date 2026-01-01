@@ -1,12 +1,12 @@
 // Supervisor Control Loop Implementation
 // Deterministic, no planning, no task invention
 
-import { PersistenceLayer } from '../services/persistence';
+import { PersistenceLayer } from './persistence';
 import { QueueAdapter } from '../../domain/executors/taskQueue';
 import { PromptBuilder, buildPrompt, buildFixPrompt, buildClarificationPrompt, buildGoalCompletionPrompt, parseGoalCompletionResponse, MinimalState } from '../../domain/agents/promptBuilder';
 import { CLIAdapter } from '../../infrastructure/adapters/agents/providers/cliAdapter';
 import { sessionManager } from '../../domain/agents/sessionManager';
-import { Validator, validateTaskOutput } from '../services/validator';
+import { Validator, validateTaskOutput } from './validator';
 import { AuditLogger, appendAuditLog } from '../../infrastructure/adapters/logging/auditLogger';
 import { appendPromptLog } from '../../infrastructure/adapters/logging/promptLogger';
 import { SupervisorState, Task, ValidationReport } from '../../domain/types/types';
@@ -182,6 +182,7 @@ export async function controlLoop(
       );
     }
 
+    
     // 3. If supervisor.status !== "RUNNING": sleep(1000) and continue
     if (state.supervisor.status !== 'RUNNING') {
       logStateTransition(state.supervisor.status, 'SLEEPING', { iteration, reason: 'Status not RUNNING' });
@@ -315,6 +316,14 @@ export async function controlLoop(
       }
       
       // if goal not completed → Ask agent if goal is met
+      // disabled by default in .env
+      if (process.env.IS_ENABLED_GOAL_COMPLETION_CHECK === 'false') {
+        log(`[Iteration ${iteration}] Goal completion check is disabled, skipping...`);
+        logVerbose('ControlLoop', 'Goal completion check is disabled, skipping goal completion evaluation', { iteration });
+        await sleep(1000);
+        continue;
+      }
+      
       if (!state.goal.completed) {
         log(`[Iteration ${iteration}] Queue exhausted, checking if goal is met...`);
         logVerbose('ControlLoop', 'Asking agent if goal is completed', {

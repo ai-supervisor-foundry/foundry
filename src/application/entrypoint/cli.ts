@@ -3,16 +3,17 @@
 // Supervisor never self-recovers
 
 import { Command } from 'commander';
+import dotenv from 'dotenv';
 import Redis from 'ioredis';
-import { loadState, persistState, PersistenceLayer } from '../../../application/services/persistence';
-import { enqueueTask, getQueueKey, QueueAdapter, createQueue } from '../../../domain/executors/taskQueue';
-import { SupervisorState, Task } from '../../../domain/types/types';
-import { controlLoop } from '../../../application/entrypoint/controlLoop';
-import { PromptBuilder } from '../../../domain/agents/promptBuilder';
-import { CLIAdapter } from '../../adapters/agents/providers/cliAdapter';
-import { Validator } from '../../../application/services/validator';
-import { AuditLogger } from '../../adapters/logging/auditLogger';
-import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared } from '../../adapters/logging/logger';
+import { loadState, persistState, PersistenceLayer } from '../services/persistence';
+import { enqueueTask, getQueueKey, QueueAdapter, createQueue } from '../../domain/executors/taskQueue';
+import { SupervisorState, Task } from '../../domain/types/types';
+import { controlLoop } from '../services/controlLoop';
+import { PromptBuilder } from '../../domain/agents/promptBuilder';
+import { CLIAdapter } from '../../infrastructure/adapters/agents/providers/cliAdapter';
+import { Validator } from '../services/validator';
+import { AuditLogger } from '../../infrastructure/adapters/logging/auditLogger';
+import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared } from '../../infrastructure/adapters/logging/logger';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -25,6 +26,12 @@ function logPerformance(operation: string, duration: number, metadata?: Record<s
 }
 
 const program = new Command();
+
+const result = dotenv.config();
+if (result.error) {
+  console.error('Error loading .env file:', result.error);
+  process.exit(1);
+}
 
 // Global options
 program
