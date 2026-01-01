@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { promisify } from 'util';
-import { CursorResult } from '../../../../domain/executors/haltDetection';
+import { ProviderResult } from '../../../../domain/executors/haltDetection';
 
 const execAsync = promisify(exec);
 const SESSION_DIR = path.join(os.homedir(), '.copilot', 'session-state');
@@ -210,7 +210,7 @@ export async function dispatchToCopilot(
   agentMode?: string,
   sessionId?: string,
   featureId?: string
-): Promise<CursorResult> {
+): Promise<ProviderResult> {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] [CopilotCLI] Executing in directory: ${cwd}`);
   

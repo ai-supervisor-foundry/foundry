@@ -33,6 +33,8 @@ export class CircuitBreakerManager {
   }
 
   /**
+   * CIRCUIT OPEN = failure, not available
+   * CIRCUIT CLOSED = success, available (Basic electric circuit concept)
    * Check if circuit breaker is open (provider is not available - circuit-broken)
    * Returns false if breaker is closed (can use provider), true if open (circuit-broken)
    */
@@ -49,7 +51,7 @@ export class CircuitBreakerManager {
       
       if (value === null) {
         // No circuit breaker set, provider is available
-        logVerbose('IsOpen', 'Circuit breaker not set, provider is open', { provider });
+        logVerbose('IsAvailable', 'Circuit breaker not set, provider is available', { provider });
         return false;
       }
       

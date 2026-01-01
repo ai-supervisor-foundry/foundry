@@ -2,7 +2,7 @@
 // Implements RECOVERY.md scenarios
 
 import { SupervisorState, Task } from '../types/types';
-import { CursorResult } from './haltDetection';
+import { ProviderResult } from './haltDetection';
 import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared } from '../../infrastructure/adapters/logging/logger';
 
 function logVerbose(component: string, message: string, data?: Record<string, unknown>): void {
@@ -14,7 +14,7 @@ function logPerformance(operation: string, duration: number, metadata?: Record<s
 }
 
 export type RecoveryScenario =
-  | 'CURSOR_CRASH'
+  | 'CLI_CRASH'
   | 'PARTIAL_TASK'
   | 'CONFLICTING_STATE'
   | 'NONE';
@@ -30,44 +30,44 @@ export interface RecoveryDetection {
 export function detectRecoveryScenario(
   state: SupervisorState,
   lastTask: Task | null,
-  cursorResult: CursorResult | null
+  providerResult: ProviderResult | null
 ): RecoveryDetection {
   const startTime = Date.now();
   logVerbose('DetectRecoveryScenario', 'Detecting recovery scenarios', {
     status: state.supervisor.status,
     has_last_task: !!lastTask,
     last_task_id: lastTask?.task_id,
-    has_cursor_result: !!cursorResult,
-    cursor_exit_code: cursorResult?.exitCode,
+    has_provider_result: !!providerResult,
+    provider_exit_code: providerResult?.exitCode,
   });
   
-  // Scenario 1: Cursor CLI crash
+  // Scenario 1: CLI / Agent crash
   // Detected by: non-zero exit code, no output, or process error
-  if (cursorResult) {
-    if (cursorResult.exitCode !== 0 && cursorResult.rawOutput.trim().length === 0) {
+  if (providerResult) {
+    if (providerResult.exitCode !== 0 && providerResult.rawOutput.trim().length === 0) {
       const duration = Date.now() - startTime;
-      logPerformance('DetectRecoveryScenario', duration, { scenario: 'CURSOR_CRASH' });
-      logVerbose('DetectRecoveryScenario', 'CURSOR_CRASH detected', {
-        exit_code: cursorResult.exitCode,
-        output_length: cursorResult.rawOutput.length,
+      logPerformance('DetectRecoveryScenario', duration, { scenario: 'CLI_CRASH' });
+      logVerbose('DetectRecoveryScenario', 'CLI_CRASH detected', {
+        exit_code: providerResult.exitCode,
+        output_length: providerResult.rawOutput.length,
       });
       return {
-        scenario: 'CURSOR_CRASH',
-        details: `Cursor CLI exited with code ${cursorResult.exitCode} and produced no output`,
+        scenario: 'CLI_CRASH',
+        details: `CLI / Agent exited with code ${providerResult.exitCode} and produced no output`,
       };
     }
     
     // If exit code is non-zero and we have a last task, might be a crash
-    if (cursorResult.exitCode !== 0 && lastTask && state.supervisor.last_task_id === lastTask.task_id) {
+    if (providerResult.exitCode !== 0 && lastTask && state.supervisor.last_task_id === lastTask.task_id) {
       const duration = Date.now() - startTime;
-      logPerformance('DetectRecoveryScenario', duration, { scenario: 'CURSOR_CRASH' });
-      logVerbose('DetectRecoveryScenario', 'CURSOR_CRASH detected (task execution failure)', {
-        exit_code: cursorResult.exitCode,
+      logPerformance('DetectRecoveryScenario', duration, { scenario: 'CLI_CRASH' });
+      logVerbose('DetectRecoveryScenario', 'CLI_CRASH detected (task execution failure)', {
+        exit_code: providerResult.exitCode,
         task_id: lastTask.task_id,
       });
       return {
-        scenario: 'CURSOR_CRASH',
-        details: `Cursor CLI failed during task ${lastTask.task_id} execution`,
+        scenario: 'CLI_CRASH',
+        details: `CLI / Agent failed during task ${lastTask.task_id} execution`,
       };
     }
   }
@@ -164,12 +164,12 @@ export function handleRecoveryScenario(
   let result: { action: string; requiresOperatorInput: boolean };
   
   switch (detection.scenario) {
-    case 'CURSOR_CRASH':
+    case 'CLI_CRASH':
       result = {
         action: 'Reload rules & state, reissue last task',
         requiresOperatorInput: false, // Can auto-recover
       };
-      logVerbose('HandleRecoveryScenario', 'CURSOR_CRASH recovery action', {
+      logVerbose('HandleRecoveryScenario', 'CLI_CRASH recovery action', {
         action: result.action,
         requires_operator_input: result.requiresOperatorInput,
       });

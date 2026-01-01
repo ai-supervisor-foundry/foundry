@@ -3,16 +3,17 @@
 // Installation: npm install -g @google/gemini-cli
 // Command: gemini --output-format json [prompt] for structured output
 
-import { CursorResult } from '../../../../domain/executors/haltDetection';
+import { ProviderResult } from '../../../../domain/executors/haltDetection';
 import { spawn, exec } from 'child_process';
 import * as fs from 'fs/promises';
 import { promisify } from 'util';
+import { logVerbose } from '../../../adapters/logging/logger';
 
 const execAsync = promisify(exec);
 
 function log(message: string, ...args: unknown[]): void {
   const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] [GeminiCLI] ${message}`, ...args);
+  logVerbose('GeminiCLI', message, { args });
 }
 
 export class GeminiCLI {
@@ -52,13 +53,21 @@ export class GeminiCLI {
 
 export const geminiCLI = new GeminiCLI();
 
+function findJSONInString(stdout: string): string | null {
+  const jsonMatch = stdout.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    return jsonMatch[0];
+  }
+  return null;
+}
+
 export async function dispatchToGemini(
   prompt: string,
   cwd: string = './',
   agentMode?: string,
   sessionId?: string,
   featureId?: string
-): Promise<CursorResult> {
+): Promise<ProviderResult> {
   log(`Executing Gemini CLI in directory: ${cwd}`);
   log(`Prompt length: ${prompt.length} characters`);
   
@@ -113,7 +122,7 @@ export async function dispatchToGemini(
   
   log(`Spawning: ${geminiCommand} ${args.join(' ')}`);
 
-  return new Promise<CursorResult>((resolve, reject) => {
+  return new Promise<ProviderResult>((resolve, reject) => {
     const childProcess = spawn(geminiCommand, args, {
       cwd: cwd,
       env: process.env,
@@ -146,6 +155,7 @@ export async function dispatchToGemini(
       const rawOutput = stdout + stderr;
 
       log(`Gemini CLI process closed, exit code: ${exitCode}`);
+      logVerbose('GeminiCLI', 'Process closed', { exit_code: exitCode, raw_output: rawOutput });
 
       let status: string | undefined;
       let outputContent = rawOutput;
@@ -162,9 +172,11 @@ export async function dispatchToGemini(
         try {
           // Output might contain non-JSON preamble/postamble, try to find the JSON object
           // Gemini CLI output format: { "session_id": "...", "content": "...", "stats": ... }
-          const jsonMatch = stdout.match(/\{[\s\S]*\}/);
+          const jsonMatch = findJSONInString(stdout);
           if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
+            logVerbose('GeminiCLI', 'Found JSON match', { json_match: jsonMatch });
+            const parsed = JSON.parse(jsonMatch);
+            logVerbose('GeminiCLI', 'Parsed JSON', { parsed });
             outputContent = parsed.content || parsed.response || stdout; // Fallback
             newSessionId = parsed.session_id || parsed.sessionId;
             

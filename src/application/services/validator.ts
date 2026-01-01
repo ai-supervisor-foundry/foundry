@@ -2,7 +2,7 @@
 // No side effects, no retries
 
 import { Task, ValidationReport } from '../../domain/types/types';
-import { CursorResult } from '../../domain/executors/haltDetection';
+import { ProviderResult } from '../../domain/executors/haltDetection';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { exec } from 'child_process';
@@ -22,7 +22,7 @@ function log(message: string, ...args: unknown[]): void {
  */
 export async function validateTaskOutput(
   task: Task,
-  cursorResult: CursorResult,
+  providerResult: ProviderResult,
   sandboxRoot: string
 ): Promise<ValidationReport> {
   log(`Validating task: ${task.task_id}`);
@@ -30,7 +30,7 @@ export async function validateTaskOutput(
   const rulesPassed: string[] = [];
   const rulesFailed: string[] = [];
   // Use rawOutput (stdout + stderr combined) for validation
-  const output = cursorResult.rawOutput || cursorResult.stdout || '';
+  const output = providerResult.rawOutput || providerResult.stdout || '';
   log(`Output length: ${output.length} characters`);
 
   // Rule 1: task_id must match exactly
@@ -754,17 +754,17 @@ export async function validateTaskOutput(
 export class Validator {
   async validate(
     task: Task,
-    cursorOutput: string,
+    providerOutput: string,
     workingDirectory: string
   ): Promise<ValidationReport> {
-    // Convert to CursorResult format
-    const cursorResult: CursorResult = {
-      stdout: cursorOutput,
+    // Convert to ProviderResult format
+    const providerResult: ProviderResult = {
+      stdout: providerOutput,
       stderr: '',
       exitCode: 0,
-      rawOutput: cursorOutput,
+      rawOutput: providerOutput,
     };
 
-    return validateTaskOutput(task, cursorResult, workingDirectory);
+    return validateTaskOutput(task, providerResult, workingDirectory);
   }
 }

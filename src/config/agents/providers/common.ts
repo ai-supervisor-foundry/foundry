@@ -9,4 +9,5 @@ export const DEFAULT_PRIORITY: Provider[] = [
     Provider.CURSOR,
     Provider.CODEX,
     Provider.CLAUDE,
+    Provider.GEMINI_STUB,
 ];

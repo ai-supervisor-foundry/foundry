@@ -41,6 +41,9 @@ export function logVerbose(component: string, message: string, data?: Record<str
 }
 
 export function logPerformance(operation: string, duration: number, metadata?: Record<string, unknown>): void {
+  if (process.env.PERFORMANCE_LOGGING_ENABLED === 'false') {
+    return;
+  }
   const timestamp = new Date().toISOString();
   const metadataStr = metadata ? ` | Metadata: ${JSON.stringify(metadata)}` : '';
   writeLine(`[${timestamp}] [PERFORMANCE] ${operation} took ${duration}ms${metadataStr}`);

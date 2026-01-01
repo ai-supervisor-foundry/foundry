@@ -1,7 +1,7 @@
 // Claude CLI Dispatcher
 // TODO: Research Claude CLI command structure and implement
 
-import { CursorResult } from '../../../../domain/executors/haltDetection';
+import { ProviderResult } from '../../../../domain/executors/haltDetection';
 import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -16,7 +16,7 @@ export async function dispatchToClaude(
   prompt: string,
   cwd: string,
   agentMode?: string
-): Promise<CursorResult> {
+): Promise<ProviderResult> {
   log(`Executing Claude CLI in directory: ${cwd}`);
   log(`Prompt length: ${prompt.length} characters`);
   
@@ -54,7 +54,7 @@ export async function dispatchToClaude(
   
   log(`Spawning: ${claudeCommand} ${args.join(' ')}`);
 
-  return new Promise<CursorResult>((resolve, reject) => {
+  return new Promise<ProviderResult>((resolve, reject) => {
     const childProcess = spawn(claudeCommand, args, {
       cwd: cwd,
       env: process.env,

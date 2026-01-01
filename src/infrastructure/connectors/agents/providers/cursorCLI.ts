@@ -1,7 +1,7 @@
 // Cursor CLI - Thin dispatcher
 // No interpretation, no retries, no validation, no logging
 
-import { CursorResult } from '../../../../domain/executors/haltDetection';
+import { ProviderResult } from '../../../../domain/executors/haltDetection';
 import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -20,7 +20,7 @@ export async function dispatchToCursor(
   cwd: string,
   agentMode?: string,
   cursorExecutable?: string
-): Promise<CursorResult> {
+): Promise<ProviderResult> {
   log(`Executing Cursor CLI in directory: ${cwd}`);
   log(`Prompt length: ${prompt.length} characters`);
   
@@ -60,7 +60,7 @@ export async function dispatchToCursor(
 
   log(`Spawning: ${cursorCommand} ${args.slice(0, -1).join(' ')} [prompt]`);
 
-  return new Promise<CursorResult>((resolve, reject) => {
+  return new Promise<ProviderResult>((resolve, reject) => {
     const childProcess = spawn(cursorCommand, args, {
       cwd: cwd, // Enforce cwd strictly
       env: process.env,
@@ -145,7 +145,7 @@ export class CursorCLI {
     prompt: string,
     workingDirectory: string,
     agentMode?: string
-  ): Promise<CursorResult> {
+  ): Promise<ProviderResult> {
     return dispatchToCursor(prompt, workingDirectory, agentMode, this.cursorExecutable);
   }
 }

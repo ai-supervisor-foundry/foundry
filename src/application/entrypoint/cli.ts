@@ -16,6 +16,7 @@ import { AuditLogger } from '../../infrastructure/adapters/logging/auditLogger';
 import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared } from '../../infrastructure/adapters/logging/logger';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { Provider } from '../../domain/agents/enums/provider';
 
 function logVerbose(component: string, message: string, data?: Record<string, unknown>): void {
   logVerboseShared(`CLI:${component}`, message, data);
@@ -612,7 +613,13 @@ async function start(
     const dependencyInitDuration = Date.now() - dependencyInitStartTime;
     logPerformance('DependencyInitialization', dependencyInitDuration, {});
     logVerbose('Start', 'Dependencies initialized', {
-      cursor_cli_path: process.env.CURSOR_CLI_PATH || 'cursor',
+      /** @todo remove the commented out code below after experimentation, that all is good - Jan 1, 2026 */
+      // gemini_stub_cli_path: process.env.GEMINI_STUB_CLI_PATH || 'gemini-stub',
+      // gemini_cli_path: process.env.GEMINI_CLI_PATH || 'gemini',
+      // copilot_cli_path: process.env.COPILOT_CLI_PATH || 'copilot',
+      // codex_cli_path: process.env.CODEX_CLI_PATH || 'codex',
+      // claude_cli_path: process.env.CLAUDE_CLI_PATH || 'claude',
+      ...Object.values(Provider).map(provider => ({ [provider]: process.env[`${provider}_CLI_PATH`] || provider })),
       circuit_breaker_ttl_seconds: ttlSeconds,
     });
     

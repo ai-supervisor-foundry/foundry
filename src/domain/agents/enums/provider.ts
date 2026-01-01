@@ -3,5 +3,6 @@ export enum Provider {
     CLAUDE = 'claude',
     CODEX = 'codex',
     GEMINI = 'gemini',
+    GEMINI_STUB = 'gemini-stub',
     COPILOT = 'copilot',
 }

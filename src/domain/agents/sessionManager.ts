@@ -35,7 +35,7 @@ export class SessionManager {
       }
 
       // Check recovery (Smart Selection) - Provider specific
-      if (tool === Provider.GEMINI) {
+      if (tool === Provider.GEMINI || tool === Provider.GEMINI_STUB) {
         return await this.discoverGeminiSession(featureId, state);
       }
       if (tool === Provider.COPILOT) {

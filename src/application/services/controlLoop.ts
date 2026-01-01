@@ -10,7 +10,7 @@ import { Validator, validateTaskOutput } from './validator';
 import { AuditLogger, appendAuditLog } from '../../infrastructure/adapters/logging/auditLogger';
 import { appendPromptLog } from '../../infrastructure/adapters/logging/promptLogger';
 import { SupervisorState, Task, ValidationReport } from '../../domain/types/types';
-import { checkHardHalts, HaltReason as HaltDetectionReason, CursorResult } from '../../domain/executors/haltDetection';
+import { checkHardHalts, HaltReason as HaltDetectionReason, ProviderResult } from '../../domain/executors/haltDetection';
 import { interrogateAgent } from '../../domain/executors/interrogator';
 import { generateValidationCommands } from '../../domain/executors/commandGenerator';
 import { executeVerificationCommands } from '../../infrastructure/connectors/os/executors/commandExecutor';
@@ -35,6 +35,7 @@ const HALT_REASONS = {
   OUTPUT_FORMAT_INVALID: 'OUTPUT_FORMAT_INVALID',
   CURSOR_EXEC_FAILURE: 'CURSOR_EXEC_FAILURE',
   RESOURCE_EXHAUSTED: 'RESOURCE_EXHAUSTED',
+  PROVIDER_CIRCUIT_BROKEN: 'PROVIDER_CIRCUIT_BROKEN'
 } as const;
 
 // Resource exhaustion backoff intervals: 1min, 5min, 20min, 1hr, 2hr
@@ -503,7 +504,7 @@ export async function controlLoop(
       prompt_preview: prompt.substring(0, 200) + (prompt.length > 200 ? '...' : ''),
     });
 
-    // 8. Dispatch to Cursor CLI with enforced sandbox cwd
+    // 8. Dispatch to CLI / Agent with enforced sandbox cwd
     const agentMode = task.agent_mode || 'auto';
     const projectId = state.goal.project_id || 'default';
     
@@ -535,8 +536,8 @@ export async function controlLoop(
       sandboxRoot,
       projectId
     );
-    log(`[Iteration ${iteration}] Task ${task.task_id}: Executing CLI adapter with agent mode: ${agentMode}${sessionId ? ` (Session: ${sessionId})` : ''}...`);
-    logVerbose('ControlLoop', 'Dispatching to CLI adapter', {
+    log(`[Iteration ${iteration}] Task ${task.task_id}: Executing CLI / Agent with agent mode: ${agentMode}${sessionId ? ` (Session: ${sessionId})` : ''}...`);
+    logVerbose('ControlLoop', 'Dispatching to CLI / Agent', {
       iteration,
       task_id: task.task_id,
       working_directory: sandboxCwd,
@@ -545,50 +546,50 @@ export async function controlLoop(
       session_id: sessionId,
       feature_id: featureId,
     });
-    const cursorStartTime = Date.now();
-    const cursorResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, sessionId, featureId);
-    const cursorDuration = Date.now() - cursorStartTime;
+    const providerStartTime = Date.now();
+    const providerResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, sessionId, featureId);
+    const providerDuration = Date.now() - providerStartTime;
 
     // Save sessionId back to state if returned and not already there
-    if (cursorResult.sessionId) {
+    if (providerResult.sessionId) {
       if (!state.active_sessions) state.active_sessions = {};
       const featureId = task.meta?.feature_id || 'default';
       
-      if (!state.active_sessions[featureId] || state.active_sessions[featureId].session_id !== cursorResult.sessionId) {
+      if (!state.active_sessions[featureId] || state.active_sessions[featureId].session_id !== providerResult.sessionId) {
         state.active_sessions[featureId] = {
-          session_id: cursorResult.sessionId,
+          session_id: providerResult.sessionId,
           provider: task.tool,
           last_used: new Date().toISOString(),
           error_count: 0,
           feature_id: featureId,
           task_id: task.task_id
         };
-        log(`[Iteration ${iteration}] Task ${task.task_id}: Session ${cursorResult.sessionId} saved to state for feature: ${featureId}`);
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Session ${providerResult.sessionId} saved to state for feature: ${featureId}`);
       }
     }
-    log(`[Iteration ${iteration}] Task ${task.task_id}: CLI adapter completed in ${cursorDuration}ms, exit code: ${cursorResult.exitCode}`);
-    logPerformance('CLIAdapterExecution', cursorDuration, {
+    log(`[Iteration ${iteration}] Task ${task.task_id}: CLI / Agent completed in ${providerDuration}ms, exit code: ${providerResult.exitCode}`);
+    logPerformance('CLIAdapterExecution', providerDuration, {
       iteration,
       task_id: task.task_id,
-      exit_code: cursorResult.exitCode,
-      stdout_length: cursorResult.stdout?.length || 0,
-      stderr_length: cursorResult.stderr?.length || 0,
-      raw_output_length: cursorResult.rawOutput?.length || 0,
+      exit_code: providerResult.exitCode,
+      stdout_length: providerResult.stdout?.length || 0,
+      stderr_length: providerResult.stderr?.length || 0,
+      raw_output_length: providerResult.rawOutput?.length || 0,
     });
-    logVerbose('ControlLoop', 'CLI adapter execution completed', {
+    logVerbose('ControlLoop', 'CLI / Agent execution completed', {
       iteration,
       task_id: task.task_id,
-      exit_code: cursorResult.exitCode,
-      stdout_length: cursorResult.stdout?.length || 0,
-      stderr_length: cursorResult.stderr?.length || 0,
-      raw_output_length: cursorResult.rawOutput?.length || 0,
-      status: cursorResult.status,
-      stdout_preview: cursorResult.stdout?.substring(0, 500) || '',
-      stderr_preview: cursorResult.stderr?.substring(0, 500) || '',
+      exit_code: providerResult.exitCode,
+      stdout_length: providerResult.stdout?.length || 0,
+      stderr_length: providerResult.stderr?.length || 0,
+      raw_output_length: providerResult.rawOutput?.length || 0,
+      status: providerResult.status,
+      stdout_preview: providerResult.stdout?.substring(0, 500) || '',
+      stderr_preview: providerResult.stderr?.substring(0, 500) || '',
     });
 
     // Log full response to prompts.log.jsonl
-    const responseContent = cursorResult.stdout || cursorResult.rawOutput || '';
+    const responseContent = providerResult.stdout || providerResult.rawOutput || '';
     await appendPromptLog(
       {
         task_id: task.task_id,
@@ -600,10 +601,10 @@ export async function controlLoop(
           provider: cliAdapter.getProviderInUse(),
           working_directory: sandboxCwd,
           response_length: responseContent.length,
-          stdout_length: cursorResult.stdout?.length || 0,
-          stderr_length: cursorResult.stderr?.length || 0,
-          exit_code: cursorResult.exitCode,
-          duration_ms: cursorDuration,
+          stdout_length: providerResult.stdout?.length || 0,
+          stderr_length: providerResult.stderr?.length || 0,
+          exit_code: providerResult.exitCode,
+          duration_ms: providerDuration,
         },
       },
       sandboxRoot,
@@ -619,7 +620,7 @@ export async function controlLoop(
     logVerbose('ControlLoop', 'Checking for hard halt conditions', {
       iteration,
       task_id: task.task_id,
-      exit_code: cursorResult.exitCode,
+      exit_code: providerResult.exitCode,
     });
     
     // Determine required keys from task (if JSON output expected)
@@ -631,13 +632,13 @@ export async function controlLoop(
       has_expected_json_schema: !!task.expected_json_schema,
     });
     
-    // Add requiredKeys to cursorResult for halt detection
-    const cursorResultWithKeys: CursorResult = {
-      ...cursorResult,
+    // Add requiredKeys to providerResult for halt detection
+    const providerResultWithKeys: ProviderResult = {
+      ...providerResult,
       requiredKeys,
     };
     
-    let haltReason = checkHardHalts(cursorResultWithKeys);
+    let haltReason = checkHardHalts(providerResultWithKeys);
     const haltDetectionDuration = Date.now() - haltDetectionStartTime;
     logPerformance('HaltDetection', haltDetectionDuration, {
       iteration,
@@ -651,8 +652,8 @@ export async function controlLoop(
         iteration,
         task_id: task.task_id,
         halt_reason: haltReason,
-        exit_code: cursorResult.exitCode,
-        output_length: cursorResult.rawOutput?.length || 0,
+        exit_code: providerResult.exitCode,
+        output_length: providerResult.rawOutput?.length || 0,
       });
     } else {
       logVerbose('ControlLoop', 'No halt conditions detected', {
@@ -740,7 +741,7 @@ export async function controlLoop(
     // Only immediately halt on critical failures (execution failure, blocked)
     // AMBIGUITY and ASKED_QUESTION will be handled after validation (may be false positives)
     // RESOURCE_EXHAUSTED is handled above with retry logic
-    const criticalHaltReasons: HaltReason[] = ['CURSOR_EXEC_FAILURE', 'BLOCKED', 'OUTPUT_FORMAT_INVALID'];
+    const criticalHaltReasons: HaltReason[] = ['CURSOR_EXEC_FAILURE', 'BLOCKED', 'OUTPUT_FORMAT_INVALID', 'PROVIDER_CIRCUIT_BROKEN'];
     if (haltReason && criticalHaltReasons.includes(haltReason as any)) {
       log(`[Iteration ${iteration}] Task ${task.task_id}: Critical halt - ${haltReason}`);
       logVerbose('ControlLoop', 'Critical halt condition, halting immediately', {
@@ -759,14 +760,14 @@ export async function controlLoop(
         haltReason,
         persistence,
         auditLogger,
-        `Cursor output triggered halt: ${haltReason}`
+        `Provider output triggered halt: ${haltReason}`
       );
     }
 
-    // cursorOutput available via cursorResult.rawOutput if needed
+    // providerOutput available via providerResult.rawOutput if needed
 
     // 10. Validate output deterministically (even if AMBIGUITY/ASKED_QUESTION detected)
-    // Use project-specific sandbox path (same as Cursor CLI working directory)
+    // Use project-specific sandbox path (same as CLI / Agent working directory)
     log(`[Iteration ${iteration}] Task ${task.task_id}: Validating output...`);
     logVerbose('ControlLoop', 'Starting validation', {
       iteration,
@@ -780,7 +781,7 @@ export async function controlLoop(
     const validationStartTime = Date.now();
     let validationReport: ValidationReport = await validateTaskOutput(
       task,
-      cursorResult,
+      providerResult,
       sandboxCwd
     );
     const validationDuration = Date.now() - validationStartTime;
@@ -819,7 +820,7 @@ export async function controlLoop(
 
       try {
         const commandGeneration = await generateValidationCommands(
-          cursorResult.rawOutput || cursorResult.stdout || '',
+          providerResult.rawOutput || providerResult.stdout || '',
           validationReport.failed_criteria || [],
           sandboxCwd,
           cliAdapter,
@@ -1241,28 +1242,28 @@ export async function controlLoop(
       
       log(`[Iteration ${iteration}] Task ${task.task_id}: Executing fix/clarification attempt...`);
       const fixStartTime = Date.now();
-      const fixCursorResult = await cliAdapter.execute(fixPrompt, sandboxCwd, agentMode, sessionId);
+      const fixProviderResult = await cliAdapter.execute(fixPrompt, sandboxCwd, agentMode, sessionId);
       const fixDuration = Date.now() - fixStartTime;
-      log(`[Iteration ${iteration}] Task ${task.task_id}: Fix attempt completed in ${fixDuration}ms, exit code: ${fixCursorResult.exitCode}`);
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Fix attempt completed in ${fixDuration}ms, exit code: ${fixProviderResult.exitCode}`);
       logPerformance('FixCLIAdapterExecution', fixDuration, {
         iteration,
         task_id: task.task_id,
-        exit_code: fixCursorResult.exitCode,
+        exit_code: fixProviderResult.exitCode,
         prompt_type: promptType,
         retry_count: retryCount + 1,
       });
       logVerbose('ControlLoop', 'Fix/clarification attempt completed', {
         iteration,
         task_id: task.task_id,
-        exit_code: fixCursorResult.exitCode,
-        stdout_length: fixCursorResult.stdout?.length || 0,
-        stderr_length: fixCursorResult.stderr?.length || 0,
+        exit_code: fixProviderResult.exitCode,
+        stdout_length: fixProviderResult.stdout?.length || 0,
+        stderr_length: fixProviderResult.stderr?.length || 0,
         prompt_type: promptType,
         retry_count: retryCount + 1,
       });
 
       // Log fix/clarification response to prompts.log.jsonl
-      const fixResponseContent = fixCursorResult.stdout || fixCursorResult.rawOutput || '';
+      const fixResponseContent = fixProviderResult.stdout || fixProviderResult.rawOutput || '';
       await appendPromptLog(
         {
           task_id: task.task_id,
@@ -1274,9 +1275,9 @@ export async function controlLoop(
             provider: cliAdapter.getProviderInUse(),
             working_directory: sandboxCwd,
             response_length: fixResponseContent.length,
-            stdout_length: fixCursorResult.stdout?.length || 0,
-            stderr_length: fixCursorResult.stderr?.length || 0,
-            exit_code: fixCursorResult.exitCode,
+            stdout_length: fixProviderResult.stdout?.length || 0,
+            stderr_length: fixProviderResult.stderr?.length || 0,
+            exit_code: fixProviderResult.exitCode,
             duration_ms: fixDuration,
             prompt_type: promptType,
             retry_count: retryCount + 1,
@@ -1293,7 +1294,7 @@ export async function controlLoop(
       // Check for hard halts on fix/clarification attempt
       const fixHaltCheckStartTime = Date.now();
       const fixHaltReason = checkHardHalts({
-        ...fixCursorResult,
+        ...fixProviderResult,
         requiredKeys: [],
       });
       const fixHaltCheckDuration = Date.now() - fixHaltCheckStartTime;
@@ -1310,7 +1311,7 @@ export async function controlLoop(
       });
       
       // Only halt on critical failures during fix attempt
-      const criticalHaltReasons: HaltReason[] = ['CURSOR_EXEC_FAILURE', 'BLOCKED', 'OUTPUT_FORMAT_INVALID'];
+      const criticalHaltReasons: HaltReason[] = ['CURSOR_EXEC_FAILURE', 'BLOCKED', 'OUTPUT_FORMAT_INVALID', 'PROVIDER_CIRCUIT_BROKEN'];
       if (fixHaltReason && criticalHaltReasons.includes(fixHaltReason as any)) {
         logVerbose('ControlLoop', 'Critical halt during fix attempt', {
           iteration,
@@ -1329,12 +1330,12 @@ export async function controlLoop(
           fixHaltReason,
           persistence,
           auditLogger,
-          `Cursor output triggered halt during fix attempt: ${fixHaltReason}`
+          `Provider output triggered halt during fix attempt: ${fixHaltReason}`
         );
       }
       
       // Re-validate the fix/clarification attempt
-      // Use project-specific sandbox path (same as Cursor CLI working directory)
+      // Use project-specific sandbox path (same as CLI / Agent working directory)
       log(`[Iteration ${iteration}] Task ${task.task_id}: Re-validating fix attempt...`);
       logVerbose('ControlLoop', 'Re-validating fix attempt', {
         iteration,
@@ -1344,7 +1345,7 @@ export async function controlLoop(
       const fixValidationStartTime = Date.now();
       const fixValidationReport: ValidationReport = await validateTaskOutput(
         task,
-        fixCursorResult,
+        fixProviderResult,
         sandboxCwd
       );
       const fixValidationDuration = Date.now() - fixValidationStartTime;
@@ -1501,7 +1502,7 @@ export async function controlLoop(
         state_load_ms: stateLoadDuration,
         task_retrieval_ms: taskRetrievalDuration,
         prompt_build_ms: promptBuildDuration,
-        cursor_execution_ms: cursorDuration,
+        provider_execution_ms: providerDuration,
         validation_ms: validationDuration,
         state_persist_ms: persistDuration,
         audit_log_ms: auditLogDuration,

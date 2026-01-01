@@ -17,9 +17,9 @@ export type HaltReason =
   | 'BLOCKED'
   | 'OUTPUT_FORMAT_INVALID'
   | 'CURSOR_EXEC_FAILURE'
-  | 'RESOURCE_EXHAUSTED';
-
-export interface CursorResult {
+  | 'RESOURCE_EXHAUSTED'
+  | 'PROVIDER_CIRCUIT_BROKEN';
+export interface ProviderResult {
   stdout: string;
   stderr: string;
   exitCode: number;
@@ -122,7 +122,7 @@ function hasRequiredKeys(jsonText: string, requiredKeys: string[]): boolean {
  * Main halt detection function
  * Checks all halt conditions and returns first matching reason, or null
  */
-export function checkHardHalts(result: CursorResult): HaltReason | null {
+export function checkHardHalts(result: ProviderResult): HaltReason | null {
   const startTime = Date.now();
   const { rawOutput, stdout, stderr, status, exitCode, requiredKeys = [] } = result;
   // Use rawOutput (stdout + stderr combined) for detection
@@ -153,6 +153,10 @@ export function checkHardHalts(result: CursorResult): HaltReason | null {
 
   // Check 1: Cursor process non-zero exit code
   if (exitCode !== undefined && exitCode !== 0) {
+    logVerbose('ExecutionFailure', 'Execution failure detected', {
+      exit_code: exitCode,
+      output_preview: output.substring(0, 200),
+    });
     const duration = Date.now() - startTime;
     logPerformance('CheckHardHalts', duration, { halt_reason: 'CURSOR_EXEC_FAILURE' });
     logVerbose('CheckHardHalts', 'Halt detected: CURSOR_EXEC_FAILURE', {

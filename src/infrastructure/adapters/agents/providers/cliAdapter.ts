@@ -1,25 +1,21 @@
 // CLI Adapter - Multi-provider CLI dispatcher with circuit breaker
-// Priority-based fallback: Cursor → Gemini → Codex → Claude
+// Priority-based fallback: GEMINI → COPILOT → CURSOR → CODEX → CLAUDE
 
-import { CursorResult } from '../../../../domain/executors/haltDetection';
+import { ProviderResult } from '../../../../domain/executors/haltDetection';
 import { CircuitBreakerManager } from '../../../network/resilience/circuitBreaker';
 import { Provider } from '../../../../domain/agents/enums/provider';
 import { dispatchToCursor } from '../../../connectors/agents/providers/cursorCLI';
 import { dispatchToClaude } from '../../../connectors/agents/providers/claudeCLI';
 import { dispatchToCodex } from '../../../connectors/agents/providers/codexCLI';
 import { dispatchToGemini } from '../../../connectors/agents/providers/geminiCLI';
+import { dispatchToGeminiStub } from '../../../connectors/agents/providers/geminiStubCLI';
 import { dispatchToCopilot } from '../../../connectors/agents/providers/copilotCLI';
 import Redis from 'ioredis';
 import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared, log as logShared } from '../../logging/logger';
 import { DEFAULT_PRIORITY } from '../../../../config/agents/providers/common';
 
 function log(message: string, ...args: unknown[]): void {
-  const fullMessage = `[CLIAdapter] ${message}`;
-  if (args.length > 0) {
-    console.log(fullMessage, ...args);
-  } else {
-    console.log(fullMessage);
-  }
+  logShared('CLIAdapter', message, ...args);
 }
 
 function logVerbose(component: string, message: string, data?: Record<string, unknown>): void {
@@ -112,7 +108,7 @@ export class CLIAdapter {
   /**
    * Check if result should trigger circuit breaker
    */
-  private shouldTriggerCircuitBreaker(provider: Provider, result: CursorResult): boolean {
+  private shouldTriggerCircuitBreaker(provider: Provider, result: ProviderResult): boolean {
     const errorText = (result.stderr + result.stdout).toLowerCase();
     
     switch (provider) {
@@ -129,6 +125,14 @@ export class CLIAdapter {
         return errorText.includes('api error') || errorText.includes('rate limit');
       case Provider.GEMINI:
         // Gemini CLI error detection
+        return (
+          errorText.includes('quota') ||
+          errorText.includes('rate limit') ||
+          errorText.includes('resource exhausted') ||
+          errorText.includes('api key') ||
+          errorText.includes('authentication')
+        );
+      case Provider.GEMINI_STUB:
         return (
           errorText.includes('quota') ||
           errorText.includes('rate limit') ||
@@ -158,7 +162,7 @@ export class CLIAdapter {
     agentMode?: string,
     sessionId?: string,
     featureId?: string
-  ): Promise<CursorResult> {
+  ): Promise<ProviderResult> {
     log(`Executing provider: ${provider}`);
     logVerbose('ExecuteProvider', 'Executing provider', {
       provider,
@@ -180,13 +184,15 @@ export class CLIAdapter {
         return await dispatchToGemini(prompt, cwd, agentMode, sessionId, featureId);
       case Provider.COPILOT:
         return await dispatchToCopilot(prompt, cwd, agentMode, sessionId, featureId);
+      case Provider.GEMINI_STUB:
+        return await dispatchToGeminiStub(prompt, cwd, agentMode, sessionId, featureId);
       default:
         throw new Error(`Unknown provider: ${provider}`);
     }
   }
 
   /**
-   * Main entry point - same interface as CursorCLI
+   * Main entry point - same interface as CLIAdapter
    */
   async execute(
     prompt: string,
@@ -194,7 +200,7 @@ export class CLIAdapter {
     agentMode?: string,
     sessionId?: string,
     featureId?: string
-  ): Promise<CursorResult> {
+  ): Promise<ProviderResult> {
     const startTime = Date.now();
     log(`Executing CLI adapter for prompt (${prompt.length} chars) in directory: ${workingDirectory}${sessionId ? ` (Session: ${sessionId})` : ''}`);
     logVerbose('Execute', 'CLI adapter execution started', {
@@ -207,6 +213,9 @@ export class CLIAdapter {
 
     // Select first available provider
     let selectedProvider = await this.selectProvider();
+    logVerbose('Execute', 'Selected provider', {
+      provider: selectedProvider,
+    });
     
     if (selectedProvider === null) {
       const error = 'All CLI providers are circuit-broken';
@@ -228,14 +237,21 @@ export class CLIAdapter {
 
     // Try each provider in priority order until one succeeds
     let lastError: Error | null = null;
+    logVerbose('Execute', 'Last error', {
+      last_error: lastError,
+    });
     
     for (let i = this.priority.indexOf(selectedProvider); i < this.priority.length; i++) {
       const provider = this.priority[i];
+      logVerbose('Execute', 'Provider', {
+        provider,
+        priority_index: i,
+      });
       
       // Check if this provider is available
       const isOpen = await this.circuitBreaker.isOpen(provider);
-      if (!isOpen) {
-        log(`Provider ${provider} is circuit-broken, trying next provider`);
+      if (isOpen) {
+        log(`Provider ${provider} is circuit-broken (circuit open), trying next provider`);
         logVerbose('Execute', 'Provider circuit-broken, trying next', {
           provider,
           priority_index: i,
@@ -297,7 +313,7 @@ export class CLIAdapter {
         // Check if error should trigger circuit breaker
         const errorText = lastError.message.toLowerCase();
         if (
-          (provider === Provider.CURSOR && errorText.includes('resource_exhausted')) ||
+          (errorText.includes('resource_exhausted') || errorText.includes('exhausted')) ||
           errorText.includes('rate limit') ||
           errorText.includes('quota')
         ) {
@@ -346,7 +362,7 @@ export class CLIAdapter {
   /**
    * Extract error type from result for circuit breaker
    */
-  private extractErrorType(provider: Provider, result: CursorResult): string {
+  private extractErrorType(provider: Provider, result: ProviderResult): string {
     const errorText = (result.stderr + result.stdout).toLowerCase();
     
     if (errorText.includes('resource_exhausted')) {
