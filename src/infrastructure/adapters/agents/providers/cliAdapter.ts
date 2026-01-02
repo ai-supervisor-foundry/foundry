@@ -175,7 +175,7 @@ export class CLIAdapter {
 
     switch (provider) {
       case Provider.CURSOR:
-        return await dispatchToCursor(prompt, cwd, agentMode);
+        return await dispatchToCursor(prompt, cwd, agentMode, sessionId, featureId);
       case Provider.CLAUDE:
         return await dispatchToClaude(prompt, cwd, agentMode);
       case Provider.CODEX:

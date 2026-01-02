@@ -1,10 +1,6 @@
-// Cursor CLI - Thin dispatcher
-// No interpretation, no retries, no validation, no logging
-
 import { ProviderResult } from '../../../../domain/executors/haltDetection';
 import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
-import * as path from 'path';
 
 /**
  * Thin Cursor CLI dispatcher
@@ -15,13 +11,33 @@ function log(message: string, ...args: unknown[]): void {
   console.log(`[${timestamp}] [CursorCLI] ${message}`, ...args);
 }
 
+/**
+ * Extracts JSON from mixed text output
+ */
+function extractJSON(text: string): any {
+  try {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1 || end === -1 || end < start) {
+      return null;
+    }
+    const jsonStr = text.substring(start, end + 1);
+    return JSON.parse(jsonStr);
+  } catch (error) {
+    log(`Warning: Failed to parse JSON from output: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
+}
+
 export async function dispatchToCursor(
   prompt: string,
   cwd: string,
   agentMode?: string,
+  sessionId?: string,
+  featureId?: string,
   cursorExecutable?: string
 ): Promise<ProviderResult> {
-  log(`Executing Cursor CLI in directory: ${cwd}`);
+  log(`Executing Cursor CLI in directory: ${cwd}${sessionId ? ` (Session: ${sessionId})` : ''}`);
   log(`Prompt length: ${prompt.length} characters`);
   
   // Enforce cwd strictly - must exist and be a directory
@@ -35,98 +51,95 @@ export async function dispatchToCursor(
     throw new Error(`Invalid cwd: ${cwd} - ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  // Note: Based on Cursor CLI documentation, prompts can be passed directly
-  // No need for temp file, but keeping cleanup logic in case we need it later
+  // Prepend feature tag to prompt if this is a new session or we want to tag it
+  let finalPrompt = prompt;
+  if (featureId && !sessionId) {
+    finalPrompt = `[Feature: ${featureId}] ${prompt}`;
+  }
 
   // Spawn Cursor CLI process
-  // Based on https://cursor.com/cli - Cursor CLI command is 'cursor agent'
-  // Supports headless mode with --print flag for scripts and automation
-  // Flags: --print, --force, --output-format, --model (for agent mode)
-  // Use provided cursorExecutable, then env var, then default
   const cursorCommand = cursorExecutable || process.env.CURSOR_CLI_PATH || 'cursor';
   const args = [
     'agent', // Subcommand
-    '--print', // Print responses to console (required for non-interactive use)
-    '--force', // Force allow commands unless explicitly denied
-    '--output-format', 'text', // Output format (text or json)
+    '--print', // Print responses to console
+    '--force', // Force allow commands
+    '--output-format', 'json', // Use JSON for metadata extraction
   ];
   
-  // Always pass --model flag, defaulting to 'auto' if not specified
+  // Handle resume
+  if (sessionId) {
+    args.push('--resume', sessionId);
+  }
+
+  // Set model
   const modelToUse = agentMode || 'auto';
   args.push('--model', modelToUse);
-  log(`Using agent mode: ${modelToUse}`);
   
-  args.push(prompt); // Prompt as argument
+  args.push(finalPrompt);
 
   log(`Spawning: ${cursorCommand} ${args.slice(0, -1).join(' ')} [prompt]`);
 
   return new Promise<ProviderResult>((resolve, reject) => {
     const childProcess = spawn(cursorCommand, args, {
-      cwd: cwd, // Enforce cwd strictly
+      cwd: cwd,
       env: process.env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     log(`Cursor CLI process started, PID: ${childProcess.pid}`);
 
-    // Close stdin immediately - cursor agent doesn't need input with --print
     childProcess.stdin?.end();
 
     let stdout = '';
     let stderr = '';
 
-    // Set a timeout (30 minutes max for a task)
     const timeout = setTimeout(() => {
       childProcess.kill('SIGTERM');
       reject(new Error('Cursor CLI process timed out after 30 minutes'));
     }, 30 * 60 * 1000);
 
-    // Capture stdout
     childProcess.stdout?.on('data', (data: Buffer) => {
       stdout += data.toString('utf8');
     });
 
-    // Capture stderr
     childProcess.stderr?.on('data', (data: Buffer) => {
       stderr += data.toString('utf8');
     });
 
-    // Handle process completion
     childProcess.on('close', async (code) => {
       clearTimeout(timeout);
-      const exitCode = code ?? 1; // Default to 1 if code is null
+      const exitCode = code ?? 1;
       const rawOutput = stdout + stderr;
 
       log(`Cursor CLI process closed, exit code: ${exitCode}`);
-      log(`stdout length: ${stdout.length} bytes, stderr length: ${stderr.length} bytes`);
 
-      // Determine status from exit code and output
+      // Parse JSON output if possible
+      const jsonOutput = extractJSON(stdout);
+      
+      // Determine status
       let status: string | undefined;
       if (exitCode !== 0) {
         status = 'FAILED';
-        log(`Cursor CLI execution FAILED (exit code: ${exitCode})`);
-        if (stderr) {
-          log(`stderr: ${stderr.substring(0, 500)}${stderr.length > 500 ? '...' : ''}`);
-        }
       } else if (stderr.length > 0 && stderr.toLowerCase().includes('blocked')) {
         status = 'BLOCKED';
-        log(`Cursor CLI execution BLOCKED`);
-      } else {
-        log(`Cursor CLI execution SUCCESS`);
       }
 
+      // Extract metadata
+      const newSessionId = jsonOutput?.session_id || jsonOutput?.sessionId || jsonOutput?.chatId || jsonOutput?.id || sessionId;
+      const tokens = jsonOutput?.usage?.totalTokens || jsonOutput?.stats?.tokens?.total;
+
       resolve({
-        stdout: stdout,
+        stdout: jsonOutput?.response || stdout,
         stderr: stderr,
         exitCode: exitCode,
         rawOutput: rawOutput,
         status: status,
-        // Legacy fields for backward compatibility
         output: rawOutput,
+        sessionId: newSessionId,
+        usage: tokens ? { tokens } : undefined
       });
     });
 
-    // Handle process errors
     childProcess.on('error', async (error) => {
       clearTimeout(timeout);
       log(`ERROR: Cursor CLI process error: ${error.message}`);
@@ -138,14 +151,17 @@ export async function dispatchToCursor(
 // Legacy CursorCLI class for backward compatibility
 export class CursorCLI {
   constructor(
-    private cursorExecutable: string = 'cursor' // Cursor CLI command (uses 'cursor agent' subcommand)
+    private cursorExecutable: string = 'cursor'
   ) {}
 
   async execute(
     prompt: string,
     workingDirectory: string,
-    agentMode?: string
-  ): Promise<ProviderResult> {
-    return dispatchToCursor(prompt, workingDirectory, agentMode, this.cursorExecutable);
+    agentMode?: string,
+    sessionId?: string,
+    featureId?: string
+  ):
+ Promise<ProviderResult> {
+    return dispatchToCursor(prompt, workingDirectory, agentMode, sessionId, featureId, this.cursorExecutable);
   }
 }

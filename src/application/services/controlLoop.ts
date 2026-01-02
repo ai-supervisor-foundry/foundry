@@ -509,13 +509,29 @@ export async function controlLoop(
     const projectId = state.goal.project_id || 'default';
     
     // Session Resolution & Smart Recovery
-    const sessionId = await sessionManager.resolveSession(
+    let resolvedSessionId = await sessionManager.resolveSession(
       task.tool,
       task.meta?.feature_id,
       task.meta?.session_id,
       state
     );
-    const featureId = task.meta?.feature_id;
+    const featureId = task.meta?.feature_id || 'default';
+
+    // Policy Enforcement: Context & Error Limits
+    if (resolvedSessionId && state.active_sessions?.[featureId]) {
+      const session = state.active_sessions[featureId];
+      const CONTEXT_LIMIT = 350000;
+      const ERROR_LIMIT = 3;
+
+      if (session.total_tokens && session.total_tokens > CONTEXT_LIMIT) {
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Session context limit exceeded (${session.total_tokens} > ${CONTEXT_LIMIT}). Starting new session.`);
+        resolvedSessionId = undefined;
+        // Optionally clear from state now, but saving back later handles it
+      } else if (session.error_count >= ERROR_LIMIT) {
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Session error limit exceeded (${session.error_count} >= ${ERROR_LIMIT}). Starting new session.`);
+        resolvedSessionId = undefined;
+      }
+    }
 
     // Log full prompt to prompts.log.jsonl
     await appendPromptLog(
@@ -530,42 +546,46 @@ export async function controlLoop(
           working_directory: sandboxCwd,
           prompt_length: prompt.length,
           intent: task.intent,
-          session_id: sessionId,
+          session_id: resolvedSessionId,
         },
       },
       sandboxRoot,
       projectId
     );
-    log(`[Iteration ${iteration}] Task ${task.task_id}: Executing CLI / Agent with agent mode: ${agentMode}${sessionId ? ` (Session: ${sessionId})` : ''}...`);
+    log(`[Iteration ${iteration}] Task ${task.task_id}: Executing CLI / Agent with agent mode: ${agentMode}${resolvedSessionId ? ` (Session: ${resolvedSessionId})` : ''}...`);
     logVerbose('ControlLoop', 'Dispatching to CLI / Agent', {
       iteration,
       task_id: task.task_id,
       working_directory: sandboxCwd,
       prompt_length: prompt.length,
       agent_mode: agentMode,
-      session_id: sessionId,
+      session_id: resolvedSessionId,
       feature_id: featureId,
     });
     const providerStartTime = Date.now();
-    const providerResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, sessionId, featureId);
+    const providerResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, resolvedSessionId, featureId);
     const providerDuration = Date.now() - providerStartTime;
 
-    // Save sessionId back to state if returned and not already there
+    // Save sessionId and usage back to state if returned
     if (providerResult.sessionId) {
       if (!state.active_sessions) state.active_sessions = {};
-      const featureId = task.meta?.feature_id || 'default';
       
-      if (!state.active_sessions[featureId] || state.active_sessions[featureId].session_id !== providerResult.sessionId) {
-        state.active_sessions[featureId] = {
-          session_id: providerResult.sessionId,
-          provider: task.tool,
-          last_used: new Date().toISOString(),
-          error_count: 0,
-          feature_id: featureId,
-          task_id: task.task_id
-        };
-        log(`[Iteration ${iteration}] Task ${task.task_id}: Session ${providerResult.sessionId} saved to state for feature: ${featureId}`);
-      }
+      const currentSession = state.active_sessions[featureId];
+      const newTokens = providerResult.usage?.tokens || 0;
+      const accumulatedTokens = (resolvedSessionId === providerResult.sessionId && currentSession) 
+        ? (currentSession.total_tokens || 0) + newTokens 
+        : newTokens;
+
+      state.active_sessions[featureId] = {
+        session_id: providerResult.sessionId,
+        provider: task.tool,
+        last_used: new Date().toISOString(),
+        error_count: currentSession && resolvedSessionId === providerResult.sessionId ? currentSession.error_count : 0,
+        total_tokens: accumulatedTokens,
+        feature_id: featureId,
+        task_id: task.task_id
+      };
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Session ${providerResult.sessionId} updated in state (Tokens: ${accumulatedTokens}, Errors: ${state.active_sessions[featureId].error_count})`);
     }
     log(`[Iteration ${iteration}] Task ${task.task_id}: CLI / Agent completed in ${providerDuration}ms, exit code: ${providerResult.exitCode}`);
     logPerformance('CLIAdapterExecution', providerDuration, {
@@ -808,6 +828,12 @@ export async function controlLoop(
         rules_failed_count: validationReport.rules_failed?.length || 0,
       });
 
+      // Policy Enforcement: Increment error count on validation failure
+      if (providerResult.sessionId && state.active_sessions?.[featureId]) {
+        state.active_sessions[featureId].error_count++;
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Session error count incremented to ${state.active_sessions[featureId].error_count}`);
+      }
+
       // NEW: Try Helper Agent command generation
       log(`[Iteration ${iteration}] Task ${task.task_id}: Attempting Helper Agent command generation...`);
       const helperAgentMode = process.env.HELPER_AGENT_MODE || 'auto';
@@ -828,7 +854,7 @@ export async function controlLoop(
           sandboxRoot,
           projectId,
           task.task_id,
-          sessionId
+          resolvedSessionId
         );
 
         log(`[Iteration ${iteration}] Task ${task.task_id}: Helper Agent result: isValid=${commandGeneration.isValid}, commands=${commandGeneration.verificationCommands.length}`);
@@ -1242,7 +1268,7 @@ export async function controlLoop(
       
       log(`[Iteration ${iteration}] Task ${task.task_id}: Executing fix/clarification attempt...`);
       const fixStartTime = Date.now();
-      const fixProviderResult = await cliAdapter.execute(fixPrompt, sandboxCwd, agentMode, sessionId);
+      const fixProviderResult = await cliAdapter.execute(fixPrompt, sandboxCwd, agentMode, resolvedSessionId);
       const fixDuration = Date.now() - fixStartTime;
       log(`[Iteration ${iteration}] Task ${task.task_id}: Fix attempt completed in ${fixDuration}ms, exit code: ${fixProviderResult.exitCode}`);
       logPerformance('FixCLIAdapterExecution', fixDuration, {
