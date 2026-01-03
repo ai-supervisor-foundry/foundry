@@ -220,7 +220,7 @@ router.get('/queue', async (req, res, next) => {
     const length = await getQueueLength();
     // Default to showing all tasks, but allow limit for pagination
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : length || 100;
-    const pending = await peekQueue(limit);
+    const pending = (await peekQueue(limit)).reverse(); // Reverse to show in enqueue order
     
     const state = await loadSupervisorState();
     const exhausted = state?.queue.exhausted || false;

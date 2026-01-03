@@ -36,7 +36,7 @@ export class CopilotCLI {
    */
   async dispatch(prompt: string, sessionId?: string, options: CopilotOptions = {}): Promise<CopilotResult> {
     const model = options.model || 'gpt-4.1'; // Fallback to reliable non-interactive model
-    let command = 'copilot';
+    let command = process.env.COPILOT_CLI_PATH || 'npx copilot';
 
     // Construct command
     if (sessionId) {
@@ -48,6 +48,9 @@ export class CopilotCLI {
       }
       command += ` --model ${model}`;
     }
+
+    // Add required flags for non-interactive mode
+    command += ' --allow-all-tools --silent';
 
     // Add prompt (escape double quotes)
     const escapedPrompt = prompt.replace(/"/g, '\\"');

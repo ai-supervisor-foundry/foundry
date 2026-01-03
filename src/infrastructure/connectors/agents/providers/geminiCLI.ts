@@ -92,6 +92,9 @@ export async function dispatchToGemini(
     args.push('@google/gemini-cli');
   }
   
+  // Yolo by default (if supported by CLI, otherwise ignore)
+  args.push('--yolo');
+  
   // Set output format to json to get session ID and stats
   args.push('--output-format', 'json');
 
@@ -107,9 +110,6 @@ export async function dispatchToGemini(
   if (agentMode && agentMode !== 'auto') {
     args.push('--model', agentMode);
   }
-
-  // Yolo by default (if supported by CLI, otherwise ignore)
-  // args.push('--yolo'); // Gemini CLI might not support this flag, keeping strict
   
   // Prepend feature tag to prompt if starting new session
   let finalPrompt = prompt;
@@ -147,14 +147,31 @@ export async function dispatchToGemini(
 
     childProcess.stderr?.on('data', (data: Buffer) => {
       stderr += data.toString('utf8');
+      // exit process on error.
+      if (data.toString('utf8').toLowerCase().includes('error')) {
+        clearTimeout(timeout);
+        childProcess.kill('SIGTERM');
+        reject(new Error(`Gemini CLI process error: ${data.toString('utf8')}`));
+    }
     });
 
     childProcess.on('close', async (code) => {
       clearTimeout(timeout);
       const exitCode = code ?? 1;
-      const rawOutput = stdout + stderr;
+      /**
+       * Even if there is no error, Gemini CLI writes to stderr. So we use stdout only, reference:
+       * GeminiCLI Stderr {
+       *   stderr: 'YOLO mode is enabled. All tool calls will be automatically approved.\n' +
+       *   'Loaded cached credentials.\n' +
+       *   "Server 'chrome-devtools' supports tool updates. Listening for changes...\n"
+       * }
+       */
+      const rawOutput = stdout;
 
       log(`Gemini CLI process closed, exit code: ${exitCode}`);
+      // Logging stdout and stderr
+      logVerbose('GeminiCLI', 'Stdout', { stdout });
+      logVerbose('GeminiCLI', 'Stderr', { stderr });
       logVerbose('GeminiCLI', 'Process closed', { exit_code: exitCode, raw_output: rawOutput });
 
       let status: string | undefined;
@@ -172,7 +189,12 @@ export async function dispatchToGemini(
         try {
           // Output might contain non-JSON preamble/postamble, try to find the JSON object
           // Gemini CLI output format: { "session_id": "...", "content": "...", "stats": ... }
-          const jsonMatch = findJSONInString(stdout);
+          // const jsonMatch = findJSONInString(stdout);
+          /**
+           * @note The reason are now using stdout directly is previously we were doing a concat on stdout and stderr.
+           * But now we are using stdout only, so we don't need to do that.
+           */
+          const jsonMatch = stdout;
           if (jsonMatch) {
             logVerbose('GeminiCLI', 'Found JSON match', { json_match: jsonMatch });
             const parsed = JSON.parse(jsonMatch);

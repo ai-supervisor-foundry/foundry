@@ -7,12 +7,15 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { logVerbose } from '../../infrastructure/adapters/logging/logger';
+import { astService } from './ASTService';
 
 const execAsync = promisify(exec);
 
+// We use "log" not logVerbose directly.
 function log(message: string, ...args: unknown[]): void {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] [Validator] ${message}`, ...args);
+  // WE HAVE TO use this dont change this.
+  logVerbose('Validator', message, { ...args });
 }
 
 /**
@@ -26,12 +29,41 @@ export async function validateTaskOutput(
   sandboxRoot: string
 ): Promise<ValidationReport> {
   log(`Validating task: ${task.task_id}`);
+  
+  // Initialize AST Service
+  try {
+    await astService.initialize(sandboxRoot);
+  } catch (error) {
+    log(`Warning: Failed to initialize AST service: ${error}`);
+  }
+
+  // logging what the task was.
+  log(`Task: ${JSON.stringify(task)}`);
+  // logging what the provider result was.
+  log(`Provider result: ${JSON.stringify(providerResult)}`);
+  // logging what the sandbox root was.
   log(`Sandbox root: ${sandboxRoot}`);
+  
   const rulesPassed: string[] = [];
   const rulesFailed: string[] = [];
   // Use rawOutput (stdout + stderr combined) for validation
   const output = providerResult.rawOutput || providerResult.stdout || '';
+  // logging providerResult.stdout
+  log(`Provider stdout: ${providerResult.stdout}`);
+  // logging providerResult.stderr if exit code is not 0
+  if (providerResult.exitCode !== 0) {
+    log(`Provider stderr: ${providerResult.stderr}`);
+  }
+  // logging providerResult.rawOutput
+  log(`Provider raw output: ${providerResult.rawOutput}`);
   log(`Output length: ${output.length} characters`);
+
+  // Rule 0: Task Type Routing
+  // If task_type is 'behavioral', use specialized validator
+  if (task.task_type === 'behavioral') {
+    log('Routing to Behavioral Validator');
+    return validateBehavioralTask(task, providerResult.output || output); // Prefer parsed output
+  }
 
   // Rule 1: task_id must match exactly
   // Extract task_id from output if present, or validate it's in the context
@@ -330,8 +362,70 @@ export async function validateTaskOutput(
       
       let matchQuality: MatchQuality = 'NONE';
       
+      // Method 0: AST-based validation (High Confidence)
+      if (matchQuality === 'NONE') {
+        try {
+          let astPassed = false;
+          let astRuleType = '';
+          let astTargetName = '';
+
+          // Heuristic: Check for "function <name>" or "method <name>"
+          const funcMatch = criterionLower.match(/\b(?:function|method)\s+['"`]?([a-zA-Z0-9_]+)['"`]?/i);
+          if (funcMatch) {
+            astRuleType = 'FUNCTION_EXISTS';
+            astTargetName = funcMatch[1];
+          }
+
+          // Heuristic: Check for "class <name>"
+          if (!astRuleType) {
+            const classMatch = criterionLower.match(/\bclass\s+['"`]?([a-zA-Z0-9_]+)['"`]?/i);
+            if (classMatch) {
+              astRuleType = 'CLASS_EXISTS';
+              astTargetName = classMatch[1];
+            }
+          }
+
+          // Heuristic: Check for "export <name>"
+          if (!astRuleType) {
+            const exportMatch = criterionLower.match(/\bexport\s+['"`]?([a-zA-Z0-9_]+)['"`]?/i);
+            if (exportMatch) {
+              astRuleType = 'EXPORT_EXISTS';
+              astTargetName = exportMatch[1];
+            }
+          }
+
+          // Heuristic: Check for decorator "@Name"
+          if (!astRuleType) {
+            const decoratorMatch = criterionLower.match(/@([a-zA-Z0-9_]+)/);
+            if (decoratorMatch) {
+              astRuleType = 'DECORATOR_EXISTS';
+              astTargetName = decoratorMatch[1];
+            }
+          }
+
+          // If an AST rule was inferred, check all candidate files
+          if (astRuleType && astTargetName) {
+            log(`Attempting AST validation: ${astRuleType} for "${astTargetName}"`);
+            for (const filePath of codeFilesToCheck) {
+              const result = await astService.validate(filePath, { type: astRuleType, name: astTargetName });
+              if (result) {
+                astPassed = true;
+                log(`✅ AST validation PASSED in ${path.relative(sandboxRoot, filePath)}`);
+                break;
+              }
+            }
+            
+            if (astPassed) {
+              matchQuality = 'HIGH'; // AST validation is high confidence
+            }
+          }
+        } catch (error) {
+          log(`AST validation warning: ${error}`);
+        }
+      }
+
       // Method 1: Direct string match (for exact phrases)
-      if (codeContentLower.includes(criterionLower)) {
+      if (matchQuality === 'NONE' && codeContentLower.includes(criterionLower)) {
         matchQuality = 'EXACT';
       }
       
@@ -767,4 +861,95 @@ export class Validator {
 
     return validateTaskOutput(task, providerResult, workingDirectory);
   }
+}
+
+/**
+ * Validate behavioral/conversational tasks
+ * Checks response content instead of file artifacts
+ */
+function validateBehavioralTask(task: Task, responseText: string): ValidationReport {
+  log(`Starting Behavioral Validation for task: ${task.task_id}`);
+  const rulesPassed: string[] = [];
+  const rulesFailed: string[] = [];
+  const failedCriteria: string[] = [];
+  const responseLower = responseText.toLowerCase();
+
+  // Basic check: Response must not be empty
+  if (!responseText || responseText.trim().length === 0) {
+    return {
+      valid: false,
+      reason: 'Response is empty',
+      rules_passed: [],
+      rules_failed: ['response_not_empty'],
+      confidence: 'HIGH',
+    };
+  }
+  rulesPassed.push('response_not_empty');
+
+  // Check acceptance criteria against response text
+  if (task.acceptance_criteria && task.acceptance_criteria.length > 0) {
+    log(`Checking ${task.acceptance_criteria.length} behavioral criteria`);
+    
+    for (const criterion of task.acceptance_criteria) {
+      const criterionLower = criterion.toLowerCase();
+      let satisfied = false;
+
+      // keyword matching
+      // If criterion is "Greet", look for greetings
+      if (criterionLower.includes('greet')) {
+        if (responseLower.match(/\b(hello|hi|hey|greetings)\b/)) {
+          satisfied = true;
+        }
+      } 
+      // If criterion is "concise", check length (arbitrary heuristic: < 200 words?)
+      else if (criterionLower.includes('concise')) {
+        const wordCount = responseText.split(/\s+/).length;
+        if (wordCount < 300) {
+          satisfied = true;
+        }
+      }
+      // General case: Check if criterion keywords appear in response
+      // This is weak but better than nothing for behavioral checks
+      else {
+        // Remove common words
+        const keywords = criterionLower.split(/\s+/).filter(w => w.length > 3);
+        const matchCount = keywords.filter(k => responseLower.includes(k)).length;
+        if (matchCount >= keywords.length * 0.5) { // 50% keyword match
+           satisfied = true;
+        }
+        
+        // Also check if the agent explicitly claimed it did it
+        if (responseLower.includes(criterionLower)) {
+            satisfied = true;
+        }
+      }
+
+      if (satisfied) {
+        log(`✅ Behavioral criterion satisfied: "${criterion}"`);
+      } else {
+        log(`❌ Behavioral criterion NOT satisfied: "${criterion}"`);
+        failedCriteria.push(criterion);
+      }
+    }
+
+    if (failedCriteria.length > 0) {
+      rulesFailed.push('all_acceptance_criteria_met');
+      return {
+        valid: false,
+        reason: `Behavioral criteria failed: ${failedCriteria.join(', ')}`,
+        rules_passed: rulesPassed,
+        rules_failed: rulesFailed,
+        confidence: 'UNCERTAIN',
+        failed_criteria: failedCriteria,
+      };
+    }
+    rulesPassed.push('all_acceptance_criteria_met');
+  }
+
+  return {
+    valid: true,
+    rules_passed: rulesPassed,
+    rules_failed: rulesFailed,
+    confidence: 'HIGH',
+  };
 }

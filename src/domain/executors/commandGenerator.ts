@@ -148,7 +148,7 @@ function buildEnhancedHelperAgentPrompt(
   sections.push('');
   sections.push('**Context:**');
   sections.push(`- Working Directory: ${sandboxCwd}`);
-  sections.push(`- Available Code Files: ${codeFiles.slice(0, 50).join(', ')}${codeFiles.length > 50 ? '...' : ''}`);
+  logVerbose('CommandGenerator', 'Available Code Files', { codeFiles });
   sections.push(`- An agent has attempted to implement the following acceptance criteria:`);
   sections.push('');
 
@@ -190,8 +190,8 @@ function buildEnhancedHelperAgentPrompt(
   sections.push('- Example: Use `grep -n "Load More"` or `grep -n Load.*More` instead of `grep -n \'"Load More"\'`');
   sections.push('- Use absolute paths or paths relative to the working directory');
   sections.push('');
-  sections.push('**Output Format (JSON):**');
-  sections.push('```json');
+  sections.push('**Output Format (JSON ONLY):**');
+  sections.push('Return ONLY the raw JSON object. Do not wrap it in markdown code blocks (```json ... ```). Do not add any text before or after.');
   sections.push('{');
   sections.push('  "isValid": boolean,  // true if criteria are satisfied based on your analysis, false if commands needed');
   sections.push('  "verificationCommands": [  // Array of shell commands (if isValid is false)');
@@ -200,9 +200,38 @@ function buildEnhancedHelperAgentPrompt(
   sections.push('  ],');
   sections.push('  "reasoning": "Brief explanation"  // Optional');
   sections.push('}');
-  sections.push('```');
 
   return sections.join('\n');
+}
+
+/**
+ * Extracts JSON from mixed text/markdown output
+ * Handles markdown code blocks and finds the outermost JSON object
+ */
+function findJSONInString(text: string): string | null {
+  // First, try to extract from markdown code blocks
+  const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  if (codeBlockMatch) {
+    return codeBlockMatch[1];
+  }
+
+  // Fallback: finding the outermost braces
+  let startIndex = -1;
+  let openBraces = 0;
+  
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '{') {
+      if (openBraces === 0) startIndex = i;
+      openBraces++;
+    } else if (text[i] === '}') {
+      openBraces--;
+      if (openBraces === 0 && startIndex !== -1) {
+        return text.substring(startIndex, i + 1);
+      }
+    }
+  }
+  
+  return null;
 }
 
 /**
@@ -214,15 +243,34 @@ function parseHelperAgentResponse(
 ): CommandGenerationResult {
   log(`Parsing Helper Agent response (${response.length} chars)`);
 
-  // Try to extract JSON from response
-  try {
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
+  // Try to extract JSON
+  const jsonString = findJSONInString(response);
+  
+  if (jsonString) {
+    try {
+      let parsed = JSON.parse(jsonString);
       
+      // Recursive unwrapping: Check if we parsed a wrapper object (like Gemini CLI output)
+      if (!parsed.isValid && parsed.response && typeof parsed.response === 'string') {
+        log('Detected potential wrapper object, attempting to parse internal response string');
+        const internalJson = findJSONInString(parsed.response);
+        if (internalJson) {
+          try {
+            const internalParsed = JSON.parse(internalJson);
+            if (typeof internalParsed.isValid === 'boolean') {
+              log('Successfully parsed internal response object');
+              parsed = internalParsed;
+            }
+          } catch (e) {
+            log('Failed to parse internal response string, using original object');
+          }
+        }
+      }
+
       // Validate structure
       if (typeof parsed.isValid !== 'boolean') {
         log(`Warning: Helper Agent response missing 'isValid' boolean, defaulting to false`);
+        // Don't return here, check if we can salvage commands? No, safer to fail.
         return {
           isValid: false,
           verificationCommands: [],
@@ -245,9 +293,11 @@ function parseHelperAgentResponse(
         verificationCommands: commands,
         reasoning: parsed.reasoning || undefined,
       };
+    } catch (error) {
+      log(`Failed to parse Helper Agent JSON response: ${error instanceof Error ? error.message : String(error)}`);
     }
-  } catch (error) {
-    log(`Failed to parse Helper Agent JSON response: ${error instanceof Error ? error.message : String(error)}`);
+  } else {
+    log('No JSON found in Helper Agent response');
   }
 
   // Fallback: Check response text for indicators

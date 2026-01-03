@@ -164,6 +164,7 @@ export default function Logs() {
           ) : (
             <LogViewer
               logs={activeTab === 'audit' ? auditLogs : promptLogs}
+              projectId={selectedProject}
               className="bg-white rounded-lg shadow p-6"
             />
           )

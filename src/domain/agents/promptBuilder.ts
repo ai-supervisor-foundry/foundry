@@ -90,7 +90,7 @@ export function buildMinimalState(task: Task, state: SupervisorState, sandboxCwd
   return context;
 }
 
-type TaskType = 'implementation' | 'configuration' | 'testing' | 'documentation' | 'refactoring';
+type TaskType = 'implementation' | 'configuration' | 'testing' | 'documentation' | 'refactoring' | 'behavioral';
 
 /**
  * Detect task type based on intent and instructions
@@ -111,6 +111,13 @@ function detectTaskType(task: Task): TaskType {
   if (lowerInstructions.includes('refactor') || lowerInstructions.includes('improve') || lowerInstructions.includes('clean')) {
     return 'refactoring';
   }
+  
+  // Behavioral detection
+  if (lowerInstructions.match(/\b(greet|hello|say|respond|explain|who are you)\b/) || 
+      lowerIntent.match(/\b(greet|hello|say|respond|explain|who are you)\b/)) {
+    return 'behavioral';
+  }
+
   return 'implementation';
 }
 
@@ -140,6 +147,10 @@ function addTaskTypeGuidelines(sections: string[], taskType: TaskType): void {
     case 'refactoring':
       sections.push('- Preserve existing functionality while improving structure.');
       sections.push('- Verify that no breaking changes are introduced to public APIs.');
+      break;
+    case 'behavioral':
+      sections.push('- Provide a clear and natural conversational response.');
+      sections.push('- Address all parts of the user request directly.');
       break;
   }
   sections.push('');

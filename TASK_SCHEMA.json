@@ -2,6 +2,7 @@
   "task_id": "string",
   "intent": "string",
   "tool": "cursor | gemini | gemini_stub | copilot | codex | claude",
+  "task_type": "coding | behavioral | configuration | testing | documentation (optional, defaults to 'coding' or 'implementation')",
   "instructions": "string",
   "acceptance_criteria": ["string"],
   "retry_policy": "object",

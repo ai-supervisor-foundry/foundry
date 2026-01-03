@@ -47,7 +47,7 @@ const RESOURCE_EXHAUSTED_BACKOFF_MS = [
   2 * 60 * 60 * 1000, // 2 hours
 ] as const;
 
-const MAX_RESOURCE_EXHAUSTED_RETRIES = RESOURCE_EXHAUSTED_BACKOFF_MS.length;
+const MAX_RESOURCE_EXHAUSTED_RETRIES = 0;
 
 type HaltReason = typeof HALT_REASONS[keyof typeof HALT_REASONS] | HaltDetectionReason;
 
@@ -979,6 +979,7 @@ export async function controlLoop(
     // NEW: If validation confidence is UNCERTAIN, enter interrogation phase before retry
     const needsRetry = !validationReport.valid || (haltReason && ['AMBIGUITY', 'ASKED_QUESTION'].includes(haltReason));
     const needsInterrogation = !validationReport.valid && 
+                                task.task_type !== 'behavioral' &&
                                 (validationReport.confidence === 'UNCERTAIN' || 
                                  (validationReport.confidence === 'LOW' && validationReport.uncertain_criteria && validationReport.uncertain_criteria.length > 0));
     
@@ -1028,7 +1029,7 @@ export async function controlLoop(
         minimalState,
         sandboxCwd,
         cliAdapter,
-        4, // max 4 questions per criterion
+        1, // max 1 question per criterion
         sandboxRoot,
         projectId
       );
@@ -1081,17 +1082,65 @@ export async function controlLoop(
       // Track retry attempts for this task
       const retryKey = `retry_count_${task.task_id}`;
       const retryCount = (state.supervisor as any)[retryKey] || 0;
-      const maxRetries = task.retry_policy?.max_retries || 3;
+      const maxRetries = task.retry_policy?.max_retries || 1;
       
       // NEW: Repeated Error Detection
       const lastErrorKey = `last_error_${task.task_id}`;
+      const repeatedCountKey = `repeated_error_count_${task.task_id}`;
       const previousError = (state.supervisor as any)[lastErrorKey];
       const currentError = validationReport.reason;
       const isRepeatedError = previousError === currentError;
       
-      (state.supervisor as any)[lastErrorKey] = currentError; // Store for next attempt
+      let repeatedErrorCount = (state.supervisor as any)[repeatedCountKey] || 0;
+      
+      if (isRepeatedError) {
+        repeatedErrorCount++;
+      } else {
+        repeatedErrorCount = 0;
+      }
+      
+      (state.supervisor as any)[lastErrorKey] = currentError;
+      (state.supervisor as any)[repeatedCountKey] = repeatedErrorCount;
 
-      log(`[Iteration ${iteration}] Task ${task.task_id}: Retry needed (attempt ${retryCount + 1}/${maxRetries})${isRepeatedError ? ' [REPEATED ERROR]' : ''}`);
+      if (repeatedErrorCount >= 3) {
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Repeated error limit (3) exceeded - blocking task`);
+        logVerbose('ControlLoop', 'Blocking task due to repeated errors', {
+          iteration,
+          task_id: task.task_id,
+          error: currentError,
+          repeated_count: repeatedErrorCount,
+        });
+        
+        logStateTransition('TASK_IN_PROGRESS', 'TASK_BLOCKED', {
+          iteration,
+          task_id: task.task_id,
+          reason: 'repeated_validation_error',
+        });
+        
+        if (!state.blocked_tasks) {
+          state.blocked_tasks = [];
+        }
+        state.blocked_tasks.push({
+          task_id: task.task_id,
+          blocked_at: new Date().toISOString(),
+          reason: `Validation failed with identical error 3 times in a row: ${currentError}`,
+        });
+        
+        state.current_task = undefined;
+        
+        await auditLogger.append({
+          event: 'TASK_BLOCKED',
+          task_id: task.task_id,
+          reason: `Repeated validation error limit exceeded: ${currentError}`,
+          validation_summary: validationReport,
+          timestamp: new Date().toISOString(),
+        });
+        
+        await persistence.writeState(state);
+        continue;
+      }
+
+      log(`[Iteration ${iteration}] Task ${task.task_id}: Retry needed (attempt ${retryCount + 1}/${maxRetries})${isRepeatedError ? ` [REPEATED ERROR ${repeatedErrorCount}/3]` : ''}`);
       logVerbose('ControlLoop', 'Retry required', {
         iteration,
         task_id: task.task_id,
@@ -1124,7 +1173,7 @@ export async function controlLoop(
           minimalState,
           sandboxCwd,
           cliAdapter,
-          2, // Final check: max 2 questions per criterion
+          0, // Final check: max 0 questions per criterion
           sandboxRoot,
           projectId
         );

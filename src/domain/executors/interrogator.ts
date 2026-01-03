@@ -13,6 +13,36 @@ function log(message: string, ...args: unknown[]): void {
   logShared('Interrogator', message, ...args);
 }
 
+/**
+ * Extracts JSON from mixed text/markdown output
+ * Handles markdown code blocks and finds the outermost JSON object
+ */
+function findJSONInString(text: string): string | null {
+  // First, try to extract from markdown code blocks
+  const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  if (codeBlockMatch) {
+    return codeBlockMatch[1];
+  }
+
+  // Fallback: finding the outermost braces
+  let startIndex = -1;
+  let openBraces = 0;
+  
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '{') {
+      if (openBraces === 0) startIndex = i;
+      openBraces++;
+    } else if (text[i] === '}') {
+      openBraces--;
+      if (openBraces === 0 && startIndex !== -1) {
+        return text.substring(startIndex, i + 1);
+      }
+    }
+  }
+  
+  return null;
+}
+
 interface InterrogationAgentResponse {
   results: {
     [criterion: string]: {
@@ -44,11 +74,29 @@ async function validateInterrogationResponse(
   try {
     // Parse JSON
     let parsed: InterrogationAgentResponse | null = null;
-    const jsonMatch = agentResponse.match(/\{[\s\S]*\}/);
+    const jsonString = findJSONInString(agentResponse);
     
-    if (jsonMatch) {
+    if (jsonString) {
       try {
-        parsed = JSON.parse(jsonMatch[0]);
+        parsed = JSON.parse(jsonString);
+
+        // Recursive unwrapping: Check if we parsed a wrapper object (like Gemini CLI output)
+        const parsedAny = parsed as any;
+        if (parsed && !parsed.results && parsedAny.response && typeof parsedAny.response === 'string') {
+          log('Detected potential wrapper object in interrogation response, attempting to parse internal response string');
+          const internalJson = findJSONInString(parsedAny.response);
+          if (internalJson) {
+            try {
+              const internalParsed = JSON.parse(internalJson);
+              if (internalParsed.results) {
+                log('Successfully parsed internal interrogation response object');
+                parsed = internalParsed;
+              }
+            } catch (e) {
+              log('Failed to parse internal interrogation response string, using original object');
+            }
+          }
+        }
       } catch (e) {
         log(`JSON parse error: ${e}`);
       }

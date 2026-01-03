@@ -3,6 +3,7 @@
 import { Provider } from "../agents/enums/provider";
 
 export type SupervisorStatus = 'RUNNING' | 'BLOCKED' | 'HALTED' | 'COMPLETED';
+export type TaskType = 'coding' | 'behavioral' | 'configuration' | 'testing' | 'documentation' | 'implementation' | 'refactoring';
 
 export interface SupervisorState {
   supervisor: {
@@ -51,6 +52,7 @@ export interface Task {
   task_id: string;
   intent: string;
   tool: Provider;
+  task_type?: TaskType; // Defaults to 'coding' if not specified
   instructions: string;
   acceptance_criteria: string[];
   retry_policy?: RetryPolicy;
