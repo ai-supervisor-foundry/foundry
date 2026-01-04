@@ -219,11 +219,14 @@ export function buildPrompt(task: Task, minimalState: MinimalState): string {
   // Section 8: Explicit output format requirement
   sections.push('## Output Requirements');
   sections.push('You MUST end your response with a JSON summary block in this exact format:');
+  sections.push('Do not add any other fields. Use the exact keys provided.');
   sections.push('```json');
   sections.push('{');
   sections.push('  "status": "completed" | "failed",');
   sections.push('  "files_created": ["path/to/file"],');
   sections.push('  "files_updated": ["path/to/file"],');
+  sections.push('  "changes": ["path/to/file"],');
+  sections.push('  "neededChanges": true | false,');
   sections.push('  "summary": "Brief description of work done"');
   sections.push('}');
   sections.push('```');

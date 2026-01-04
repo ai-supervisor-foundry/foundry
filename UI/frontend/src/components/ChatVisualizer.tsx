@@ -238,6 +238,9 @@ export default function ChatVisualizer({ logs, className = '' }: ChatVisualizerP
                     <span className="text-xs font-semibold text-gray-700">
                       {message.type === 'supervisor' ? 'Supervisor' : 'Agent'}
                     </span>
+                    <span className="text-xs text-gray-500">
+                      {formatTimestamp(message.timestamp)}
+                    </span>
                     {isInterrogationMsg && message.questionNumber && (
                       <span className="px-2 py-0.5 bg-purple-200 text-purple-800 text-xs font-bold rounded">
                         Interrogation #{message.questionNumber}

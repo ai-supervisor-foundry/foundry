@@ -355,8 +355,8 @@
     },
     {
         "task_id": "api_fix_vehicle_listings",
-        "intent": "Fix and stabilize the vehicle listings API to support mobile consumption.",
-        "instructions": "Review the vehicle listings aggregation and API endpoints. Fix data inconsistencies, pagination issues, and performance bottlenecks. Ensure response shape is mobile-friendly and documented.",
+        "intent": "If required, Fix and stabilize the vehicle listings API to support mobile consumption.",
+        "instructions": "First check if fix is needed. Review the vehicle listings aggregation and API endpoints. Fix data inconsistencies, pagination issues, and performance bottlenecks. Ensure response shape is mobile-friendly and documented.",
         "task_type": "coding",
         "acceptance_criteria": [
             "Vehicle listings API returns consistent, normalized data",
@@ -373,8 +373,8 @@
     },
     {
         "task_id": "api_fix_property_listings",
-        "intent": "Fix and stabilize the property listings API to support mobile consumption.",
-        "instructions": "Audit property aggregation pipelines and API endpoints. Resolve missing fields, normalization issues, and edge cases. Align response format with vehicle listings where applicable.",
+        "intent": "If required, Fix and stabilize the property listings API to support mobile consumption.",
+        "instructions": "First check if fix is needed. Audit property aggregation pipelines and API endpoints. Resolve missing fields, normalization issues, and edge cases. Align response format with vehicle listings where applicable.",
         "task_type": "coding",
         "acceptance_criteria": [
             "Property listings API returns complete and normalized data",
@@ -391,8 +391,8 @@
     },
     {
         "task_id": "api_fix_favourites",
-        "intent": "Fix and finalize the favourites API used by web and mobile clients.",
-        "instructions": "Ensure favourites can be added, removed, and listed reliably per user (phone-auth based). Validate authorization, idempotency, and error handling.",
+        "intent": "If required, Fix and finalize the favourites API used by web and mobile clients.",
+        "instructions": "First check if fix is needed. Ensure favourites can be added, removed, and listed reliably per user (phone-auth based). Validate authorization, idempotency, and error handling.",
         "task_type": "coding",
         "acceptance_criteria": [
             "Users can add and remove favourites reliably",

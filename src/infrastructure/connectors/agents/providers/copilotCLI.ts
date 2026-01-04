@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -35,64 +35,92 @@ export class CopilotCLI {
    * Resumes a session if sessionId is provided, otherwise starts a new one.
    */
   async dispatch(prompt: string, sessionId?: string, options: CopilotOptions = {}): Promise<CopilotResult> {
-    let command = process.env.COPILOT_CLI_PATH || 'npx copilot';
+    const cliPath = process.env.COPILOT_CLI_PATH || 'npx';
+    const isNpx = cliPath === 'npx';
+    
+    // Construct args array for spawn
+    const args: string[] = [];
+    
+    if (isNpx) {
+      args.push('copilot');
+    }
 
-    // Construct command
     if (sessionId) {
-      command += ` --resume ${sessionId}`;
+      args.push('--resume', sessionId);
     } else {
-      // Start new session
       if (options.agent) {
-        command += ` --agent ${options.agent}`;
+        args.push('--agent', options.agent);
       }
-      // if model is provided, add it to the command
       if (options.model) {
-        command += ` --model ${options.model}`;
+        args.push('--model', options.model);
       }
     }
 
-    // Add required flags for non-interactive mode
-    command += ' --allow-all-tools --silent';
+    // Add required flags
+    args.push('--allow-all-tools', '--silent');
 
-    // Add prompt (escape double quotes)
-    const escapedPrompt = prompt.replace(/"/g, '\\"');
-    command += ` --prompt "${escapedPrompt}"`;
+    // Add prompt (no escaping needed for spawn)
+    args.push('--prompt', prompt);
 
     if (this.debug) {
-      console.log(`[CopilotCLI] Executing: ${command}`);
+      console.log(`[CopilotCLI] Spawning: ${cliPath} ${args.join(' ')}`);
     }
 
-    try {
-      const { stdout, stderr } = await execAsync(command, { 
-        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
-        timeout: 30 * 60 * 1000 // 30 min timeout
+    return new Promise((resolve, reject) => {
+      const child = spawn(cliPath, args, {
+        env: process.env,
+        stdio: ['pipe', 'pipe', 'pipe'] // Capture stdout/stderr
       });
 
-      // Output usually contains the answer followed by stats
-      const output = stdout.trim();
+      let stdout = '';
+      let stderr = '';
 
-      // Attempt to extract session ID if this was a new session
-      let activeSessionId = sessionId;
-      if (!activeSessionId) {
-        activeSessionId = await this.findMostRecentSessionId();
-      }
+      child.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
 
-      // Parse usage
-      const usage = this.parseUsage(output);
+      child.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
 
-      return {
-        output,
-        sessionId: activeSessionId,
-        usage
-      };
+      child.on('error', (error) => {
+        reject(error);
+      });
 
-    } catch (error: any) {
-      // Handle tool approval requests or other CLI errors
-      if (error.stdout && error.stdout.includes('Allow Copilot to use')) {
-        throw new Error('TOOL_APPROVAL_REQUIRED: Copilot requested tool approval which cannot be handled non-interactively.');
-      }
-      throw error;
-    }
+      child.on('close', async (code) => {
+        if (code !== 0) {
+          // Check for tool approval request in output
+          if (stdout.includes('Allow Copilot to use')) {
+            reject(new Error('TOOL_APPROVAL_REQUIRED: Copilot requested tool approval which cannot be handled non-interactively.'));
+            return;
+          }
+          
+          // Reconstruct error
+          const error = new Error(`Copilot CLI failed with exit code ${code}`);
+          (error as any).code = code;
+          (error as any).stdout = stdout;
+          (error as any).stderr = stderr;
+          reject(error);
+          return;
+        }
+
+        // Success path
+        const output = stdout.trim();
+        
+        let activeSessionId = sessionId;
+        if (!activeSessionId) {
+          activeSessionId = await this.findMostRecentSessionId();
+        }
+
+        const usage = this.parseUsage(output);
+
+        resolve({
+          output,
+          sessionId: activeSessionId,
+          usage
+        });
+      });
+    });
   }
 
   /**

@@ -22,6 +22,8 @@ interface AgentResponseSummary {
   status: 'completed' | 'failed';
   files_created?: string[];
   files_updated?: string[];
+  changes?: string[];
+  neededChanges?: boolean;
   summary?: string;
 }
 
@@ -216,6 +218,12 @@ export async function validateTaskOutput(
     const allArtifacts = new Set<string>(task.required_artifacts || []);
     if (agentSummary?.files_created) agentSummary.files_created.forEach(f => allArtifacts.add(f));
     if (agentSummary?.files_updated) agentSummary.files_updated.forEach(f => allArtifacts.add(f));
+    if (agentSummary?.changes) agentSummary.changes.forEach(f => allArtifacts.add(f));
+
+    // If agent explicitly states no changes were needed, we can be more confident
+    if (agentSummary?.neededChanges === false && agentSummary.status === 'completed') {
+      log('Agent reported no changes were needed (already up to date).');
+    }
 
     for (const artifactPath of allArtifacts) {
       // Reject absolute paths or '..'
@@ -308,6 +316,7 @@ export async function validateTaskOutput(
     const allArtifacts = new Set<string>(task.required_artifacts || []);
     if (agentSummary?.files_created) agentSummary.files_created.forEach(f => allArtifacts.add(f));
     if (agentSummary?.files_updated) agentSummary.files_updated.forEach(f => allArtifacts.add(f));
+    if (agentSummary?.changes) agentSummary.changes.forEach(f => allArtifacts.add(f));
 
     if (allArtifacts.size > 0) {
       for (const artifactPath of allArtifacts) {
