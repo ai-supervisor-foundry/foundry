@@ -7,6 +7,9 @@
     "cli": "tsx src/application/entrypoint/cli.ts",
     "build": "tsc",
     "dev": "tsx watch src/application/entrypoint/cli.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "prepare": "husky"
   },
   "dependencies": {
@@ -18,8 +21,12 @@
   },
   "devDependencies": {
     "@google/gemini-cli": "^0.22.5",
+    "@types/jest": "^29.5.0",
     "@types/node": "^20.10.0",
     "husky": "^9.1.7",
+    "jest": "^29.7.0",
+    "jest-mock-extended": "^3.0.5",
+    "ts-jest": "^29.1.1",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   },
