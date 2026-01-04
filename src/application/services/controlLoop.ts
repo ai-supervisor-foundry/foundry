@@ -515,16 +515,34 @@ export async function controlLoop(
       task.meta?.session_id,
       state
     );
-    const featureId = task.meta?.feature_id || 'default';
+    
+    // Generate stable feature ID from task characteristics
+    const featureId = task.meta?.feature_id 
+      || (task.task_id ? `task:${task.task_id.split('_')[0]}` : undefined)
+      || (state.goal.project_id ? `project:${state.goal.project_id}` : undefined)
+      || 'default';
+    
+    log(`[Iteration ${iteration}] Task ${task.task_id}: Using feature ID: ${featureId}`);
 
     // Policy Enforcement: Context & Error Limits
     if (resolvedSessionId && state.active_sessions?.[featureId]) {
       const session = state.active_sessions[featureId];
-      const CONTEXT_LIMIT = 350000;
-      const ERROR_LIMIT = 3;
+      
+      // Provider-specific context limits
+      const CONTEXT_LIMITS: Record<string, number> = {
+        'gemini': 350_000,      // Gemini 2.0 Pro: 2M context (leave 500K buffer)
+        'gemini-stub': 350_000,
+        'copilot': 350_000,       // Conservative estimate
+        'cursor': 250_000,        // Claude-based
+        'codex': 8_000,           // OpenAI Codex
+        'claude': 250_000,        // Claude 3
+      };
+      
+      const ERROR_LIMIT = 5; // Increased from 3
+      const contextLimit = CONTEXT_LIMITS[task.tool] || 100_000; // Default conservative
 
-      if (session.total_tokens && session.total_tokens > CONTEXT_LIMIT) {
-        log(`[Iteration ${iteration}] Task ${task.task_id}: Session context limit exceeded (${session.total_tokens} > ${CONTEXT_LIMIT}). Starting new session.`);
+      if (session.total_tokens && session.total_tokens > contextLimit) {
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Session context limit exceeded (${session.total_tokens} > ${contextLimit}). Starting new session.`);
         resolvedSessionId = undefined;
         // Optionally clear from state now, but saving back later handles it
       } else if (session.error_count >= ERROR_LIMIT) {
@@ -837,11 +855,26 @@ export async function controlLoop(
       // NEW: Try Helper Agent command generation
       log(`[Iteration ${iteration}] Task ${task.task_id}: Attempting Helper Agent command generation...`);
       const helperAgentMode = process.env.HELPER_AGENT_MODE || 'auto';
+      
+      // Resolve helper session
+      const helperFeatureId = `helper:${featureId}`;
+      const helperSessionId = await sessionManager.resolveSession(
+        task.tool,
+        helperFeatureId,
+        undefined,
+        state
+      );
+      
+      if (helperSessionId) {
+         log(`[Iteration ${iteration}] Task ${task.task_id}: Resuming helper session: ${helperSessionId}`);
+      }
+
       logVerbose('ControlLoop', 'Starting Helper Agent command generation', {
         iteration,
         task_id: task.task_id,
         helper_agent_mode: helperAgentMode,
         failed_criteria_count: validationReport.failed_criteria?.length || 0,
+        helper_session_id: helperSessionId,
       });
 
       try {
@@ -854,8 +887,31 @@ export async function controlLoop(
           sandboxRoot,
           projectId,
           task.task_id,
-          resolvedSessionId
+          helperSessionId,
+          helperFeatureId
         );
+        
+        // Save helper session back to state
+        if (commandGeneration.sessionId) {
+            if (!state.active_sessions) state.active_sessions = {};
+            
+            const currentHelperSession = state.active_sessions[helperFeatureId];
+            const newTokens = commandGeneration.usage?.tokens || 0;
+            const accumulatedTokens = (helperSessionId === commandGeneration.sessionId && currentHelperSession) 
+                ? (currentHelperSession.total_tokens || 0) + newTokens 
+                : newTokens;
+
+            state.active_sessions[helperFeatureId] = {
+                session_id: commandGeneration.sessionId,
+                provider: task.tool,
+                last_used: new Date().toISOString(),
+                error_count: 0, // Helpers don't accumulate errors in the same way
+                total_tokens: accumulatedTokens,
+                feature_id: helperFeatureId,
+                task_id: task.task_id
+            };
+            log(`[Iteration ${iteration}] Task ${task.task_id}: Helper session ${commandGeneration.sessionId} updated (Tokens: ${accumulatedTokens})`);
+        }
 
         log(`[Iteration ${iteration}] Task ${task.task_id}: Helper Agent result: isValid=${commandGeneration.isValid}, commands=${commandGeneration.verificationCommands.length}`);
         logVerbose('ControlLoop', 'Helper Agent command generation completed', {

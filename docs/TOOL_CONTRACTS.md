@@ -40,6 +40,21 @@ Every task dispatched to Cursor must include:
 
 The Cursor agent must never infer missing information.
 
+## Output Format Contract
+
+Agents must conclude their response with a JSON summary block in this exact format. No other fields are allowed.
+
+```json
+{
+  "status": "completed" | "failed",
+  "files_created": ["path/to/file"],  // Optional
+  "files_updated": ["path/to/file"],  // Optional
+  "changes": ["path/to/file"],        // Optional (alias for files_updated)
+  "neededChanges": true | false,      // Optional (false if no changes were needed)
+  "summary": "Brief description of work done"
+}
+```
+
 ## Final Instruction
 
 If any implementation decision is not explicitly specified above or in the refresher, STOP and ask for operator clarification. Do not assume.

@@ -146,6 +146,8 @@ export interface CommandGenerationResult {
   isValid: boolean; // If true, interrogation not required
   verificationCommands: string[]; // Commands to execute if not valid
   reasoning?: string; // Optional explanation
+  sessionId?: string; // Session ID of the helper agent
+  usage?: { tokens?: number }; // Token usage of the helper agent
 }
 
 export interface CommandResult {

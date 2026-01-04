@@ -12,6 +12,12 @@
 - Examples: file exists, tests pass, diff matches criteria, artifact count matches expectation.
 - If validation cannot be automated → HALT + operator clarification.
 
+## Agent Response Summary Parsing
+
+The validator attempts to extract a structured JSON summary from the agent's response (as defined in `TOOL_CONTRACTS.md`).
+- **File Discovery**: Files listed in `files_created`, `files_updated`, or `changes` are automatically added to the list of artifacts to verify.
+- **No-Change Optimization**: If `neededChanges: false` is present and status is `completed`, the validator may log high confidence (assuming the agent verified the existing state) without requiring file modification timestamps to change, provided all acceptance criteria are met.
+
 
 ## Task Type-Aware Validation
 

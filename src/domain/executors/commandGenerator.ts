@@ -26,7 +26,8 @@ export async function generateValidationCommands(
   sandboxRoot?: string,
   projectId?: string,
   taskId?: string,
-  sessionId?: string
+  sessionId?: string,
+  featureId?: string
 ): Promise<CommandGenerationResult> {
   log(`Generating validation commands for ${failedCriteria.length} failed criteria`);
   logVerbose('CommandGenerator', 'Starting command generation', {
@@ -34,6 +35,8 @@ export async function generateValidationCommands(
     agent_response_length: agentResponse.length,
     helper_agent_mode: helperAgentMode || 'auto',
     sandbox_cwd: sandboxCwd,
+    session_id: sessionId,
+    feature_id: featureId,
   });
 
   // Use helper agent mode from env or default to 'auto'
@@ -78,7 +81,7 @@ export async function generateValidationCommands(
   // Execute Helper Agent (separate instance via cliAdapter with different agentMode)
   const generationStartTime = Date.now();
   log(`Executing Helper Agent with mode: ${agentMode}${sessionId ? ` (Session: ${sessionId})` : ''}`);
-  const helperResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, sessionId);
+  const helperResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, sessionId, featureId);
   const generationDuration = Date.now() - generationStartTime;
 
   log(`Helper Agent response received in ${generationDuration}ms`);
@@ -128,7 +131,13 @@ export async function generateValidationCommands(
     reasoning: result.reasoning,
   });
 
-  return result;
+  return {
+    isValid: result.isValid,
+    verificationCommands: result.verificationCommands,
+    reasoning: result.reasoning,
+    sessionId: helperResult.sessionId,
+    usage: helperResult.usage,
+  };
 }
 
 /**

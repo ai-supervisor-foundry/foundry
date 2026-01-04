@@ -9,6 +9,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logVerbose } from '../../infrastructure/adapters/logging/logger';
 import { astService } from './ASTService';
+import { validateFilePaths } from '../../domain/agents/promptBuilder';
 
 const execAsync = promisify(exec);
 
@@ -106,6 +107,18 @@ export async function validateTaskOutput(
       // Ensure it has the expected shape (status is mandatory)
       if (parsed && (parsed.status === 'completed' || parsed.status === 'failed')) {
         agentSummary = parsed;
+
+        // Filter hallucinated paths
+        if (agentSummary?.files_created) {
+          agentSummary.files_created = validateFilePaths(agentSummary.files_created, sandboxRoot);
+        }
+        if (agentSummary?.files_updated) {
+          agentSummary.files_updated = validateFilePaths(agentSummary.files_updated, sandboxRoot);
+        }
+        if (agentSummary?.changes) {
+          agentSummary.changes = validateFilePaths(agentSummary.changes, sandboxRoot);
+        }
+
         log(`Found agent response summary: ${agentSummary?.status}. Files created: ${agentSummary?.files_created?.length || 0}, Files updated: ${agentSummary?.files_updated?.length || 0}`);
       }
     } catch (e) {

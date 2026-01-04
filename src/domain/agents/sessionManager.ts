@@ -1,4 +1,3 @@
-
 import { SessionInfo, SupervisorState } from '../types/types';
 import { geminiCLI } from '../../infrastructure/connectors/agents/providers/geminiCLI';
 import { copilotCLI } from '../../infrastructure/connectors/agents/providers/copilotCLI';
@@ -27,7 +26,7 @@ export class SessionManager {
 
     // 2. Feature-based lookup
     if (featureId) {
-      // Check active state
+      // Check active state first
       if (state.active_sessions?.[featureId]) {
         const session = state.active_sessions[featureId];
         log(`Found active session in state for feature ${featureId}: ${session.session_id}`);
@@ -50,9 +49,28 @@ export class SessionManager {
     log(`Attempting Gemini session discovery for feature: ${featureId}`);
     try {
       const sessions = await geminiCLI.listSessions();
+      log(`Gemini CLI returned ${sessions.length} sessions`);
+
+      // Immediate fallback if discovery returns nothing (CLI might not support listing or be empty)
+      if (sessions.length === 0) {
+        if (state.active_sessions?.[featureId]) {
+          const session = state.active_sessions[featureId];
+          log(`Session discovery empty, using state fallback: ${session.session_id}`);
+          return session.session_id;
+        }
+        return undefined;
+      }
+
       return await this.matchAndRegisterSession(sessions, featureId, 'gemini', state);
     } catch (error) {
       log(`Gemini session discovery failed: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Fallback on error
+      if (state.active_sessions?.[featureId]) {
+        const session = state.active_sessions[featureId];
+        log(`Error recovery: Using session from state: ${session.session_id}`);
+        return session.session_id;
+      }
     }
     return undefined;
   }
@@ -61,9 +79,28 @@ export class SessionManager {
     log(`Attempting Copilot session discovery for feature: ${featureId}`);
     try {
       const sessions = await copilotCLI.listSessions();
+      log(`Copilot CLI returned ${sessions.length} sessions`);
+
+      // Immediate fallback
+      if (sessions.length === 0) {
+        if (state.active_sessions?.[featureId]) {
+          const session = state.active_sessions[featureId];
+          log(`Session discovery empty, using state fallback: ${session.session_id}`);
+          return session.session_id;
+        }
+        return undefined;
+      }
+
       return await this.matchAndRegisterSession(sessions, featureId, 'copilot', state);
     } catch (error) {
       log(`Copilot session discovery failed: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Fallback on error
+      if (state.active_sessions?.[featureId]) {
+        const session = state.active_sessions[featureId];
+        log(`Error recovery: Using session from state: ${session.session_id}`);
+        return session.session_id;
+      }
     }
     return undefined;
   }
@@ -97,6 +134,16 @@ export class SessionManager {
       
       return sessionId;
     }
+    
+    // If no match found but state has one, trust state? 
+    // Usually if listSessions succeeds but doesn't have the session, it might be gone.
+    // But let's be conservative and trust state if it exists, to avoid losing context on CLI glitches.
+    if (state.active_sessions?.[featureId]) {
+        const session = state.active_sessions[featureId];
+        log(`No matching session found in CLI list, but state has one. Keeping state session: ${session.session_id}`);
+        return session.session_id;
+    }
+
     return undefined;
   }
 }
