@@ -1227,7 +1227,7 @@ After implementation, verify:
    const tokens = encoder.encode(prompt);
    logPerformance('PromptTokens', tokens.length, { task_id });
    ```
-2. Test with multiple providers (Cursor, Claude, GPT-4) to verify savings are universal
+2. Test with multiple providers (e.g., Gemini, Copilot, Claude, GPT-4) to verify savings are universal
 3. If token counting differs significantly, optimize for most-used provider
 4. Document actual vs. estimated savings:
    ```markdown

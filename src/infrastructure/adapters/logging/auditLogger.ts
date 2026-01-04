@@ -105,7 +105,7 @@ export async function appendAuditLog(
     iteration: stateAfter.supervisor.iteration || 0,
     event: event,
     task_id: task.task_id,
-    tool_invoked: task.tool || 'cursor', // Log which tool was invoked
+    tool_invoked: task.tool || 'unknown', // Log which tool was invoked
     state_diff: {
       before: stateDiffBefore,
       after: stateDiffAfter,

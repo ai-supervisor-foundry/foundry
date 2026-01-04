@@ -301,6 +301,7 @@ Tasks are processed in **strict FIFO (First In, First Out) order**:
 
 1.  **Helper Agent Phase (V2)** (optional):
     -   If validation fails, supervisor uses a separate agent instance to generate read-only validation commands.
+    -   **Session Reuse**: Helper Agents persist their session context across invocations, significantly reducing latency and enabling learning from previous attempts.
     -   **Code Discovery**: The Helper Agent is provided with a list of actual filenames from the codebase to prevent hallucinations.
     -   **Proactive**: Automatically triggered on validation failure.
     -   Commands are executed to verify criteria.
@@ -331,7 +332,12 @@ The supervisor uses **Smart Context Injection** to minimize token usage and focu
 -   **Base Context**: Project ID and Sandbox Root (always included).
 -   **Goal Context**: Included only if task intent relates to "goal".
 -   **Queue Context**: Included only if task references "previous" or "last" task.
--   **Completed Tasks**: Included only if task is "extending" or "building on" work.
+-   **Completed Tasks**: Included only if task is "extending" or "building on" work (omitted for documentation tasks).
+
+**Strict Prompt Rules**:
+-   **Consolidated Rules**: A single, strict "Rules" block enforces agent behavior (no speculation, stop on ambiguity).
+-   **Output Requirements**: Agents must output **ONLY** a specific JSON structure (no conversational filler).
+-   **Path Validation**: All file paths in the agent's response are validated against the filesystem to filter hallucinations.
 
 **Task-Type Guidelines**:
 Prompts automatically include specific guidelines based on detected task type:

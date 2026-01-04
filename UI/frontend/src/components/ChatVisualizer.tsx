@@ -201,7 +201,7 @@ export default function ChatVisualizer({ logs, className = '' }: ChatVisualizerP
         ) : (
           messages.map((message) => {
             const isExpanded = expandedDetails.has(message.id);
-            const isInterrogationMsg = message.messageType?.includes('INTERROGATION');
+            const isInterrogationMsg = isInterrogation(message.messageType);
             const hasMetadata = message.metadata && Object.keys(message.metadata).length > 0;
             const rawContent = message.metadata?.rawContent as string || '';
             const hasMore = message.metadata?.hasMore as boolean || false;

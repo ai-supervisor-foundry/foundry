@@ -4,7 +4,7 @@ A **persistent orchestration layer for AI-assisted software development** that e
 
 ## What This Is
 
-The Supervisor is a control plane for AI development that externalizes memory, intent, and control so work can continue across interruptions, sleep, crashes, or session loss. You define a goal and break it into explicit tasks with acceptance criteria. The supervisor executes tasks autonomously using Cursor CLI (in AUTO mode) while maintaining persistent state, deterministic validation, and full auditability.
+The Supervisor is a control plane for AI development that externalizes memory, intent, and control so work can continue across interruptions, sleep, crashes, or session loss. You define a goal and break it into explicit tasks with acceptance criteria. The supervisor executes tasks autonomously via your configured provider/agent CLI (e.g., Gemini, Copilot, Cursor) in AUTO mode while maintaining persistent state, deterministic validation, and full auditability.
 
 ### Software Factory Concept
 
@@ -40,16 +40,16 @@ This enables a **"set it and forget it"** workflow where you provide the foundat
 
 ## The Problem It Solves
 
-AI tools like Cursor are powerful but ephemeral—context is lost on interruption, making long-running projects difficult. The Supervisor provides:
+AI coding agents are powerful but ephemeral—context is lost on interruption, making long-running projects difficult. The Supervisor provides:
 - **Persistence**: State survives crashes, restarts, and interruptions
 - **Deterministic Control**: No surprises—explicit validation, clear halt conditions
 - **Long-Running Projects**: Work on complex projects over days or weeks
 - **Full Auditability**: Every action is logged and reviewable
-- **Cost-Effective**: Uses free tier tools (Cursor CLI, DragonflyDB)
+- **Cost-Effective**: Uses free tier tools (provider CLIs, DragonflyDB)
 
 ## How It Works
 
-The supervisor operates as a **strict control mechanism** that executes operator-defined tasks through a fixed control loop. It maintains persistent state in DragonflyDB (Redis-compatible), manages a FIFO task queue, dispatches tasks to Cursor CLI with injected state context, and validates outputs deterministically. The system enforces sandbox isolation per project, provides append-only audit logging, and supports recovery from crashes or restarts by reloading persisted state. The supervisor never invents goals, expands scope, or makes autonomous decisions—all authority remains with the operator who injects goals and tasks explicitly.
+The supervisor operates as a **strict control mechanism** that executes operator-defined tasks through a fixed control loop. It maintains persistent state in DragonflyDB (Redis-compatible), manages a FIFO task queue, dispatches tasks to your chosen provider CLI with injected state context, and validates outputs deterministically. The system enforces sandbox isolation per project, provides append-only audit logging, and supports recovery from crashes or restarts by reloading persisted state. The supervisor never invents goals, expands scope, or makes autonomous decisions—all authority remains with the operator who injects goals and tasks explicitly.
 
 ## Overview
 
@@ -57,7 +57,7 @@ The supervisor is a **control mechanism** that:
 - Holds externally injected goals
 - Maintains persistent state
 - Executes a fixed control loop
-- Delegates tasks to tools (Cursor CLI)
+- Delegates tasks to provider/agent CLIs
 - Validates results
 - Retries on validation failures and ambiguity (up to max retries)
 - Halts only on critical failures (execution errors, blocked status)
@@ -74,7 +74,7 @@ It does **not**:
 
 - **Node.js**: LTS version (install via [nvm](https://github.com/nvm-sh/nvm))
 - **Docker & Docker Compose**: For running DragonflyDB
-- **Cursor CLI**: Install `cursor` command (see [Cursor CLI docs](https://cursor.com/cli))
+- **Provider CLI(s)**: Install at least one supported provider CLI (e.g., Gemini, Copilot, Cursor). Cursor-specific docs: [Cursor CLI](https://cursor.com/cli)
 
 ### Install Dependencies
 
@@ -224,7 +224,7 @@ Create task JSON file(s) following the task schema. You can create either:
 {
   "task_id": "task-001",
   "intent": "Create API endpoint structure",
-  "tool": "cursor-cli",
+  "tool": "gemini",
   "instructions": "Create a REST API with Express.js. Include routes for /api/v1/users and /api/v1/auth. Use TypeScript.",
   "acceptance_criteria": [
     "Express server starts on port 3000",
@@ -257,7 +257,7 @@ Tasks can reference existing files from your boilerplates. For example:
   {
     "task_id": "frontend-001",
     "intent": "Extend existing React component",
-    "tool": "cursor-cli",
+    "tool": "gemini",
     "instructions": "Extend the existing App.tsx component (located at src/App.tsx) to add user authentication. Follow the existing code style and patterns.",
     "acceptance_criteria": [
       "App.tsx includes authentication logic",
@@ -272,7 +272,7 @@ Tasks can reference existing files from your boilerplates. For example:
   {
     "task_id": "backend-001",
     "intent": "Create API endpoint structure",
-    "tool": "cursor-cli",
+    "tool": "copilot",
     "instructions": "Create a REST API with Express.js. Include routes for /api/v1/users and /api/v1/auth. Use TypeScript.",
     "acceptance_criteria": [
       "Express server starts on port 3000",
@@ -297,7 +297,7 @@ Tasks can reference existing files from your boilerplates. For example:
   {
     "task_id": "backend-002",
     "intent": "Add authentication middleware",
-    "tool": "cursor-cli",
+    "tool": "claude",
     "instructions": "Implement JWT authentication middleware for Express routes.",
     "acceptance_criteria": [
       "JWT middleware validates tokens",
@@ -320,8 +320,8 @@ Tasks can reference existing files from your boilerplates. For example:
 **Task Schema Fields**:
 - `task_id`: Unique identifier
 - `intent`: Brief description of task purpose
-- `tool`: Must be `"cursor-cli"`
-- `instructions`: Detailed instructions for Cursor CLI
+- `tool`: Provider/agent to execute the task (`cursor`, `gemini`, `gemini_stub`, `copilot`, `codex`, `claude`)
+- `instructions`: Detailed instructions for the selected provider CLI
 - `acceptance_criteria`: Array of strings, ALL must be met
 - `retry_policy`: Retry configuration (typically `max_retries: 3`)
 - `status`: Initial status (typically `"pending"`)
@@ -386,7 +386,7 @@ The supervisor will:
 1. Load state
 2. Check if status is RUNNING (if not, set it with `resume` command first)
 3. Dequeue next task
-4. Dispatch to Cursor CLI
+4. Dispatch to the configured provider CLI
 5. Validate output
 6. Persist state
 7. Repeat until queue exhausted or halted
@@ -571,7 +571,7 @@ All specifications and documentation are in the `docs/` directory:
 
 - [Control Loop](docs/LOOP.md) - Control loop steps
 - [State Management](docs/STATE_LIFECYCLE.md) - State lifecycle rules
-- [Tool Contracts](docs/TOOL_CONTRACTS.md) - Cursor CLI contract
+- [Tool Contracts](docs/TOOL_CONTRACTS.md) - Provider/agent contract
 - [Validation](docs/VALIDATION.md) - Validation rules
 - [Sandbox](docs/SANDBOX.md) - Sandbox enforcement
 - [Recovery](docs/RECOVERY.md) - Recovery scenarios
@@ -591,7 +591,7 @@ See [docs/IMPLEMENTATION_REVIEW.md](docs/IMPLEMENTATION_REVIEW.md) for implement
 Set these before running commands:
 
 ```bash
-export CURSOR_CLI_PATH=/path/to/cursor  # Optional, defaults to 'cursor' (uses 'cursor agent' subcommand)
+export CURSOR_CLI_PATH=/path/to/cursor  # Optional, only if using Cursor CLI (defaults to 'cursor agent')
 ```
 
 ### CLI Global Options

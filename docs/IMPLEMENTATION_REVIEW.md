@@ -131,6 +131,14 @@
 - ⚠️ Format matches SANDBOX.md requirement: `/sandbox/<project>`
 - ✅ Matches specification
 
+### 7. Recent Optimizations (2026-01-04)
+**Status**: ✅ Fully Implemented
+- ✅ **Session Reuse**: State-based session fallback, stable Feature IDs, and provider-specific context limits (Gemini 1.5M).
+- ✅ **Prompt Tightening**: Consolidated rules block, strict JSON-only output enforcement, and enhanced context selectivity.
+- ✅ **Helper Agent Persistence**: Helper agents now reuse sessions for faster validation loops.
+- ✅ **Path Validation**: Automated filtering of hallucinated file paths in agent responses.
+- ✅ **Copilot CLI Fix**: Migrated to `spawn` to handle complex prompts safely.
+
 ## 📋 Summary
 
 ### Overall Compliance: ~98%

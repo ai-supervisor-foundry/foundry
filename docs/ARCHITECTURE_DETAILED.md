@@ -334,7 +334,17 @@ queue:tasks (Redis List)
 }
 ```
 
-#### 6. Tool Dispatcher (`src/infrastructure/connectors/agents/providers/cursorCLI.ts`, `copilotCLI.ts`, etc.)
+#### 6. Session Manager (`src/domain/agents/sessionManager.ts`)
+
+**Purpose**: Manage lifecycle and persistence of LLM sessions
+
+**Features**:
+- **State-Based Fallback**: Uses internal state if provider discovery fails.
+- **Stable Feature IDs**: Generates deterministic session keys based on task prefixes/projects.
+- **Helper Agent Persistence**: Reuses sessions for helper agents to speed up validation.
+- **Provider-Specific Discovery**: Strategies for Gemini, Copilot, etc.
+
+#### 7. Tool Dispatcher (`src/infrastructure/connectors/agents/providers/cursorCLI.ts`, `copilotCLI.ts`, etc.)
 
 **Purpose**: Execute CLI commands in sandboxed environment via various providers
 
@@ -348,7 +358,7 @@ queue:tasks (Redis List)
 - 30-minute timeout per task
 - Supports agent modes (auto, opus, etc.)
 
-#### 7. Validator (`src/application/services/validator.ts`)
+#### 8. Validator (`src/application/services/validator.ts`)
 
 **Purpose**: Deterministic, rule-based validation of task output
 
@@ -392,7 +402,7 @@ Task → detectTaskType() → { behavioral | coding | config | testing | docs }
   - `failed_criteria`: string[]
   - `uncertain_criteria`: string[]
 
-#### 8. Halt Detection (`src/domain/executors/haltDetection.ts`)
+#### 9. Halt Detection (`src/domain/executors/haltDetection.ts`)
 
 **Purpose**: Detect hard halt conditions in CLI output
 
@@ -408,7 +418,7 @@ Task → detectTaskType() → { behavioral | coding | config | testing | docs }
 - Critical halts stop immediately
 - Non-critical halts trigger retry with clarification
 
-#### 9. Interrogator (`src/domain/executors/interrogator.ts`)
+#### 10. Interrogator (`src/domain/executors/interrogator.ts`)
 
 **Purpose**: Ask agent about uncertain/failed validation criteria
 
@@ -425,7 +435,7 @@ Task → detectTaskType() → { behavioral | coding | config | testing | docs }
 - Max questions per criterion (default: 1)
 - Final interrogation before blocking task
 
-#### 10. Audit Logger (`src/infrastructure/adapters/logging/auditLogger.ts`)
+#### 11. Audit Logger (`src/infrastructure/adapters/logging/auditLogger.ts`)
 
 **Purpose**: Append-only audit trail of all supervisor actions
 
@@ -449,7 +459,7 @@ Task → detectTaskType() → { behavioral | coding | config | testing | docs }
 - Includes full state snapshots (before/after)
 - Includes prompts and responses
 
-#### 11. Prompt Logger (`src/infrastructure/adapters/logging/promptLogger.ts`)
+#### 12. Prompt Logger (`src/infrastructure/adapters/logging/promptLogger.ts`)
 
 **Purpose**: Log all prompts and responses for debugging
 

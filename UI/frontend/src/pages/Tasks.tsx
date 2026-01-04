@@ -20,7 +20,7 @@ export default function Tasks() {
   const [newTaskJson, setNewTaskJson] = useState(`{
   "task_id": "task-${Date.now()}",
   "intent": "Example task",
-  "tool": "cursor",
+  "tool": "gemini",
   "instructions": "Describe what needs to be done...",
   "acceptance_criteria": [
     "Criteria 1"

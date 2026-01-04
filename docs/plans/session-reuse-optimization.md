@@ -10,14 +10,14 @@
 
 ## Executive Summary
 
-Session management infrastructure exists in the codebase but **sessions are never actually reused**. Every task iteration spawns a fresh Gemini/Copilot session, losing all context and forfeiting token caching benefits. This results in:
+Session management infrastructure exists in the codebase but **sessions are never actually reused**. Every task iteration spawns a fresh provider session, losing all context and forfeiting token caching benefits. This results in:
 
 - **0% session reuse rate** (should be 70-85%)
 - **0% token caching** (missing 30-60% cost savings)
 - **Wasted helper agent invocations** (~20s each, no context persistence)
 - **Validation loops take 3-5 iterations** (could be 2-3 with context)
 
-The `sessionManager.resolveSession()` is called but returns `undefined` every time. The `-r <sessionId>` flag is never passed to provider CLIs.
+The `sessionManager.resolveSession()` is called but returns `undefined` every time. The `-r <sessionId>` flag (Gemini) or equivalent session resumption mechanism is never passed to provider CLIs.
 
 ---
 
@@ -118,7 +118,7 @@ $ grep "Executing CLI / Agent with agent mode" logs/supervisor-combined.log | gr
 2026-01-03T13:00:23: [CommandGenerator] Helper Agent response received in 9042ms  // ~9s (faster than Gemini)
 ```
 
-**Context:** Used as fallback when Gemini helper agent failed (API error). Shows provider fallback chain is working: `gemini → copilot → cursor → codex → claude → gemini-stub`.
+**Context:** Used as fallback when Gemini helper agent failed (API error). Shows configurable provider fallback chain is working (default priority order can be adjusted in config).
 
 ---
 
