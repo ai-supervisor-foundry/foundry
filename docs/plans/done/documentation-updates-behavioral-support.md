@@ -2,13 +2,18 @@
 
 ## Overview
 
-Behavioral task support has been implemented in the supervisor system (see [fix-behavioral-support.md](fix-behavioral-support.md)). This plan documents required updates to user-facing and architectural documentation to ensure operators understand and can effectively use behavioral tasks.
+Multiple supervisor improvements have been implemented:
+1. **Behavioral task support** (see [fix-behavioral-support.md](fix-behavioral-support.md))
+2. **AST-based validation** (see [SUPERVISOR_AGENT_IMPROVEMENTS/ast-validation.md](SUPERVISOR_AGENT_IMPROVEMENTS/ast-validation.md) and [ast-adapter-strategy.md](SUPERVISOR_AGENT_IMPROVEMENTS/helper_docs/ast-adapter-strategy.md))
+3. **Reduced retry/interrogation limits** for faster failure detection
+
+This plan documents required updates to user-facing and architectural documentation to ensure operators understand these improvements.
 
 ## Problem Statement
 
-- **Current State**: Code implementation is complete but undocumented
-- **Risk**: Operators will repeat mistakes like testing-0091 (using behavioral tasks without explicit `task_type` field)
-- **Gap**: No guidance on when/how to use behavioral tasks vs. coding tasks
+- **Current State**: Code implementations are complete but undocumented
+- **Risk**: Operators will repeat mistakes like testing-0091 (using behavioral tasks without explicit `task_type` field, expecting unlimited retries)
+- **Gap**: No guidance on when/how to use behavioral tasks vs. coding tasks, no AST validation documentation, outdated retry/interrogation limits in docs
 - **Impact**: Reduced system usability and higher support burden
 
 ## Documentation Updates Required
@@ -56,11 +61,15 @@ Behavioral task support has been implemented in the supervisor system (see [fix-
                           3. Skip interrogation (no files to verify)
                                     ↓
                           Coding Path:
-                          1. Run file-based validator
-                          2. Check files/diffs exist
-                          3. If UNCERTAIN confidence → interrogate
+                          1. Run file-based validator (keyword/regex)
+                          2. Optional: Run AST validator (if enabled)
+                          3. Check files/diffs exist
+                          4. If UNCERTAIN confidence → interrogate (max 1 round)
   ```
 - Update control flow diagram to show `task.task_type !== 'behavioral'` check before interrogation
+- **NEW**: Document AST validation layer (adapter pattern, ts-morph for TS/JS)
+- **NEW**: Update retry limits (default: 1 retry, configurable via `task.retry_policy.max_retries`)
+- **NEW**: Update interrogation limits (max 1 question per criterion (initial), 0 (final))
 
 **Headings**:
 ```
@@ -68,6 +77,8 @@ Behavioral task support has been implemented in the supervisor system (see [fix-
 #### Task Type Detection & Routing
 #### Behavioral Task Flow
 #### Coding Task Flow
+#### AST Validation (Optional Enhancement)
+#### Retry & Interrogation Limits
 ```
 
 ### 3. Create New Guide: `docs/BEHAVIORAL_TASKS_GUIDE.md`
@@ -270,6 +281,16 @@ Task Validation
 
 **Solution**: Limit to 3-5 clear, achievable criteria
 
+### ❌ Pitfall 5: Expecting Unlimited Retries
+
+**Problem**: Setting `max_retries: 10` expecting thorough debugging
+
+**Why It Fails**: System defaults to 1 retry (fast-fail strategy). Higher values waste resources on hopeless tasks.
+
+**Solution**: Use max_retries: 1-2, rely on repeated error blocking (3 consecutive identical errors → task blocked)
+
+**Note**: Interrogation now limited to 1 round per criterion (initial), 0 (final) for faster convergence.
+
 ## Examples
 
 ### Example 1: Greeting Test
@@ -286,7 +307,7 @@ Task Validation
     "Mention being an AI assistant"
   ],
   "working_directory": "sandbox",
-  "retry_policy": { "max_retries": 2 }
+  "retry_policy": { "max_retries": 1 }
 }
 ```
 
@@ -314,7 +335,7 @@ Hello! I'm a coding assistant here to help with your questions. What would you l
     "Respond concisely (under 200 words)"
   ],
   "working_directory": "sandbox",
-  "retry_policy": { "max_retries": 3 }
+  "retry_policy": { "max_retries": 1 }
 }
 ```
 
@@ -407,25 +428,33 @@ npx ts-node scripts/dump-state.ts | jq '.validation_report'
 }
 ```
 
-### 5. Update `docs/RUNBOOK.md` (if exists)
+### 5. Create New Guide: `docs/AST_VALIDATION_GUIDE.md`
 
-**Section**: Add troubleshooting entry for behavioral tasks
+**Location**: `/supervisor/docs/AST_VALIDATION_GUIDE.md` (new file)
 
-**Content**: Link to BEHAVIORAL_TASKS_GUIDE.md for behavioral task issues
+**Purpose**: Document AST-based validation strategy for technical operators
 
-## Implementation Checklist
+**Sections**:
+```markdown
+### Phase 1: Core Documentation Updates
 
 - [ ] **1.1**: Add "Task Type-Aware Validation" section to `docs/VALIDATION.md`
   - [ ] Explain behavioral validator rules
   - [ ] Explain file-based validator rules
+  - [ ] Explain AST validation layer (with reference to AST_VALIDATION_GUIDE.md)
   - [ ] Show interrogation skip logic
   - [ ] Add confidence scoring table
+  - [ ] Update retry/interrogation limits (1 retry default, 1 interrogation round)
 
 - [ ] **1.2**: Add routing diagram and decision tree to `docs/ARCHITECTURE_DETAILED.md`
   - [ ] Task type detection flow
-  - [ ] Validation routing diagram
+  - [ ] Validation routing diagram (include AST layer)
   - [ ] Behavioral vs. coding control flows
-  - [ ] Update interrogation section
+  - [ ] Update interrogation section (1 round max (initial), 0 (final))
+  - [ ] Add AST validation architecture overview
+  - [ ] Document new retry defaults (1 retry, not 3)
+
+### Phase 2: User Guides
 
 - [ ] **2.1**: Create `docs/BEHAVIORAL_TASKS_GUIDE.md` (new file)
   - [ ] What/when/why sections
@@ -434,16 +463,83 @@ npx ts-node scripts/dump-state.ts | jq '.validation_report'
   - [ ] Common pitfalls with solutions
   - [ ] 2+ complete examples
   - [ ] Troubleshooting section
+  - [ ] Update retry_policy examples (use max_retries: 1 or 2, not 3+)
 
-- [ ] **2.2**: Update `TASK_SCHEMA.json` enum documentation
+- [ ] **2.2**: Create `docs/AST_VALIDATION_GUIDE.md` (new file)
+  - [ ] Overview of AST validation vs keyword matching
+  - [ ] When to use AST validation
+  - [ ] Architecture overview (reference ast-adapter-strategy.md)
+  - [ ] Supported file types (TS/JS/TSX/JSX)
+  - [ ] Examples of AST validation rules
+  - [ ] Future language support (Python, Go)
+
+### Phase 3: Schema & References
+
+- [ ] **3.1**: Update `TASK_SCHEMA.json` enum documentation
   - [ ] Add description to task_type field
-  - [ ] Add reference link to guide
+  - [ ] Add reference link to BEHAVIORAL_TASKS_GUIDE.md
   - [ ] Provide examples for each type
+  - [ ] Update retry_policy.max_retries description (default: 1)
 
-- [ ] **2.3**: Add behavioral tasks section to `docs/RUNBOOK.md`
-  - [ ] Troubleshooting link
-  - [ ] Quick reference table
-  - [ ] Common errors and fixes
+- [ ] **3.2**: Add to `docs/RUNBOOK.md`
+  - [ ] Behavioral tasks troubleshooting link
+  - [ ] AST validation troubleshooting link
+  - [ ] Quick reference table for retry/interrogation limits
+  - [ ] Common errors and fixes (model names, retry exhaustion)
+**Content**: 
+- Link to BEHAVIORAL_TASKS_GUIDE.md for behavioral task issues
+- Document new retry defaults (1 retry, not 3)
+- Document new interrogation limits (1 round (initial), 0 (final))
+
+## Implementation Checklist
+
+### ✅ Phase 1: Core Documentation Updates - COMPLETED
+
+- [x] **1.1**: Add "Task Type-Aware Validation" section to `docs/VALIDATION.md`
+  - [x] Explain behavioral validator rules
+  - [x] Explain file-based validator rules
+  - [x] Show interrogation skip logic
+  - [x] Add confidence scoring table
+
+- [x] **1.2**: Add routing diagram and decision tree to `docs/ARCHITECTURE_DETAILED.md`
+  - [x] Task type detection flow
+  - [x] Validation routing diagram (lines 375-386)
+  - [x] Behavioral vs. coding control flows
+  - [x] Update interrogation section
+  - [x] Add retry & interrogation limits (line 387-391)
+
+### ✅ Phase 2: User Guides - COMPLETED
+
+- [x] **2.1**: Create `docs/BEHAVIORAL_TASKS_GUIDE.md` (new file)
+  - [x] What/when/why sections
+  - [x] Task definition format with examples
+  - [x] Validation rules table
+  - [x] Common pitfalls with solutions
+  - [x] 2+ complete examples
+  - [x] Troubleshooting section
+  - [x] 314 lines of comprehensive documentation
+
+- [x] **2.2**: Create `docs/AST_VALIDATION_GUIDE.md` (new file)
+  - [x] Overview of AST validation vs keyword matching
+  - [x] When to use AST validation
+  - [x] Architecture overview (adapter pattern)
+  - [x] Supported file types (TS/JS/TSX/JSX)
+  - [x] Troubleshooting section
+  - [x] Fallback logic documented
+
+### ✅ Phase 3: Schema & References - COMPLETED
+
+- [x] **3.1**: Update `TASK_SCHEMA.json` enum documentation
+  - [x] Add description to task_type field
+  - [x] Add reference link to BEHAVIORAL_TASKS_GUIDE.md
+  - [x] Provide examples for each type
+  - [x] Update retry_policy.max_retries description (default: 1)
+
+- [x] **3.2**: Add to `docs/RUNBOOK.md`
+  - [x] Behavioral tasks troubleshooting link
+  - [x] AST validation troubleshooting link
+  - [x] Quick reference table for retry/interrogation limits
+  - [x] Common errors and fixes
 
 ## Success Criteria
 
@@ -462,13 +558,18 @@ npx ts-node scripts/dump-state.ts | jq '.validation_report'
 
 ## Timeline
 
-- **Phase 1 (Immediate)**: Create BEHAVIORAL_TASKS_GUIDE.md + update VALIDATION.md
-- **Phase 2 (This Week)**: Update ARCHITECTURE_DETAILED.md + TASK_SCHEMA.json
-- **Phase 3 (Next Week)**: Add to RUNBOOK.md + cross-reference check
+- **Phase 1 (Immediate)**: Create BEHAVIORAL_TASKS_GUIDE.md + AST_VALIDATION_GUIDE.md + update VALIDATION.md with new limits
+- **Phase 2 (This Week)**: Update ARCHITECTURE_DETAILED.md (AST layer, retry/interrogation limits) + TASK_SCHEMA.json
+- **Phase 3 (Next Week)**: Add to RUNBOOK.md + cross-reference check + verify all retry examples updated
 
 ## Notes
 
-- These docs complement the implementation in `fix-behavioral-support.md`
+- These docs complement implementations in:
+  - `fix-behavioral-support.md` (behavioral tasks)
+  - `SUPERVISOR_AGENT_IMPROVEMENTS/ast-validation.md` (AST validation)
+  - `SUPERVISOR_AGENT_IMPROVEMENTS/helper_docs/ast-adapter-strategy.md` (adapter pattern)
 - Focus on **practical guidance** not architectural deep-dives (ARCHITECTURE_DETAILED.md for that)
-- Use real examples from testing-0091 as cautionary tales
+- Use real examples from testing-0091 as cautionary tales (87+ iterations with invalid model + wrong task type)
 - Keep behavioral guide accessible to non-technical operators
+- **Critical**: Update ALL examples to use new defaults (max_retries: 1, not 3; interrogation: 1 round (initial), 0 (final))
+- AST validation is **optional enhancement** - keyword/regex validation still works as fallback

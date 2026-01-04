@@ -749,6 +749,24 @@ FLUSHDB
 
 ## Troubleshooting
 
+### Diagnostics & Investigation Tools
+
+For troubleshooting system issues, use the [Investigation Scripts](./scripts/investigations/README.md) toolkit—a set of reusable diagnostic tools for inspecting provider health, task queue state, and execution logs.
+
+**Quick Diagnostics**:
+```bash
+# Check provider status and circuit breakers
+npx ts-node scripts/investigations/provider-health.ts
+
+# Inspect task queue and blocked tasks
+npx ts-node scripts/investigations/task-queue-inspect.ts
+
+# Analyze execution logs and error patterns
+npx ts-node scripts/investigations/log-analyzer.ts --summary
+```
+
+For detailed usage, examples, and a troubleshooting matrix, see [Investigation Scripts README](./scripts/investigations/README.md).
+
 ### DragonflyDB Not Starting
 
 ```bash

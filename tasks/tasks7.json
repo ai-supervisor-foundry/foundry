@@ -14,7 +14,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_setup_navigation",
@@ -32,7 +32,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_setup_styling",
@@ -50,7 +50,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_api_client",
@@ -68,7 +68,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_auth_screens",
@@ -87,7 +87,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_home_feed_screen",
@@ -106,7 +106,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_listing_card",
@@ -125,7 +125,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_listing_detail_screen",
@@ -144,7 +144,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_search_screen",
@@ -163,7 +163,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_favorites_screen",
@@ -182,7 +182,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_profile_subscription_screen",
@@ -202,7 +202,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_shared_components",
@@ -221,7 +221,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_offline_support",
@@ -240,7 +240,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_notifications_setup",
@@ -259,7 +259,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_icons_assets",
@@ -278,7 +278,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_testing_ios_android",
@@ -297,7 +297,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "mobile_documentation",
@@ -316,7 +316,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "api_mobile_contract_audit",
@@ -333,7 +333,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-api",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "api_fix_vehicle_listings",
@@ -350,7 +350,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-api",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "api_fix_property_listings",
@@ -367,7 +367,7 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-api",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     },
     {
         "task_id": "api_fix_favourites",
@@ -384,6 +384,6 @@
         },
         "status": "pending",
         "working_directory": "easeclassifieds-api",
-        "agent_mode": "gemini-3-flash-preview"
+        "agent_mode": "auto"
     }
 ]

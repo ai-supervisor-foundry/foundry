@@ -367,6 +367,26 @@ queue:tasks (Redis List)
 - Rule-based only, no LLM calls
 - No side effects
 - Returns ValidationReport with:
+
+**Task Type Routing Diagram**:
+```
+Task → detectTaskType() → { behavioral | coding | config | testing | docs }
+                                  ↓
+                        Behavioral Path:
+                        1. Run behavioral validator
+                        2. Check response text only
+                        3. Skip interrogation (no files to verify)
+                                  ↓
+                        Coding Path:
+                        1. Run file-based validator (keyword/regex)
+                        2. Optional: Run AST validator (if enabled)
+                        3. Check files/diffs exist
+                        4. If UNCERTAIN confidence → interrogation (max 1 round)
+```
+
+**Retry & Interrogation Limits**:
+- **Default Retries**: 1 (configurable via `task.retry_policy.max_retries`)
+- **Interrogation Rounds**: 1 initial (max 1 question), 0 final
   - `valid`: boolean
   - `confidence`: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNCERTAIN'
   - `failed_criteria`: string[]
@@ -402,7 +422,7 @@ queue:tasks (Redis List)
 
 **Key Characteristics**:
 - Used when validation confidence is UNCERTAIN or LOW
-- Max questions per criterion (default: 4)
+- Max questions per criterion (default: 1)
 - Final interrogation before blocking task
 
 #### 10. Audit Logger (`src/infrastructure/adapters/logging/auditLogger.ts`)
