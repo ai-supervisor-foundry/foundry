@@ -3,6 +3,7 @@
         "task_id": "mobile_expo_init",
         "intent": "Initialize a new plain Expo mobile project to serve as the foundation for the mobile app. We will use Expo Go for development.",
         "instructions": "If not already created, create a new plain Expo project using 'npx create-expo-app' (TypeScript preferred). Ensure minimal dependencies, clean folder structure, and confirm it builds successfully. Do not add navigation or state libraries yet.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Expo project is created successfully",
             "Project builds and runs",
@@ -20,6 +21,7 @@
         "task_id": "mobile_setup_navigation",
         "intent": "Set up React Navigation for the Expo app with tab and stack navigation structure.",
         "instructions": "Install and configure @react-navigation/native, @react-navigation/native-stack, and @react-navigation/bottom-tabs. Create navigation structure matching web routes: Home (Feed), Favorites, Search, Profile. Set up proper TypeScript types for navigation.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "React Navigation is installed and configured",
             "Bottom tab navigation is working with 4 tabs",
@@ -38,6 +40,7 @@
         "task_id": "mobile_setup_styling",
         "intent": "Set up NativeWind (Tailwind for React Native) and design system tokens.",
         "instructions": "Install and configure NativeWind for Tailwind-like styling in React Native. Create design system tokens for colors, spacing, typography matching web app. Set up theme provider for light/dark mode support if needed.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "NativeWind is installed and working",
             "Design tokens match web app styling",
@@ -56,6 +59,7 @@
         "task_id": "mobile_api_client",
         "intent": "Port API client and services layer to React Native.",
         "instructions": "Migrate services/api.ts with axios for HTTP calls. Set up API base URL configuration. Port authService, listingService, searchService, feedService, subscriptionService, and favoritesService. Use AsyncStorage for token persistence instead of localStorage. Ensure proper error handling and interceptors.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "API client is configured with proper base URL",
             "All service modules are ported and typed",
@@ -74,6 +78,7 @@
         "task_id": "mobile_auth_screens",
         "intent": "Create phone authentication screens with OTP verification.",
         "instructions": "Build PhoneInputScreen with country selector (PK, AE, SA, QA, KW, BH, OM) and phone number input. Build OTPVerificationScreen with 4-6 digit OTP input. Implement auth flow using authService. Handle rate limiting errors gracefully. Add loading states and error messages.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Phone input screen with country selector works",
             "OTP input screen with proper keyboard type",
@@ -93,6 +98,7 @@
         "task_id": "mobile_home_feed_screen",
         "intent": "Create Home/Feed screen with category selector and listing feed.",
         "instructions": "Port HomePage logic to React Native. Use FlatList for listings with proper optimization (keyExtractor, removeClippedSubviews, windowSize). Port CategorySelector component. Port FeedMetadataBar showing remaining views. Implement pull-to-refresh. Use React Native list performance best practices.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Feed screen displays listings from API",
             "Category filter switches between properties/vehicles/all",
@@ -112,6 +118,7 @@
         "task_id": "mobile_listing_card",
         "intent": "Create ListingCard component for displaying listing previews.",
         "instructions": "Port ListingCard to React Native. Use Image with proper resizeMode. Show price, title, location, category badge. Add favorite button. Handle image loading states and errors. Make card touchable to navigate to detail. Ensure proper spacing and mobile-friendly touch targets (min 44x44).",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Listing cards display all required info",
             "Images load properly with placeholders",
@@ -131,6 +138,7 @@
         "task_id": "mobile_listing_detail_screen",
         "intent": "Create listing detail screen with full information and image gallery.",
         "instructions": "Port ListingDetailPage to React Native. Use ScrollView for content. Implement image gallery with horizontal paging (FlatList or react-native-pager-view). Show all listing details, description, contact info. Add favorite button. Add share functionality. Handle loading and error states.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Detail screen shows complete listing info",
             "Image gallery works with swipe navigation",
@@ -150,6 +158,7 @@
         "task_id": "mobile_search_screen",
         "intent": "Create search screen with smart search and filters.",
         "instructions": "Port SmartSearchBar and search functionality. Use TextInput for search query. Implement filter UI for category, price range, location. Port Gemini AI integration for smart search if feasible on mobile, or use regular search. Show search results in FlatList. Handle empty states and loading.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Search input works with proper keyboard",
             "Filters can be applied and cleared",
@@ -169,6 +178,7 @@
         "task_id": "mobile_favorites_screen",
         "intent": "Create favorites screen showing user's bookmarked listings.",
         "instructions": "Port FavoritesPage to React Native. Use FlatList for favorites list. Port useFavorites hook and FavoritesContext. Implement add/remove favorites functionality. Show empty state when no favorites. Allow navigation to listing details. Support pull-to-refresh.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Favorites screen displays user's saved listings",
             "Add/remove favorites works properly",
@@ -188,6 +198,7 @@
         "task_id": "mobile_profile_subscription_screen",
         "intent": "Create profile/subscription screen with tier information (view-only, no payment integration).",
         "instructions": "Build profile screen showing user phone number, current subscription tier, and tier features. Display subscription tier information (FREE, BASIC, PRO) as informational cards only. Show remaining daily views and renewal date. Add logout button. Do not implement payment or upgrade functionality.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Profile shows user info and current tier",
             "Subscription tiers are displayed as informational cards",
@@ -208,6 +219,7 @@
         "task_id": "mobile_shared_components",
         "intent": "Port shared/reusable components from web to React Native.",
         "instructions": "Port Button, Input, ErrorBoundary, LoadingSpinner, EmptyState components to React Native. Create mobile-optimized versions with proper touch targets. Ensure consistent styling. Add proper accessibility labels. Create design system components folder.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "All shared components are ported",
             "Components follow React Native best practices",
@@ -227,6 +239,7 @@
         "task_id": "mobile_offline_support",
         "intent": "Implement offline detection and basic offline functionality.",
         "instructions": "Port useOffline hook using @react-native-community/netinfo. Show offline banner when network is unavailable. Cache recent listings using AsyncStorage. Handle API errors gracefully when offline. Show cached data when offline.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Offline detection works correctly",
             "Offline banner displays when network is down",
@@ -246,6 +259,7 @@
         "task_id": "mobile_notifications_setup",
         "intent": "Set up notification system for in-app messages and alerts.",
         "instructions": "Port Notification component to React Native using react-native toast libraries or custom modal. Handle success, error, and info notifications. Ensure notifications don't block user interaction. Add notification context/provider.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Notification system works on mobile",
             "Toast/banner notifications display correctly",
@@ -265,6 +279,7 @@
         "task_id": "mobile_icons_assets",
         "intent": "Set up icon library and handle image assets for mobile.",
         "instructions": "Install @expo/vector-icons or react-native-vector-icons for icons (equivalent to lucide-react). Set up proper image asset handling with different resolutions (@2x, @3x). Configure app icon and splash screen. Ensure all web icons have mobile equivalents.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Icon library is configured and working",
             "All UI icons render correctly",
@@ -284,6 +299,7 @@
         "task_id": "mobile_testing_ios_android",
         "intent": "Test app thoroughly on iOS and Android via Expo Go.",
         "instructions": "Use Expo Go app on physical devices or simulator to test. Scan QR code from Expo development server on both iOS and Android devices/simulators. Test all screens and flows, verify touch interactions, navigation, API calls, and offline behavior. Test on different screen sizes. Check performance and memory usage. Ensure consistent behavior across platforms.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "App runs successfully via Expo Go on iOS device or simulator",
             "App runs successfully via Expo Go on Android device or emulator",
@@ -303,6 +319,7 @@
         "task_id": "mobile_documentation",
         "intent": "Create comprehensive documentation for the mobile app.",
         "instructions": "Create README.md with setup instructions, environment variables, and running instructions. Document component structure and navigation flow. Add mobile-specific notes (deep linking, push notifications for future). Document differences from web app. Create troubleshooting guide.",
+        "task_type": "documentation",
         "acceptance_criteria": [
             "README.md has clear setup instructions",
             "Architecture and component structure documented",
@@ -322,6 +339,7 @@
         "task_id": "api_mobile_contract_audit",
         "intent": "Validate and document API response contracts required for mobile clients.",
         "instructions": "Audit vehicle, property, and favourites APIs from a mobile-client perspective. Document required fields, optional fields, pagination shape, error formats, and auth expectations. Do not change behavior yet.",
+        "task_type": "documentation",
         "acceptance_criteria": [
             "Clear API contract notes for vehicle, property, and favourites endpoints",
             "Mobile-required fields explicitly listed",
@@ -339,6 +357,7 @@
         "task_id": "api_fix_vehicle_listings",
         "intent": "Fix and stabilize the vehicle listings API to support mobile consumption.",
         "instructions": "Review the vehicle listings aggregation and API endpoints. Fix data inconsistencies, pagination issues, and performance bottlenecks. Ensure response shape is mobile-friendly and documented.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Vehicle listings API returns consistent, normalized data",
             "Pagination and filtering work as expected",
@@ -356,6 +375,7 @@
         "task_id": "api_fix_property_listings",
         "intent": "Fix and stabilize the property listings API to support mobile consumption.",
         "instructions": "Audit property aggregation pipelines and API endpoints. Resolve missing fields, normalization issues, and edge cases. Align response format with vehicle listings where applicable.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Property listings API returns complete and normalized data",
             "Edge cases and invalid listings are handled safely",
@@ -373,6 +393,7 @@
         "task_id": "api_fix_favourites",
         "intent": "Fix and finalize the favourites API used by web and mobile clients.",
         "instructions": "Ensure favourites can be added, removed, and listed reliably per user (phone-auth based). Validate authorization, idempotency, and error handling.",
+        "task_type": "coding",
         "acceptance_criteria": [
             "Users can add and remove favourites reliably",
             "Favourites persist correctly across sessions",

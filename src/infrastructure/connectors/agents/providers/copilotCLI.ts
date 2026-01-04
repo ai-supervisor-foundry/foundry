@@ -35,7 +35,6 @@ export class CopilotCLI {
    * Resumes a session if sessionId is provided, otherwise starts a new one.
    */
   async dispatch(prompt: string, sessionId?: string, options: CopilotOptions = {}): Promise<CopilotResult> {
-    const model = options.model || 'gpt-4.1'; // Fallback to reliable non-interactive model
     let command = process.env.COPILOT_CLI_PATH || 'npx copilot';
 
     // Construct command
@@ -46,7 +45,10 @@ export class CopilotCLI {
       if (options.agent) {
         command += ` --agent ${options.agent}`;
       }
-      command += ` --model ${model}`;
+      // if model is provided, add it to the command
+      if (options.model) {
+        command += ` --model ${options.model}`;
+      }
     }
 
     // Add required flags for non-interactive mode
@@ -225,7 +227,7 @@ export async function dispatchToCopilot(
   
   try {
     const result = await copilotCLI.dispatch(finalPrompt, sessionId, {
-      model: agentMode
+      model: agentMode === 'auto' ? undefined : agentMode
     });
 
     return {
