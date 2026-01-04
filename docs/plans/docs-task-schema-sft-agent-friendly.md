@@ -1,0 +1,1 @@
+I like the task type structure, we need to implement that for other attributes as well. Then we need to implemenet that for other schemas as well.

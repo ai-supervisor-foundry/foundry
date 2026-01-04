@@ -131,6 +131,7 @@ function addTaskTypeGuidelines(sections: string[], taskType: TaskType): void {
     case 'implementation':
       sections.push('- Focus on clean code structure and established patterns.');
       sections.push('- Ensure all new components/functions are exported and typed correctly.');
+      sections.push('- Be concise. If JSON output is requested, provide ONLY the JSON without conversational filler.');
       break;
     case 'configuration':
       sections.push('- Verify configuration file locations and environment variable names.');
@@ -147,6 +148,7 @@ function addTaskTypeGuidelines(sections: string[], taskType: TaskType): void {
     case 'refactoring':
       sections.push('- Preserve existing functionality while improving structure.');
       sections.push('- Verify that no breaking changes are introduced to public APIs.');
+      sections.push('- Be concise. If JSON output is requested, provide ONLY the JSON without conversational filler.');
       break;
     case 'behavioral':
       sections.push('- Provide a clear and natural conversational response.');
@@ -215,8 +217,16 @@ export function buildPrompt(task: Task, minimalState: MinimalState): string {
   sections.push('');
 
   // Section 8: Explicit output format requirement
-  sections.push('- Output format: Provide task completion status and validation results');
-  sections.push('- IMPORTANT: Inform which files were created or updated (this is used for validation)');
+  sections.push('## Output Requirements');
+  sections.push('You MUST end your response with a JSON summary block in this exact format:');
+  sections.push('```json');
+  sections.push('{');
+  sections.push('  "status": "completed" | "failed",');
+  sections.push('  "files_created": ["path/to/file"],');
+  sections.push('  "files_updated": ["path/to/file"],');
+  sections.push('  "summary": "Brief description of work done"');
+  sections.push('}');
+  sections.push('```');
   sections.push('');
 
   // Section 9: Working directory

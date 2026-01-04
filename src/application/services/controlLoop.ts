@@ -909,7 +909,7 @@ export async function controlLoop(
                 task_id: task.task_id,
                 iteration: 0,
                 type: 'RESPONSE', // Using RESPONSE type for command execution results
-                content: `Command execution results:\n${commandResults.results.map(r => `${r.command}: ${r.passed ? 'PASSED' : 'FAILED'} (exitCode=${r.exitCode})`).join('\n')}`,
+                content: `Command execution results:\n${commandResults.results.map(r => `${r.command}: ${r.passed ? '`PASSED`' : '`FAILED`'} (exitCode=${r.exitCode})`).join('\n')}`,
                 metadata: {
                   provider: cliAdapter.getProviderInUse(),
                   working_directory: sandboxCwd,

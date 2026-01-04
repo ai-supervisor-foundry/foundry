@@ -18,6 +18,43 @@ function log(message: string, ...args: unknown[]): void {
   logVerbose('Validator', message, { ...args });
 }
 
+interface AgentResponseSummary {
+  status: 'completed' | 'failed';
+  files_created?: string[];
+  files_updated?: string[];
+  summary?: string;
+}
+
+/**
+ * Extracts JSON from mixed text/markdown output
+ * Handles markdown code blocks and finds the outermost JSON object
+ */
+function findJSONInString(text: string): string | null {
+  // First, try to extract from markdown code blocks
+  const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  if (codeBlockMatch) {
+    return codeBlockMatch[1];
+  }
+
+  // Fallback: finding the outermost braces
+  let startIndex = -1;
+  let openBraces = 0;
+  
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '{') {
+      if (openBraces === 0) startIndex = i;
+      openBraces++;
+    } else if (text[i] === '}') {
+      openBraces--;
+      if (openBraces === 0 && startIndex !== -1) {
+        return text.substring(startIndex, i + 1);
+      }
+    }
+  }
+  
+  return null;
+}
+
 /**
  * Deterministic task validation
  * Rule-based only, no inference, no LLM calls
@@ -57,6 +94,22 @@ export async function validateTaskOutput(
   // logging providerResult.rawOutput
   log(`Provider raw output: ${providerResult.rawOutput}`);
   log(`Output length: ${output.length} characters`);
+
+  // Parse Agent Response Summary (Structured Output)
+  let agentSummary: AgentResponseSummary | null = null;
+  const summaryJson = findJSONInString(output);
+  if (summaryJson) {
+    try {
+      const parsed = JSON.parse(summaryJson);
+      // Ensure it has the expected shape (status is mandatory)
+      if (parsed && (parsed.status === 'completed' || parsed.status === 'failed')) {
+        agentSummary = parsed;
+        log(`Found agent response summary: ${agentSummary?.status}. Files created: ${agentSummary?.files_created?.length || 0}, Files updated: ${agentSummary?.files_updated?.length || 0}`);
+      }
+    } catch (e) {
+      log(`Failed to parse potential agent summary JSON: ${e}`);
+    }
+  }
 
   // Rule 0: Task Type Routing
   // If task_type is 'behavioral', use specialized validator
@@ -155,11 +208,16 @@ export async function validateTaskOutput(
   }
 
   // Rule 4: required_artifacts must exist on disk, be inside sandboxRoot, match declared paths exactly
-  if (task.required_artifacts && task.required_artifacts.length > 0) {
+  if ((task.required_artifacts && task.required_artifacts.length > 0) || (agentSummary && (agentSummary.files_created || agentSummary.files_updated))) {
     const artifactsRule = 'required_artifacts_exist';
     const artifactChecks: string[] = [];
 
-    for (const artifactPath of task.required_artifacts) {
+    // Combine task-required artifacts with agent-reported artifacts
+    const allArtifacts = new Set<string>(task.required_artifacts || []);
+    if (agentSummary?.files_created) agentSummary.files_created.forEach(f => allArtifacts.add(f));
+    if (agentSummary?.files_updated) agentSummary.files_updated.forEach(f => allArtifacts.add(f));
+
+    for (const artifactPath of allArtifacts) {
       // Reject absolute paths or '..'
       if (path.isAbsolute(artifactPath)) {
         artifactChecks.push(`Absolute path not allowed: ${artifactPath}`);
@@ -247,8 +305,12 @@ export async function validateTaskOutput(
     const codeFilesToCheck: string[] = [];
     
     // Add required artifacts that are code files
-    if (task.required_artifacts && task.required_artifacts.length > 0) {
-      for (const artifactPath of task.required_artifacts) {
+    const allArtifacts = new Set<string>(task.required_artifacts || []);
+    if (agentSummary?.files_created) agentSummary.files_created.forEach(f => allArtifacts.add(f));
+    if (agentSummary?.files_updated) agentSummary.files_updated.forEach(f => allArtifacts.add(f));
+
+    if (allArtifacts.size > 0) {
+      for (const artifactPath of allArtifacts) {
         if (path.isAbsolute(artifactPath) || artifactPath.includes('..')) {
           continue; // Skip invalid paths
         }
