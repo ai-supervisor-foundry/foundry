@@ -5,6 +5,7 @@ import * as path from 'path';
 
 export class AnalyticsService {
   private currentMetrics: Map<string, TaskMetrics> = new Map();
+  private helperDurations: Map<string, number[]> = new Map(); // Store durations for P95 calc
 
   /**
    * Start tracking metrics for a new task
@@ -22,9 +23,16 @@ export class AnalyticsService {
         interrogation_rounds: 0,
         helper_agent_calls: 0,
         failed_validations: 0,
+        deterministic_attempts: 0,
+        deterministic_success: 0,
+        helper_duration_ms_total: 0,
+        helper_avg_ms: 0,
+        helper_p95_ms: 0,
+        cache_hit_rate: 0,
         total_prompt_chars: 0,
         total_response_chars: 0,
       });
+      this.helperDurations.set(taskId, []);
     }
   }
 
@@ -45,6 +53,14 @@ export class AnalyticsService {
       m.failed_validations++;
     }
   }
+  
+  recordDeterministicValidation(taskId: string, success: boolean): void {
+    const m = this.getMetrics(taskId);
+    m.deterministic_attempts = (m.deterministic_attempts || 0) + 1;
+    if (success) {
+      m.deterministic_success = (m.deterministic_success || 0) + 1;
+    }
+  }
 
   recordInterrogation(taskId: string, rounds: number, durationMs: number): void {
     const m = this.getMetrics(taskId);
@@ -52,11 +68,37 @@ export class AnalyticsService {
     m.time_in_interrogation_ms += durationMs;
   }
 
-  recordHelperAgent(taskId: string, durationMs: number): void {
+  recordHelperAgent(taskId: string, durationMs: number, cacheStats?: { hit: number, total: number }): void {
     const m = this.getMetrics(taskId);
     m.helper_agent_calls++;
+    m.helper_duration_ms_total = (m.helper_duration_ms_total || 0) + durationMs;
+    
+    // Store duration for stats
+    const durations = this.helperDurations.get(taskId) || [];
+    durations.push(durationMs);
+    this.helperDurations.set(taskId, durations);
+    
+    // Update Avg
+    m.helper_avg_ms = m.helper_duration_ms_total / m.helper_agent_calls;
+    
+    // Update P95
+    const sorted = [...durations].sort((a, b) => a - b);
+    const p95Index = Math.ceil(sorted.length * 0.95) - 1;
+    m.helper_p95_ms = sorted[p95Index];
+
     // Helper agent is part of validation phase usually
     m.time_in_validation_ms += durationMs;
+    
+    // Cache Stats
+    if (cacheStats && cacheStats.total > 0) {
+        // Simple moving average for cache hit rate
+        const currentRate = cacheStats.hit / cacheStats.total;
+        // If it's the first call, set it. Otherwise average it.
+        // Actually, let's keep it simple: just record the latest or an average? 
+        // Let's do a weighted average based on calls? No, simplistic is fine for now.
+        // Let's just store the latest rate for visibility
+        m.cache_hit_rate = parseFloat((currentRate * 100).toFixed(2));
+    }
   }
 
   recordExecution(taskId: string, promptSize: number, responseSize: number, durationMs: number): void {
@@ -106,6 +148,7 @@ export class AnalyticsService {
 
     // Clean up memory
     this.currentMetrics.delete(taskId);
+    this.helperDurations.delete(taskId);
   }
 
   logSummary(taskId: string): void {

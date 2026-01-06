@@ -188,7 +188,7 @@ function buildEnhancedHelperAgentPrompt(
   sections.push('**Verification Rules:**');
   sections.push('- ❌ DO NOT assume based on agent\'s description alone');
   sections.push('- ✅ DO verify by checking actual code files');
-  sections.push('- ✅ DO generate verification commands if uncertain');
+  sections.push('- ✅ If not 100% certain, generate verification commands. Prefer commands over returning isValid=true without commands.');
   sections.push('- ✅ DO mark isValid=true ONLY if you can verify in code');
   sections.push('');
   sections.push('**Command Requirements:**');

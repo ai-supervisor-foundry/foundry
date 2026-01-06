@@ -17,6 +17,8 @@ import { executeVerificationCommands } from '../../infrastructure/connectors/os/
 import { log as logShared, logVerbose, logStateTransition, logPerformance } from '../../infrastructure/adapters/logging/logger';
 import { analyticsService } from './analytics';
 import * as path from 'path';
+import { attemptDeterministicValidation } from './deterministicValidator';
+import { DETERMINISTIC_VALIDATION_RULES } from '../../config/deterministicValidationRules';
 
 const REQUIRED_STATE_FIELDS = [
   'supervisor',
@@ -864,12 +866,48 @@ export async function controlLoop(
         log(`[Iteration ${iteration}] Task ${task.task_id}: Session error count incremented to ${state.active_sessions[featureId].error_count}`);
       }
 
+      // NEW: Deterministic Validation with Feature Flags & Gating
+      const detEnabled = process.env.HELPER_DETERMINISTIC_ENABLED !== 'false';
+      const detPercent = Math.max(0, Math.min(100, parseInt(process.env.HELPER_DETERMINISTIC_PERCENT || '100', 10)));
+      const inBucket = (Math.random() * 100) < detPercent;
+      
+      let deterministicSkippedHelper = false;
+
+      if (detEnabled && inBucket) {
+        const deterministicResult = await attemptDeterministicValidation(
+            validationReport.failed_criteria || [],
+            providerResult.rawOutput || providerResult.stdout || '',
+            sandboxCwd,
+            DETERMINISTIC_VALIDATION_RULES
+        );
+
+        if (deterministicResult.canValidate) {
+            // Only skip helper if confidence is HIGH
+            if (deterministicResult.confidence === 'high' && deterministicResult.valid) {
+                validationReport.valid = true;
+                validationReport.reason = `Deterministic validation: ${deterministicResult.reason}`;
+                deterministicSkippedHelper = true;
+                analyticsService.recordDeterministicValidation(task.task_id, true);
+                log(`[Iteration ${iteration}] Task ${task.task_id}: ✅ Deterministic validation passed (HIGH confidence), skipping helper agent`);
+            } else {
+                analyticsService.recordDeterministicValidation(task.task_id, false);
+                log(`[Iteration ${iteration}] Task ${task.task_id}: Deterministic validation passed but confidence not HIGH or valid=false, invoking helper agent`);
+            }
+        } else {
+            analyticsService.recordDeterministicValidation(task.task_id, false);
+            log(`[Iteration ${iteration}] Task ${task.task_id}: Cannot validate deterministically, invoking helper agent`);
+        }
+      } else {
+        log(`[Iteration ${iteration}] Task ${task.task_id}: Deterministic validation skipped by flag/percent`);
+      }
+
+      if (!validationReport.valid && !deterministicSkippedHelper) {
       // NEW: Try Helper Agent command generation
       log(`[Iteration ${iteration}] Task ${task.task_id}: Attempting Helper Agent command generation...`);
       const helperAgentMode = process.env.HELPER_AGENT_MODE || 'auto';
       
-      // Resolve helper session
-      const helperFeatureId = `helper:${featureId}`;
+      // Resolve helper session - Use project-specific session for maximum reuse
+      const helperFeatureId = `helper:validation:${projectId}`;
       const helperSessionId = await sessionManager.resolveSession(
         task.tool,
         helperFeatureId,
@@ -903,7 +941,15 @@ export async function controlLoop(
           helperSessionId,
           helperFeatureId
         );
-        analyticsService.recordHelperAgent(task.task_id, Date.now() - helperStartTime);
+        
+        // Calculate cache stats if available (Stub implementation - ProviderResult needs to be updated to return cache stats)
+        // For now, we assume if usage exists, we might parse it or future providers will populate it
+        const cacheStats = commandGeneration.usage ? { 
+            hit: (commandGeneration.usage as any).cache_read_input_tokens || 0,
+            total: (commandGeneration.usage as any).input_tokens || commandGeneration.usage.tokens || 0
+        } : undefined;
+
+        analyticsService.recordHelperAgent(task.task_id, Date.now() - helperStartTime, cacheStats);
         
         // Save helper session back to state
         if (commandGeneration.sessionId) {
@@ -1034,6 +1080,7 @@ export async function controlLoop(
           error: error instanceof Error ? error.message : String(error),
         });
         // Continue to interrogation (existing flow)
+      }
       }
     } else {
       logVerbose('ControlLoop', 'Validation passed', {

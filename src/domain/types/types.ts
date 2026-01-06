@@ -180,6 +180,12 @@ export interface TaskMetrics {
   interrogation_rounds: number;
   helper_agent_calls: number;
   failed_validations: number;
+  deterministic_attempts?: number;
+  deterministic_success?: number;
+  helper_duration_ms_total?: number;
+  helper_avg_ms?: number;
+  helper_p95_ms?: number;
+  cache_hit_rate?: number;
   
   // Cost (Token proxy)
   total_prompt_chars: number;
