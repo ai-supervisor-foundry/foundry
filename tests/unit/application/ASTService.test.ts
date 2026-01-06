@@ -24,18 +24,17 @@ class MockASTProvider implements ASTProvider {
     return functionName === 'existingFunction';
   }
 
-  async hasClass(filePath: string, className: string, methods?: string[]): Promise<boolean> {
-    if (className === 'ExistingClass') {
-      if (methods) {
-        return methods.every(m => ['method1', 'method2'].includes(m));
-      }
-      return true;
-    }
-    return false;
+  async hasClass(filePath: string, className: string, requiredMethods?: string[]): Promise<boolean> {
+    if (requiredMethods?.includes('nonExistentMethod')) return false;
+    return className === 'ExistingClass' || className === 'UserController' || className === 'TestClass';
+  }
+
+  async hasInterface(filePath: string, interfaceName: string): Promise<boolean> {
+    return this.supportedExtensions.some(ext => filePath.endsWith(ext));
   }
 
   async hasExport(filePath: string, exportName: string): Promise<boolean> {
-    return exportName === 'exportedItem';
+    return exportName === 'exportedItem' || exportName === 'existingExport';
   }
 
   async hasImport(filePath: string, importName: string, fromModule?: string): Promise<boolean> {

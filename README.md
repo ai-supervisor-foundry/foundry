@@ -562,6 +562,9 @@ pm2 logs supervisor --follow
 - **Persistence Layer** (`src/application/services/persistence.ts`): DragonflyDB state management
 - **Queue Adapter** (`src/domain/executors/taskQueue.ts`): Redis List-based task queue
 - **Validator** (`src/application/services/validator.ts`): Deterministic validation
+- **AST Service** (`src/application/services/ASTService.ts`): Structural code analysis
+- **Validation Cache** (`src/application/services/validationCache.ts`): Redis-based result caching
+- **Analytics Service** (`src/application/services/analytics.ts`): Performance tracking
 - **Audit Logger** (`src/infrastructure/adapters/logging/auditLogger.ts`): Append-only logging
 - **Logger** (`src/infrastructure/adapters/logging/logger.ts`): Centralized verbose logging with stdout flushing for PM2
 
@@ -628,6 +631,16 @@ All commands require these global options:
 **Using the status command** (recommended):
 ```bash
 npm run cli -- status \
+  --redis-host localhost \
+  --redis-port 6499 \
+  --state-key supervisor:state \
+  --queue-name tasks \
+  --queue-db 2
+```
+
+**Check performance metrics**:
+```bash
+npm run cli -- metrics \
   --redis-host localhost \
   --redis-port 6499 \
   --state-key supervisor:state \
@@ -985,8 +998,9 @@ See [src/index.ts](src/index.ts) for all exported APIs.
 4. **Validation**: No task runs without validation
 5. **State Persistence**: State persisted after every step
 6. **Retry on Failures**: Validation failures and ambiguity trigger automatic retries (up to max retries)
-7. **Halt on Critical Failures**: Only execution errors and blocked status halt immediately
-8. **AUTO MODE**: Default and mandatory execution mode
+7. **Optimized**: Skips redundant validation via Redis-based caching
+8. **Measurable**: Detailed performance analytics for every task
+9. **AUTO MODE**: Default and mandatory execution mode
 
 See [.cursor/rules/supervisor-specs.mdc](.cursor/rules/supervisor-specs.mdc) for complete specifications.
 

@@ -27,6 +27,11 @@ export interface ASTProvider {
   hasClass(filePath: string, className: string, requiredMethods?: string[]): Promise<boolean>;
 
   /**
+   * Check if an interface exists, optionally checking for specific properties/methods
+   */
+  hasInterface(filePath: string, interfaceName: string, requiredMembers?: string[]): Promise<boolean>;
+
+  /**
    * Check if a variable or type is exported
    */
   hasExport(filePath: string, exportName: string): Promise<boolean>;

@@ -1,7 +1,7 @@
 # EaseClassifieds Backend API - Context Documentation
 
 ## Overview
-NestJS backend API for the EaseClassifieds classifieds platform. Provides RESTful API endpoints for authentication, listings, search, subscriptions, and more. Runs on port 3002.
+NestJS backend API for the EaseClassifieds classifieds platform. Provides RESTful API endpoints for authentication, listings, search, subscriptions, and more. Serves both **web** (`sandbox/easeclassifieds/`) and **mobile** (`sandbox/easeclassifieds-mobile/`) clients. Runs on port 3002.
 
 ## Project Structure
 - **Location:** `sandbox/easeclassifieds-api/`
@@ -30,6 +30,25 @@ NestJS backend API for the EaseClassifieds classifieds platform. Provides RESTfu
 ### Cache Configuration
 - **Redis/Dragonfly:** Configured via `REDIS_URL`, `CACHE_STORE_URL`, `IO_REDIS_ADAPTER_URL`
 - **Port:** 6499 (DragonflyDB)
+
+## Mobile Client Support
+
+The backend serves both web and mobile clients using the same API endpoints:
+
+### Mobile-Specific Considerations
+- **CORS:** Configure for Expo tunnel URLs during development (`https://*.exp.direct`)
+- **Authentication:** Same phone OTP flow as web; mobile uses expo-secure-store for tokens
+- **Response Shapes:** Optimized for mobile consumption (same contracts as web)
+- **Rate Limiting:** Applied equally to web and mobile clients
+- **API Base URL:** Mobile uses Expo tunnel in dev, production URL in prod
+
+### Expo Tunnel Support
+For mobile development, backend must be accessible via Expo tunnel:
+```env
+CORS_ORIGINS=http://localhost:3000,https://*.exp.direct
+```
+
+Mobile app connects to backend via tunnel URL provided by `expo start --tunnel`.
 
 ## Environment Variables
 

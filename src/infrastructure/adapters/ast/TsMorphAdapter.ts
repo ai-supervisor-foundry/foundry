@@ -107,6 +107,25 @@ export class TsMorphAdapter implements ASTProvider {
     return true;
   }
 
+  async hasInterface(filePath: string, interfaceName: string, requiredMembers?: string[]): Promise<boolean> {
+    const sourceFile = this.getSourceFile(filePath);
+    if (!sourceFile) return false;
+
+    const interfaceDecl = sourceFile.getInterface(interfaceName);
+    if (!interfaceDecl) return false;
+
+    if (requiredMembers && requiredMembers.length > 0) {
+        for (const member of requiredMembers) {
+            // Check properties and methods
+            if (!interfaceDecl.getProperty(member) && !interfaceDecl.getMethod(member)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+  }
+
   async hasExport(filePath: string, exportName: string): Promise<boolean> {
     const sourceFile = this.getSourceFile(filePath);
     if (!sourceFile) return false;

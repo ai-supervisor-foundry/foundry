@@ -37,7 +37,7 @@ describe('Validator', () => {
         exitCode: 0,
       });
 
-      const validation = await validateTaskOutput(task, result, mockSandboxRoot);
+      const validation = await validateTaskOutput(task, result, mockSandboxRoot, 'test-project');
 
       expect(validation).toBeDefined();
       expect(validation.rules_passed).toBeDefined();
@@ -64,7 +64,7 @@ describe('Validator', () => {
         exitCode: 0,
       });
 
-      const validation = await validateTaskOutput(task, result, mockSandboxRoot);
+      const validation = await validateTaskOutput(task, result, mockSandboxRoot, 'test-project');
 
       expect(validation).toBeDefined();
       expect(Array.isArray(validation.rules_passed)).toBe(true);
@@ -87,7 +87,7 @@ describe('Validator', () => {
         exitCode: 0,
       });
 
-      const validation = await validateTaskOutput(task, result, mockSandboxRoot);
+      const validation = await validateTaskOutput(task, result, mockSandboxRoot, 'test-project');
 
       expect(validation).toBeDefined();
       expect(validation.rules_failed).toBeDefined();
@@ -113,7 +113,7 @@ describe('Validator', () => {
         exitCode: 0,
       });
 
-      const validation = await validateTaskOutput(task, result, mockSandboxRoot);
+      const validation = await validateTaskOutput(task, result, mockSandboxRoot, 'test-project');
 
       expect(validation).toBeDefined();
       expect(validation.confidence).toBeDefined();
@@ -136,7 +136,7 @@ describe('Validator', () => {
         exitCode: 0,
       });
 
-      const validation = await validateTaskOutput(task, result, mockSandboxRoot);
+      const validation = await validateTaskOutput(task, result, mockSandboxRoot, 'test-project');
 
       expect(validation).toBeDefined();
       // Design tasks might have UNCERTAIN confidence
@@ -155,7 +155,7 @@ describe('Validator', () => {
         exitCode: 0,
       });
 
-      const validation = await validateTaskOutput(task, result, mockSandboxRoot);
+      const validation = await validateTaskOutput(task, result, mockSandboxRoot, 'test-project');
 
       expect(validation.valid).toBe(false);
       expect(validation.rules_failed.length).toBeGreaterThan(0);
@@ -175,7 +175,7 @@ describe('Validator', () => {
         exitCode: 0,
       });
 
-      const validation = await validateTaskOutput(task, result, mockSandboxRoot);
+      const validation = await validateTaskOutput(task, result, mockSandboxRoot, 'test-project');
 
       expect(validation.failed_criteria).toBeDefined();
       expect(Array.isArray(validation.failed_criteria)).toBe(true);
@@ -190,7 +190,7 @@ describe('Validator', () => {
         exitCode: 1,
       });
 
-      const validation = await validateTaskOutput(task, result, mockSandboxRoot);
+      const validation = await validateTaskOutput(task, result, mockSandboxRoot, 'test-project');
 
       expect(validation.valid).toBe(false);
     });
@@ -209,7 +209,7 @@ describe('Validator', () => {
         exitCode: 0,
       });
 
-      const validation = await validateTaskOutput(task, result, mockSandboxRoot);
+      const validation = await validateTaskOutput(task, result, mockSandboxRoot, 'test-project');
 
       expect(validation).toBeDefined();
     });
@@ -227,7 +227,7 @@ describe('Validator', () => {
         exitCode: 0,
       });
 
-      const validation = await validateTaskOutput(task, result, mockSandboxRoot);
+      const validation = await validateTaskOutput(task, result, mockSandboxRoot, 'test-project');
 
       expect(validation).toBeDefined();
     });

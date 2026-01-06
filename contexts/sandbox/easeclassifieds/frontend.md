@@ -1,7 +1,9 @@
-# EaseClassifieds Frontend - Context Documentation
+# EaseClassifieds Frontend (Web) - Context Documentation
 
 ## Overview
-React + TypeScript + Tailwind CSS frontend application for a full-stack classifieds super app. Located in `sandbox/easeclassifieds/`. Connects to NestJS backend API running on port 3002.
+React + TypeScript + Tailwind CSS **web** frontend application for a full-stack classifieds super app. Located in `sandbox/easeclassifieds/`. Connects to NestJS backend API running on port 3002.
+
+**Note:** A separate React Native mobile app is being developed in `sandbox/easeclassifieds-mobile/`. See `mobile.md` for mobile-specific context.
 
 ## Project Structure
 - **Location:** `sandbox/easeclassifieds/`
@@ -81,6 +83,20 @@ React + TypeScript + Tailwind CSS frontend application for a full-stack classifi
   - `ListingCategory`, `SmartSearchResponse`, `UserTier`, `Listing`
   - `RequestOTPRequest`, `VerifyOTPRequest`, `SearchFilters`
   - `FeedMetadata`, `UserSubscription`, `TierUpgradeRequest`
+
+## Mobile Migration
+
+Key web features being ported to React Native mobile app (`sandbox/easeclassifieds-mobile/`):
+- ✅ Phone authentication flow (auth screens, OTP verification)
+- ✅ Daily curated feed with category filtering
+- ✅ Smart search with filters
+- ✅ Listing cards and detail views
+- ✅ Favorites functionality
+- ✅ Profile and subscription screens (view-only, no payments on mobile)
+- ❌ Listing creation/editing (mobile v1 is view-only)
+- ❌ Payment integration (not included in mobile v1)
+
+See `mobile.md` for complete mobile context and migration status.
 
 ## Features Implemented
 

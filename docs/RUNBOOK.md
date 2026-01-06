@@ -67,3 +67,26 @@ cat scripts/investigations/README.md
 - **log-analyzer.ts** - Analyze execution logs for patterns and provider usage
 
 All scripts support `--json` flag for automation and CI/CD integration. See [Investigation Scripts README](../scripts/investigations/README.md) for complete documentation, troubleshooting matrix, and examples.
+
+---
+
+## Performance Metrics
+
+To view aggregated performance data for the current project:
+
+```bash
+npm run cli -- metrics \
+  --redis-host localhost \
+  --redis-port 6499 \
+  --state-key supervisor:state \
+  --queue-name tasks \
+  --queue-db 2
+```
+
+This displays:
+- **Success Rate**: Ratio of completed vs failed/blocked tasks.
+- **Average Iterations**: How many retries/fixes tasks usually require.
+- **Execution Time**: Total time spent in the control loop.
+- **Bottlenecks**: Total character counts for token usage estimation.
+- **Slowest Task**: Identifies the most complex task in the sequence.
+

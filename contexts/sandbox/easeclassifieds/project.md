@@ -16,17 +16,26 @@ A modern classifieds platform that:
 ## Project Architecture
 
 ### Repository Structure
-- **Frontend:** `sandbox/easeclassifieds/` - React + TypeScript + Tailwind CSS
+- **Frontend (Web):** `sandbox/easeclassifieds/` - React + TypeScript + Tailwind CSS
 - **Backend:** `sandbox/easeclassifieds-api/` - NestJS + TypeScript + PostgreSQL
+- **Mobile:** `sandbox/easeclassifieds-mobile/` - React Native + Expo + TypeScript
 
 ### Technology Stack
 
-**Frontend:**
+**Frontend (Web):**
 - React 18+ with Vite
 - TypeScript
 - Tailwind CSS
 - React Router
 - Axios for API communication
+
+**Mobile:**
+- React Native 0.81+ with Expo
+- TypeScript
+- React Navigation (native-stack, bottom-tabs)
+- NativeWind (Tailwind for React Native)
+- Axios for API communication
+- Expo Go for development
 
 **Backend:**
 - NestJS framework
@@ -169,6 +178,7 @@ A modern classifieds platform that:
 - ✅ All runtime issues resolved
 
 ### In Progress / Pending
+- Mobile app migration (33 tasks defined, implementation pending)
 - Listing aggregation from external sources
 - Payment integration (Stripe/PayPal)
 - Advanced search filters UI
@@ -229,13 +239,19 @@ The primary goal is to create a full-stack classifieds platform that:
 
 ```
 sandbox/
-├── easeclassifieds/          # Frontend (React + Tailwind)
+├── easeclassifieds/          # Frontend Web (React + Tailwind)
 │   ├── src/
 │   │   ├── components/        # React components
 │   │   ├── services/          # API service layer
 │   │   ├── types.ts           # TypeScript types
 │   │   └── App.tsx            # Main app component
 │   ├── vite.config.ts         # Vite config with proxy
+│   └── package.json
+│
+├── easeclassifieds-mobile/    # Mobile (React Native + Expo)
+│   ├── App.tsx                # Main app component
+│   ├── app.json               # Expo configuration
+│   ├── assets/                # Images and fonts
 │   └── package.json
 │
 └── easeclassifieds-api/       # Backend (NestJS)
@@ -255,14 +271,22 @@ sandbox/
 
 ## Getting Started
 
-1. **Frontend:**
+1. **Frontend (Web):**
    ```bash
    cd sandbox/easeclassifieds
    npm install
    npm run dev  # Runs on port 3000
    ```
 
-2. **Backend:**
+2. **Mobile:**
+   ```bash
+   cd sandbox/easeclassifieds-mobile
+   npm install
+   npm start  # or expo start --tunnel
+   # Scan QR code with Expo Go app on iOS/Android device
+   ```
+
+3. **Backend:**
    ```bash
    cd sandbox/easeclassifieds-api
    pnpm install

@@ -7,11 +7,12 @@ import dotenv from 'dotenv';
 import Redis from 'ioredis';
 import { loadState, persistState, PersistenceLayer } from '../services/persistence';
 import { enqueueTask, getQueueKey, QueueAdapter, createQueue } from '../../domain/executors/taskQueue';
-import { SupervisorState, Task } from '../../domain/types/types';
+import { SupervisorState, Task, TaskMetrics } from '../../domain/types/types';
 import { controlLoop } from '../services/controlLoop';
 import { PromptBuilder } from '../../domain/agents/promptBuilder';
 import { CLIAdapter } from '../../infrastructure/adapters/agents/providers/cliAdapter';
 import { Validator } from '../services/validator';
+import { validationCache } from '../services/validationCache';
 import { AuditLogger } from '../../infrastructure/adapters/logging/auditLogger';
 import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared } from '../../infrastructure/adapters/logging/logger';
 import * as fs from 'fs/promises';
@@ -459,6 +460,66 @@ async function status(
 }
 
 /**
+ * Show aggregated metrics from metrics.jsonl
+ */
+async function showMetrics(
+  client: Redis,
+  stateKey: string,
+  sandboxRoot: string
+): Promise<void> {
+  logVerbose('Metrics', 'Showing metrics', { state_key: stateKey, sandbox_root: sandboxRoot });
+  
+  // 1. Load state to get project_id
+  const state = await loadState(client, stateKey);
+  const projectId = state.goal.project_id || 'default';
+  const metricsPath = path.join(sandboxRoot, projectId, 'metrics.jsonl');
+
+  try {
+    const content = await fs.readFile(metricsPath, 'utf8');
+    const lines = content.split('\n').filter(l => l.trim().length > 0);
+    const metrics: TaskMetrics[] = lines.map(l => JSON.parse(l));
+
+    if (metrics.length === 0) {
+      console.log('No metrics found.');
+      return;
+    }
+
+    // 2. Aggregate
+    const totalTasks = metrics.length;
+    const completedTasks = metrics.filter(m => m.status === 'COMPLETED').length;
+    const failedTasks = metrics.filter(m => m.status === 'FAILED').length;
+    const blockedTasks = metrics.filter(m => m.status === 'BLOCKED').length;
+    
+    const avgIterations = metrics.reduce((sum, m) => sum + m.iterations, 0) / totalTasks;
+    const totalDuration = metrics.reduce((sum, m) => sum + (m.total_duration_ms || 0), 0);
+    
+    const totalPromptChars = metrics.reduce((sum, m) => sum + m.total_prompt_chars, 0);
+    const totalResponseChars = metrics.reduce((sum, m) => sum + m.total_response_chars, 0);
+
+    // 3. Display
+    console.log('\n=== Supervisor Metrics Summary ===');
+    console.log(`Total Tasks Processed: ${totalTasks}`);
+    console.log(`Success Rate: ${((completedTasks / totalTasks) * 100).toFixed(1)}%`);
+    console.log(`  - Completed: ${completedTasks}`);
+    console.log(`  - Failed:    ${failedTasks}`);
+    console.log(`  - Blocked:   ${blockedTasks}`);
+    console.log(`Average Iterations per Task: ${avgIterations.toFixed(1)}`);
+    console.log(`Total Execution Time: ${(totalDuration / 1000 / 60).toFixed(1)} minutes`);
+    console.log(`Total Characters (Prompt/Response): ${totalPromptChars} / ${totalResponseChars}`);
+    
+    // Find slowest task
+    const slowestTask = [...metrics].sort((a, b) => (b.total_duration_ms || 0) - (a.total_duration_ms || 0))[0];
+    if (slowestTask) {
+      console.log(`Slowest Task: ${slowestTask.task_id} (${((slowestTask.total_duration_ms || 0) / 1000 / 60).toFixed(1)} mins)`);
+    }
+
+    console.log('\n');
+  } catch (error) {
+    console.log(`No metrics available at ${metricsPath}`);
+  }
+}
+
+/**
  * Resume supervisor
  * Sets status to RUNNING
  * No auto-resume - operator must explicitly resume
@@ -610,6 +671,10 @@ async function start(
     const ttlSeconds = parseInt(process.env.CIRCUIT_BREAKER_TTL_SECONDS || '86400', 10);
     const cliAdapter = new CLIAdapter(stateClient, undefined, ttlSeconds);
     const validator = new Validator();
+    
+    // Initialize validation cache with Redis
+    validationCache.initialize(stateClient);
+
     const dependencyInitDuration = Date.now() - dependencyInitStartTime;
     logPerformance('DependencyInitialization', dependencyInitDuration, {});
     logVerbose('Start', 'Dependencies initialized', {
@@ -803,6 +868,25 @@ program
 
     try {
       await status(client, globalOpts.stateKey);
+    } finally {
+      await client.quit();
+    }
+  });
+
+// Command: metrics
+program
+  .command('metrics')
+  .description('Display aggregated performance metrics')
+  .action(async () => {
+    const globalOpts = program.opts();
+    const client = new Redis({
+      host: globalOpts.redisHost,
+      port: globalOpts.redisPort,
+      db: globalOpts.stateDb || 0,
+    });
+
+    try {
+      await showMetrics(client, globalOpts.stateKey, globalOpts.sandboxRoot);
     } finally {
       await client.quit();
     }

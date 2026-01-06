@@ -39,6 +39,15 @@ Coding, testing, and configuration tasks verify physical changes in the sandbox:
 - **Content Verification**: Regex/keyword matching within the source code.
 - **Test Execution**: Running `test_command` and requiring a zero exit code.
 - **AST Validation**: Deep structural analysis (if supported by an AST Adapter).
+    - Checks for: Classes, Functions, Exports, Imports, Interfaces, Decorators.
+    - Heuristics: Automatically maps criteria like "Create interface User" to `INTERFACE_EXISTS` rule.
+
+### Validation Result Caching
+
+To improve performance, validation results are cached in Redis:
+- **Key**: Combined hash of Project ID + Criterion + File Content (SHA-256).
+- **Behavior**: If file content hasn't changed, the previous validation result (Pass/Fail) is reused instantly.
+- **TTL**: 1 hour.
 
 ### Why Interrogation Skips for Behavioral Tasks
 

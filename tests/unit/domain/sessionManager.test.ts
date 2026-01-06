@@ -240,10 +240,44 @@ describe('SessionManager', () => {
         expect(result).toBeUndefined();
       });
 
-      it('should handle Gemini listSessions failure gracefully', async () => {
+      it('should return session from state priority and NOT call listSessions', async () => {
         const featureId = 'feature-auth';
+        const sessionId = 'state-session-123';
+        mockState.active_sessions = {
+          [featureId]: {
+            session_id: sessionId,
+            provider: Provider.GEMINI,
+            last_used: new Date().toISOString(),
+            error_count: 0,
+            feature_id: featureId,
+          },
+        };
         
-        (geminiCLI.listSessions as jest.Mock).mockRejectedValue(new Error('API error'));
+        const result = await sessionManager.resolveSession(
+          Provider.GEMINI,
+          featureId,
+          undefined,
+          mockState
+        );
+
+        expect(result).toBe(sessionId);
+        expect(geminiCLI.listSessions).not.toHaveBeenCalled();
+      });
+
+      it('should fallback to state session when discovery returns empty list', async () => {
+        const featureId = 'feature-auth';
+        const sessionId = 'state-session-456';
+        mockState.active_sessions = {
+          [featureId]: {
+            session_id: sessionId,
+            provider: Provider.GEMINI,
+            last_used: new Date().toISOString(),
+            error_count: 0,
+            feature_id: featureId,
+          },
+        };
+        
+        (geminiCLI.listSessions as jest.Mock).mockResolvedValue([]);
 
         const result = await sessionManager.resolveSession(
           Provider.GEMINI,
@@ -252,8 +286,7 @@ describe('SessionManager', () => {
           mockState
         );
 
-        expect(result).toBeUndefined();
-        expect(geminiCLI.listSessions).toHaveBeenCalledTimes(1);
+        expect(result).toBe(sessionId);
       });
 
       it('should work with GEMINI_STUB provider', async () => {
@@ -386,8 +419,9 @@ describe('SessionManager', () => {
         expect(geminiCLI.listSessions).not.toHaveBeenCalled();
       });
 
-      it('should handle empty sessions list from provider', async () => {
+      it('should return undefined when discovery empty and no session in state', async () => {
         const featureId = 'feature-auth';
+        mockState.active_sessions = {};
         
         (geminiCLI.listSessions as jest.Mock).mockResolvedValue([]);
 

@@ -163,3 +163,26 @@ export interface CommandExecutionResult {
   results: CommandResult[];
 }
 
+export interface TaskMetrics {
+  task_id: string;
+  start_time: string;
+  end_time?: string;
+  total_duration_ms?: number;
+  iterations: number;
+  status: 'COMPLETED' | 'FAILED' | 'BLOCKED';
+  
+  // Phase timing
+  time_in_execution_ms: number;
+  time_in_validation_ms: number;
+  time_in_interrogation_ms: number;
+  
+  // Counts
+  interrogation_rounds: number;
+  helper_agent_calls: number;
+  failed_validations: number;
+  
+  // Cost (Token proxy)
+  total_prompt_chars: number;
+  total_response_chars: number;
+}
+

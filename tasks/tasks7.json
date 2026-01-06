@@ -18,9 +18,28 @@
         "agent_mode": "auto"
     },
     {
+        "task_id": "mobile_expo_init_assessment",
+        "intent": "Assess baseline Expo project readiness and constraints.",
+        "instructions": "Confirm whether an Expo app already exists in easeclassifieds-mobile. If absent, note that creation is required. Verify Node/Expo CLI versions, Expo Go availability, and ability to run expo start --tunnel. Identify any blockers (ports, missing SDK) before implementation.",
+        "task_type": "documentation",
+        "acceptance_criteria": [
+            "Existing project presence confirmed or absence noted",
+            "Tooling versions and Expo Go availability recorded",
+            "Potential blockers listed (ports, SDK, permissions)",
+            "Recommended next steps documented"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff": "linear"
+        },
+        "status": "pending",
+        "working_directory": "easeclassifieds-mobile",
+        "agent_mode": "auto"
+    },
+    {
         "task_id": "mobile_setup_navigation",
         "intent": "Set up React Navigation for the Expo app with tab and stack navigation structure.",
-        "instructions": "Install and configure @react-navigation/native, @react-navigation/native-stack, and @react-navigation/bottom-tabs. Create navigation structure matching web routes: Home (Feed), Favorites, Search, Profile. Set up proper TypeScript types for navigation.",
+        "instructions": "Install and configure @react-navigation/native, @react-navigation/native-stack, and @react-navigation/bottom-tabs with peer deps react-native-screens and react-native-safe-area-context. Create navigation structure matching web routes: Home (Feed), Favorites, Search, Profile. Set up proper TypeScript types for navigation. Keep Expo Go compatibility (no custom native modules).",
         "task_type": "coding",
         "acceptance_criteria": [
             "React Navigation is installed and configured",
@@ -37,9 +56,28 @@
         "agent_mode": "auto"
     },
     {
+        "task_id": "mobile_setup_navigation_assessment",
+        "intent": "Assess navigation requirements and route parity.",
+        "instructions": "Map existing web routes (Home/Feed, Favorites, Search, Listing Detail, Profile) and any modal flows. Decide stack vs tab structure, initial route, and detail screen params. Confirm no native-linking dependencies. Output a short routing plan and param types to implement.",
+        "task_type": "documentation",
+        "acceptance_criteria": [
+            "Route list with stack/tab assignment documented",
+            "Initial route and param shapes defined",
+            "Modal/sheet needs noted (if any)",
+            "No native-linking blockers identified"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff": "linear"
+        },
+        "status": "pending",
+        "working_directory": "easeclassifieds-mobile",
+        "agent_mode": "auto"
+    },
+    {
         "task_id": "mobile_setup_styling",
         "intent": "Set up NativeWind (Tailwind for React Native) and design system tokens.",
-        "instructions": "Install and configure NativeWind for Tailwind-like styling in React Native. Create design system tokens for colors, spacing, typography matching web app. Set up theme provider for light/dark mode support if needed.",
+        "instructions": "Install and configure NativeWind with tailwindcss (Expo preset) and required Babel/Metro settings. Create design system tokens for colors, spacing, typography matching web app; consider clsx/tailwind-merge for class composition. Set up theme provider for light/dark mode support if needed. Keep config plugin-free for Expo Go.",
         "task_type": "coding",
         "acceptance_criteria": [
             "NativeWind is installed and working",
@@ -56,9 +94,28 @@
         "agent_mode": "auto"
     },
     {
+        "task_id": "mobile_setup_styling_assessment",
+        "intent": "Assess styling approach and token mapping from web to mobile.",
+        "instructions": "Review web Tailwind config and design tokens (colors, spacing, typography). Identify which tokens map directly and which need mobile adjustments (font sizes/line heights). Confirm NativeWind requirements (babel/metro) and note any Tailwind plugins to omit. Produce a token mapping plan.",
+        "task_type": "documentation",
+        "acceptance_criteria": [
+            "Web Tailwind tokens reviewed",
+            "Mobile-adjusted typography scale decided",
+            "Plugin omissions/changes noted",
+            "Token mapping plan documented"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff": "linear"
+        },
+        "status": "pending",
+        "working_directory": "easeclassifieds-mobile",
+        "agent_mode": "auto"
+    },
+    {
         "task_id": "mobile_api_client",
         "intent": "Port API client and services layer to React Native.",
-        "instructions": "Migrate services/api.ts with axios for HTTP calls. Set up API base URL configuration. Port authService, listingService, searchService, feedService, subscriptionService, and favoritesService. Use AsyncStorage for token persistence instead of localStorage. Ensure proper error handling and interceptors.",
+        "instructions": "Migrate services/api.ts with axios for HTTP calls. Set up API base URL configuration. Port authService, listingService, searchService, feedService, subscriptionService, and favoritesService. Use expo-secure-store for tokens (fallback to @react-native-async-storage/async-storage for non-sensitive cache). Ensure proper error handling and interceptors.",
         "task_type": "coding",
         "acceptance_criteria": [
             "API client is configured with proper base URL",
@@ -75,9 +132,104 @@
         "agent_mode": "auto"
     },
     {
+        "task_id": "mobile_api_client_assessment",
+        "intent": "Assess API surface and service parity for mobile client.",
+        "instructions": "Inventory existing web services (auth/listing/search/feed/subscription/favorites) and endpoints they call. Note required headers, interceptors, and error formats. Confirm mobile API base URL sources (env). Identify any browser-only dependencies to remove. Produce a service mapping and interceptor plan (auth retry, error normalization).",
+        "task_type": "documentation",
+        "acceptance_criteria": [
+            "Service list with endpoints and required params documented",
+            "Header/auth/interceptor behavior described",
+            "Browser-only dependencies identified",
+            "Plan for token storage and error normalization documented"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff": "linear"
+        },
+        "status": "pending",
+        "working_directory": "easeclassifieds-mobile",
+        "agent_mode": "auto"
+    },
+    {
+        "task_id": "mobile_env_config_setup",
+        "intent": "Set up environment configuration for Expo (API base, secrets, build variants).",
+        "instructions": "Use app.config.js (or app.config.ts) with expo-constants extra for API base, feature flags, and Gemini key (if used). Avoid react-native-config (not Expo Go-friendly). Ensure axios client pulls base URL from config. Document how to run against local backend via expo start --tunnel. Avoid embedding secrets in code; keep secrets server-side when possible.",
+        "task_type": "coding",
+        "acceptance_criteria": [
+            "Env vars for API base and secrets are defined and loaded in Expo",
+            "Axios client reads base URL from env",
+            "Local and remote backend targets are documented",
+            "No secrets are hardcoded in source"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff": "linear"
+        },
+        "status": "pending",
+        "working_directory": "easeclassifieds-mobile",
+        "agent_mode": "auto"
+    },
+    {
+        "task_id": "mobile_env_config_assessment",
+        "intent": "Assess environment/config needs for mobile app.",
+        "instructions": "List required env values (API base, feature flags, Gemini key if used). Check current web/env usage and align names. Decide dev vs prod values and whether tunnel base URL is needed. Confirm no secrets must ship to client. Produce a config plan using app.config.(js/ts) extras and expo-constants.",
+        "task_type": "documentation",
+        "acceptance_criteria": [
+            "Env variable list documented with naming",
+            "Dev/prod/tunnel base URL approach noted",
+            "Secret-handling approach documented",
+            "Plan for app.config extras and client consumption recorded"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff": "linear"
+        },
+        "status": "pending",
+        "working_directory": "easeclassifieds-mobile",
+        "agent_mode": "auto"
+    },
+    {
+        "task_id": "mobile_types_and_utils_port",
+        "intent": "Port shared types, constants, and utilities from web to React Native without DOM dependencies.",
+        "instructions": "Migrate listing types, enums, and helper utilities (formatters, filters) from the web app. Replace any browser-specific APIs with React Native equivalents. Ensure type parity with backend API contracts. Centralize constants (tiers, categories, endpoints) for reuse across screens.",
+        "task_type": "coding",
+        "acceptance_criteria": [
+            "Core types/enums mirror web and backend contracts",
+            "Helpers work in React Native without DOM or window usage",
+            "Constants for tiers/categories/endpoints are shared across screens",
+            "Type errors are resolved in the mobile project"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff": "linear"
+        },
+        "status": "pending",
+        "working_directory": "easeclassifieds-mobile",
+        "agent_mode": "auto"
+    },
+    {
+        "task_id": "mobile_types_and_utils_assessment",
+        "intent": "Assess types/constants/utilities to port from web.",
+        "instructions": "Inventory web types (listing, user, subscription tiers), constants, and utilities used by Home/Search/Favorites/Profile. Identify browser APIs (localStorage, window, document) to remove. Cross-check with backend contracts to ensure type parity. Produce a porting list and gaps.",
+        "task_type": "documentation",
+        "acceptance_criteria": [
+            "Types/constants/utilities list compiled",
+            "Browser-only dependencies identified",
+            "Backend contract parity checked",
+            "Porting plan documented"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff": "linear"
+        },
+        "status": "pending",
+        "working_directory": "easeclassifieds-mobile",
+        "agent_mode": "auto"
+    },
+    {
         "task_id": "mobile_auth_screens",
         "intent": "Create phone authentication screens with OTP verification.",
-        "instructions": "Build PhoneInputScreen with country selector (PK, AE, SA, QA, KW, BH, OM) and phone number input. Build OTPVerificationScreen with 4-6 digit OTP input. Implement auth flow using authService. Handle rate limiting errors gracefully. Add loading states and error messages.",
+        "instructions": "Build PhoneInputScreen with country selector (PK, AE, SA, QA, KW, BH, OM) and phone number input (use numeric keypad). Build OTPVerificationScreen with 4-6 digit OTP input; set textContentType oneTimeCode. Implement auth flow using authService and tokens stored via expo-secure-store. Handle rate limiting errors gracefully. Add loading states and error messages.",
         "task_type": "coding",
         "acceptance_criteria": [
             "Phone input screen with country selector works",
@@ -236,9 +388,28 @@
         "agent_mode": "auto"
     },
     {
+        "task_id": "mobile_accessibility_safety_net",
+        "intent": "Harden mobile UX for accessibility, safe areas, and status bar handling.",
+        "instructions": "Integrate SafeAreaView/StatusBar handling for all screens. Ensure focus order, accessibility labels, and minimum touch targets are applied. Verify high-contrast mode and dynamic font scaling where feasible. Add keyboard avoidance for inputs on auth/search screens.",
+        "task_type": "coding",
+        "acceptance_criteria": [
+            "Safe areas handled on iOS and Android",
+            "Status bar styles set per screen theme",
+            "Accessible labels and touch targets present across interactive elements",
+            "Keyboard avoidance works on input-heavy screens"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff": "linear"
+        },
+        "status": "pending",
+        "working_directory": "easeclassifieds-mobile",
+        "agent_mode": "auto"
+    },
+    {
         "task_id": "mobile_offline_support",
         "intent": "Implement offline detection and basic offline functionality.",
-        "instructions": "Port useOffline hook using @react-native-community/netinfo. Show offline banner when network is unavailable. Cache recent listings using AsyncStorage. Handle API errors gracefully when offline. Show cached data when offline.",
+        "instructions": "Port useOffline hook using @react-native-community/netinfo. Show offline banner when network is unavailable. Cache recent listings using @react-native-async-storage/async-storage (or lightweight in-memory cache) for non-sensitive data. Handle API errors gracefully when offline. Show cached data when offline.",
         "task_type": "coding",
         "acceptance_criteria": [
             "Offline detection works correctly",
@@ -258,7 +429,7 @@
     {
         "task_id": "mobile_notifications_setup",
         "intent": "Set up notification system for in-app messages and alerts.",
-        "instructions": "Port Notification component to React Native using react-native toast libraries or custom modal. Handle success, error, and info notifications. Ensure notifications don't block user interaction. Add notification context/provider.",
+        "instructions": "Port Notification component to React Native using a JS-only toast library (e.g., react-native-toast-message) or lightweight banner modal. Handle success, error, and info notifications. Ensure notifications don't block user interaction. Add notification context/provider. Keep Expo Go compatible (no native config plugins).",
         "task_type": "coding",
         "acceptance_criteria": [
             "Notification system works on mobile",
@@ -278,7 +449,7 @@
     {
         "task_id": "mobile_icons_assets",
         "intent": "Set up icon library and handle image assets for mobile.",
-        "instructions": "Install @expo/vector-icons or react-native-vector-icons for icons (equivalent to lucide-react). Set up proper image asset handling with different resolutions (@2x, @3x). Configure app icon and splash screen. Ensure all web icons have mobile equivalents.",
+        "instructions": "Install/use @expo/vector-icons (Expo-bundled) for icons (lucide equivalent via Feather set). Use expo-image for performant images with placeholders. Set up proper image asset handling with different resolutions (@2x, @3x). Configure app icon and splash screen in app.json/app.config.js. Ensure all web icons have mobile equivalents.",
         "task_type": "coding",
         "acceptance_criteria": [
             "Icon library is configured and working",
@@ -289,26 +460,6 @@
         ],
         "retry_policy": {
             "max_retries": 2,
-            "backoff": "linear"
-        },
-        "status": "pending",
-        "working_directory": "easeclassifieds-mobile",
-        "agent_mode": "auto"
-    },
-    {
-        "task_id": "mobile_testing_ios_android",
-        "intent": "Test app thoroughly on iOS and Android via Expo Go.",
-        "instructions": "Use Expo Go app on physical devices or simulator to test. Scan QR code from Expo development server on both iOS and Android devices/simulators. Test all screens and flows, verify touch interactions, navigation, API calls, and offline behavior. Test on different screen sizes. Check performance and memory usage. Ensure consistent behavior across platforms.",
-        "task_type": "coding",
-        "acceptance_criteria": [
-            "App runs successfully via Expo Go on iOS device or simulator",
-            "App runs successfully via Expo Go on Android device or emulator",
-            "All features work on both platforms",
-            "No platform-specific crashes or bugs",
-            "Performance is acceptable on both platforms"
-        ],
-        "retry_policy": {
-            "max_retries": 3,
             "backoff": "linear"
         },
         "status": "pending",
@@ -372,6 +523,25 @@
         "agent_mode": "auto"
     },
     {
+        "task_id": "api_vehicle_listings_assessment",
+        "intent": "Assess vehicle listings API for gaps before applying fixes.",
+        "instructions": "Call GET /api/listings?category=vehicles with pagination and filters used by mobile. Validate shape against mobile contract (id, title, price, currency, location, thumbnails, mileage/year/specs, dealer vs private). Check pagination (page/limit/total), sorting, null fields, and performance (basic timing). Document any inconsistencies or missing fields; do not change code in this task.",
+        "task_type": "documentation",
+        "acceptance_criteria": [
+            "Response shape documented against required fields",
+            "Pagination/filters behavior noted",
+            "Performance observations captured",
+            "Clear list of issues/gaps produced"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff": "linear"
+        },
+        "status": "pending",
+        "working_directory": "easeclassifieds-api",
+        "agent_mode": "auto"
+    },
+    {
         "task_id": "api_fix_property_listings",
         "intent": "If required, Fix and stabilize the property listings API to support mobile consumption.",
         "instructions": "First check if fix is needed. Audit property aggregation pipelines and API endpoints. Resolve missing fields, normalization issues, and edge cases. Align response format with vehicle listings where applicable.",
@@ -390,6 +560,25 @@
         "agent_mode": "auto"
     },
     {
+        "task_id": "api_property_listings_assessment",
+        "intent": "Assess property listings API for gaps before applying fixes.",
+        "instructions": "Call GET /api/listings?category=properties with pagination and property filters. Validate shape against mobile contract (id, title, price, currency, location, bedrooms, bathrooms, area, propertyType, thumbnails). Check pagination metadata, null handling, and filter coverage. Document inconsistencies or missing fields; no code changes in this task.",
+        "task_type": "documentation",
+        "acceptance_criteria": [
+            "Property response shape documented",
+            "Pagination and filters behavior noted",
+            "Null/edge cases identified",
+            "Issues/gaps list produced"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
+            "backoff": "linear"
+        },
+        "status": "pending",
+        "working_directory": "easeclassifieds-api",
+        "agent_mode": "auto"
+    },
+    {
         "task_id": "api_fix_favourites",
         "intent": "If required, Fix and finalize the favourites API used by web and mobile clients.",
         "instructions": "First check if fix is needed. Ensure favourites can be added, removed, and listed reliably per user (phone-auth based). Validate authorization, idempotency, and error handling.",
@@ -401,6 +590,26 @@
         ],
         "retry_policy": {
             "max_retries": 3,
+            "backoff": "linear"
+        },
+        "status": "pending",
+        "working_directory": "easeclassifieds-api",
+        "agent_mode": "auto"
+    }
+    ,
+    {
+        "task_id": "api_favourites_assessment",
+        "intent": "Assess favourites API behavior before fixes.",
+        "instructions": "Exercise POST/DELETE/GET favourites endpoints using phone-auth sessions. Verify idempotency on add/remove, correct ownership scoping, pagination (if any), and error responses for unauthorized/invalid IDs. Document any inconsistencies or missing fields required by mobile. No code changes in this task.",
+        "task_type": "documentation",
+        "acceptance_criteria": [
+            "Behavior for add/remove/list documented",
+            "Idempotency and auth checks verified",
+            "Error responses captured",
+            "Issues/gaps list produced"
+        ],
+        "retry_policy": {
+            "max_retries": 2,
             "backoff": "linear"
         },
         "status": "pending",

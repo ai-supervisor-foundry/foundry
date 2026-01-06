@@ -248,108 +248,40 @@ If any implementation decision is not explicitly specified above or in the refre
 
 # Queue System
 
-- Task queue is implemented using BullMQ.
-- BullMQ runs on top of DragonflyDB (numbered database instance, e.g., db 2 or 3).
+- Task queue is implemented using Redis List (LPUSH/RPOP).
+- The queue runs on top of DragonflyDB (numbered database instance, e.g., db 2).
+- FIFO (First-In-First-Out) execution is strictly enforced.
 - Tasks are queued from operator instructions.
 - Supervisor control loop consumes tasks from queue.
-- Queue integration with supervisor state management.
 
 
 ---
 
-# Architecture
+# AST Validation
 
-## Role Separation
-
-Implement the following roles as distinct modules/concerns:
-
-### Operator Interface
-- Injects initial goal
-- Injects tasks
-- Issues HALT / RESUME
-
-### Supervisor Core
-- Owns control loop
-- Owns state read/write
-- Owns validation
-
-### Tool Dispatcher
-- Constructs Cursor task prompts
-- Injects state snapshots
-
-### Persistence Layer
-- DragonflyDB read/write only
-
-### Queue Adapter
-- BullMQ integration only
-
-No module may cross responsibilities.
+- Supervisor supports deep structural analysis using Abstract Syntax Trees (AST).
+- Validates the existence of:
+  - Classes and Interfaces
+  - Functions and Methods
+  - Exports and Imports
+  - Decorators (e.g., NestJS, Angular)
+- Heuristic-based inference: Automatically maps natural language criteria to AST rules.
+- Supported languages: TypeScript, JavaScript (via `ts-morph`).
 
 
 ---
 
-# Ambiguity Handling
+# Validation Caching
 
-## Hard Rule: HALT Conditions
-
-If any of the following occur, the supervisor must HALT:
-
-- Cursor output asks a question
-- Cursor output proposes alternatives
-- Acceptance criteria are partially met
-- Output format deviates
-- Required artifact is missing
-
-## Rules
-
-- No retries unless operator explicitly instructs.
-- Operator input is the only unblock mechanism.
+- Validation results are cached in Redis to optimize performance.
+- Key: `validation_cache:<project_id>:<criterion_hash>:<file_hash>`.
+- Invalidation: Automatic when file content changes (SHA-256 hash).
+- Result reuse: Skips redundant checks if the implementation remains unchanged.
 
 
 ---
 
-# Supervisor States
-
-## Explicit States
-
-- `RUNNING`
-- `BLOCKED`
-- `HALTED`
-- `COMPLETED`
-
-## State Rules
-
-- HALT always persists state first
-- BLOCKED requires operator input to resume
-- No automatic resume after ambiguity
-- Operator input is the only unblock mechanism
-
-
----
-
-# Sandbox Enforcement
-
-## Multi-Project Rules
-
-- Each app/project:
-  - has its own directory
-  - has its own state key
-  - has its own task queue
-
-## Supervisor Enforcement
-
-- No cross-project file access
-- No shared state
-- Cursor task prompts must specify: `WORKING DIRECTORY: /sandbox/<project>`
-
-## Violations
-
-- Any violation → task invalid
-
-
----
-
-# Logging & Auditability
+# Logging & Analytics
 
 ## Required Logs
 
@@ -359,6 +291,16 @@ Supervisor must log:
 - validation result
 - state diff (before/after)
 - halt reason (if any)
+
+## Performance Metrics
+
+Supervisor tracks:
+- Iteration count and duration
+- Success/Failure/Block rates
+- Phase bottlenecks (execution, validation, interrogation)
+- Character counts (prompt/response)
+
+Metrics are persisted to `sandbox/<project-id>/metrics.jsonl` and reviewable via `npm run cli -- metrics`.
 
 ## Log Rules
 

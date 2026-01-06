@@ -9,6 +9,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logVerbose } from '../../infrastructure/adapters/logging/logger';
 import { astService } from './ASTService';
+import { validationCache, CachedCriterionResult } from './validationCache';
 import { validateFilePaths } from '../../domain/agents/promptBuilder';
 
 const execAsync = promisify(exec);
@@ -66,7 +67,8 @@ function findJSONInString(text: string): string | null {
 export async function validateTaskOutput(
   task: Task,
   providerResult: ProviderResult,
-  sandboxRoot: string
+  sandboxRoot: string,
+  projectId: string
 ): Promise<ValidationReport> {
   log(`Validating task: ${task.task_id}`);
   
@@ -436,6 +438,16 @@ export async function validateTaskOutput(
 
     for (const criterion of task.acceptance_criteria) {
       log(`Checking criterion: "${criterion}"`);
+
+      // Check cache first
+      const cachedResult = await validationCache.getCachedResult(projectId, criterion, codeFilesToCheck);
+      let matchQuality: MatchQuality = 'NONE';
+      
+      if (cachedResult) {
+        matchQuality = cachedResult.matchQuality;
+        log(`Cache hit for "${criterion}": ${matchQuality}`);
+      }
+
       const criterionLower = criterion.toLowerCase();
       const codeContentLower = allCodeContent.toLowerCase();
       
@@ -443,8 +455,6 @@ export async function validateTaskOutput(
       const keyTerms = criterionLower
         .split(/\s+/)
         .filter(term => term.length > 3 && !['with', 'from', 'the', 'and', 'for', 'that', 'this'].includes(term));
-      
-      let matchQuality: MatchQuality = 'NONE';
       
       // Method 0: AST-based validation (High Confidence)
       if (matchQuality === 'NONE') {
@@ -475,6 +485,24 @@ export async function validateTaskOutput(
             if (exportMatch) {
               astRuleType = 'EXPORT_EXISTS';
               astTargetName = exportMatch[1];
+            }
+          }
+
+          // Heuristic: Check for "interface <name>"
+          if (!astRuleType) {
+            const interfaceMatch = criterionLower.match(/\binterface\s+['"`]?([a-zA-Z0-9_]+)['"`]?/i);
+            if (interfaceMatch) {
+              astRuleType = 'INTERFACE_EXISTS';
+              astTargetName = interfaceMatch[1];
+            }
+          }
+
+          // Heuristic: Check for "import <name>"
+          if (!astRuleType) {
+            const importMatch = criterionLower.match(/\bimport\s+['"`]?([a-zA-Z0-9_]+)['"`]?/i);
+            if (importMatch) {
+              astRuleType = 'IMPORT_EXISTS';
+              astTargetName = importMatch[1];
             }
           }
 
@@ -850,6 +878,13 @@ export async function validateTaskOutput(
       
       criteriaQuality[criterion] = matchQuality;
 
+      // Cache the result
+      const satisfied = matchQuality !== 'NONE';
+      await validationCache.setCachedResult(projectId, criterion, codeFilesToCheck, {
+        satisfied,
+        matchQuality,
+      });
+
       // Determine if criterion is uncertain (design task but not found in code or docs)
       const isDesignCriterion = designKeywords.some(keyword => criterionLower.includes(keyword));
       
@@ -943,7 +978,7 @@ export class Validator {
       rawOutput: providerOutput,
     };
 
-    return validateTaskOutput(task, providerResult, workingDirectory);
+    return validateTaskOutput(task, providerResult, workingDirectory, 'default');
   }
 }
 

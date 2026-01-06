@@ -54,6 +54,8 @@ export class ASTService {
             return await provider.hasFunction(filePath, rule.name);
         case 'CLASS_EXISTS':
             return await provider.hasClass(filePath, rule.name, rule.methods);
+        case 'INTERFACE_EXISTS':
+            return await provider.hasInterface(filePath, rule.name, rule.members);
         case 'EXPORT_EXISTS':
             return await provider.hasExport(filePath, rule.name);
         case 'IMPORT_EXISTS':

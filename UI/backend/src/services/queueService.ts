@@ -92,6 +92,23 @@ export async function enqueueTask(task: any): Promise<void> {
 }
 
 /**
+ * Enqueue multiple tasks in bulk
+ */
+export async function enqueueTasks(tasks: any[]): Promise<void> {
+  try {
+    const client = getQueueClient();
+    const key = getQueueKey();
+    const taskJsons = tasks.map(task => JSON.stringify(task));
+    if (taskJsons.length > 0) {
+      await client.lpush(key, ...taskJsons);
+    }
+  } catch (error) {
+    console.error('Error enqueuing tasks in bulk:', error);
+    throw error;
+  }
+}
+
+/**
  * Get all pending tasks (for dump)
  */
 export async function getAllPendingTasks(): Promise<any[]> {

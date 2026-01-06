@@ -1,7 +1,7 @@
 // Tasks API routes
 import { Router } from 'express';
 import { loadSupervisorState, saveSupervisorState, updateTaskInState } from '../services/supervisorState.js';
-import { getQueueLength, peekQueue, enqueueTask, getAllPendingTasks, updateTaskInQueue, removeTaskFromQueue } from '../services/queueService.js';
+import { getQueueLength, peekQueue, enqueueTask, enqueueTasks, getAllPendingTasks, updateTaskInQueue, removeTaskFromQueue } from '../services/queueService.js';
 
 const router = Router();
 
@@ -24,6 +24,47 @@ router.post('/enqueue', async (req, res, next) => {
     }
     
     res.json({ success: true, message: `Task ${task.task_id} enqueued` });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/tasks/enqueue-bulk
+router.post('/enqueue-bulk', async (req, res, next) => {
+  try {
+    const tasks = req.body;
+    
+    if (!Array.isArray(tasks)) {
+      return res.status(400).json({ error: 'Request body must be an array of tasks' });
+    }
+    
+    // Validate all tasks
+    const invalidTasks = tasks.filter(
+      task => !task || !task.task_id || !task.instructions || !task.acceptance_criteria
+    );
+    
+    if (invalidTasks.length > 0) {
+      return res.status(400).json({ 
+        error: 'Invalid tasks detected',
+        details: 'All tasks must have task_id, instructions, and acceptance_criteria',
+        invalidCount: invalidTasks.length
+      });
+    }
+    
+    await enqueueTasks(tasks);
+
+    // Update state to reflect queue is no longer exhausted
+    const state = await loadSupervisorState();
+    if (state && state.queue.exhausted) {
+      state.queue.exhausted = false;
+      await saveSupervisorState(state);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `${tasks.length} tasks enqueued`,
+      count: tasks.length
+    });
   } catch (error) {
     next(error);
   }

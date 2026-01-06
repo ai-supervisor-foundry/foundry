@@ -2,10 +2,54 @@
 
 import {
   buildMinimalState,
+  buildPrompt,
 } from '../../../src/domain/agents/promptBuilder';
 import { createMockTask, createMockState } from '../../fixtures/mockData';
 
 describe('PromptBuilder', () => {
+  describe('buildPrompt', () => {
+    it('should include the mandatory Task ID section', () => {
+      const task = createMockTask({ task_id: 'task-123' });
+      const state = buildMinimalState(task, createMockState(), '/tmp');
+      const prompt = buildPrompt(task, state);
+
+      expect(prompt).toContain('## Task ID');
+      expect(prompt).toContain('task-123');
+    });
+
+    it('should include the consolidated Rules block', () => {
+      const task = createMockTask();
+      const state = buildMinimalState(task, createMockState(), '/tmp');
+      const prompt = buildPrompt(task, state);
+
+      expect(prompt).toContain('## Rules');
+      expect(prompt).toContain('Use ONLY information from Task Description');
+      expect(prompt).toContain('Do NOT paraphrase');
+      expect(prompt).toContain('STOP and ask ONE clarifying question');
+    });
+
+    it('should include strict Output Requirements with JSON schema', () => {
+      const task = createMockTask();
+      const state = buildMinimalState(task, createMockState(), '/tmp');
+      const prompt = buildPrompt(task, state);
+
+      expect(prompt).toContain('## Output Requirements');
+      expect(prompt).toContain('Your response MUST end with ONLY this JSON block');
+      expect(prompt).toContain('"status": "completed" | "failed"');
+      expect(prompt).toContain('"neededChanges": true | false');
+      expect(prompt).toContain('"changes": ["relative/path/from/sandbox_root"]');
+    });
+
+    it('should include task type guidelines', () => {
+      const task = createMockTask({ intent: 'implement auth' });
+      const state = buildMinimalState(task, createMockState(), '/tmp');
+      const prompt = buildPrompt(task, state);
+
+      expect(prompt).toContain('## Guidelines');
+      expect(prompt).toContain('Cover edge cases');
+    });
+  });
+
   describe('buildMinimalState', () => {
     it('should include project context', () => {
       const task = createMockTask();

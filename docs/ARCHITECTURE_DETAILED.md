@@ -146,6 +146,9 @@ graph TB
         Validator[Validator]
         HaltDetection[Halt Detection]
         Interrogator[Interrogator]
+        ASTService[AST Service]
+        ValidationCache[Validation Cache]
+        Analytics[Analytics Service]
     end
     
     subgraph "Tool Layer"
@@ -168,6 +171,7 @@ graph TB
     CLI -->|Commands| ControlLoop
     CLI -->|Init/Set Goal| Persistence
     CLI -->|Enqueue Tasks| Queue
+    CLI -->|Metrics| Analytics
     
     ControlLoop -->|Load/Save| Persistence
     ControlLoop -->|Dequeue| Queue
@@ -178,6 +182,10 @@ graph TB
     ControlLoop -->|Interrogate| Interrogator
     ControlLoop -->|Log| AuditLogger
     ControlLoop -->|Log Prompts| PromptLogger
+    ControlLoop -->|Record Metrics| Analytics
+    
+    Validator -->|Parse Code| ASTService
+    Validator -->|Check Cache| ValidationCache
     
     PromptBuilder -->|Minimal State| ControlLoop
     CursorCLI -->|Execute| Sandbox
@@ -187,6 +195,8 @@ graph TB
     Queue -->|LPUSH/RPOP| DragonflyDB
     AuditLogger -->|Append| Sandbox
     PromptLogger -->|Append| Sandbox
+    ValidationCache -->|Read/Write| DragonflyDB
+    Analytics -->|Append| Sandbox
 ```
 
 ### Component Responsibilities
@@ -435,7 +445,39 @@ Task → detectTaskType() → { behavioral | coding | config | testing | docs }
 - Max questions per criterion (default: 1)
 - Final interrogation before blocking task
 
-#### 11. Audit Logger (`src/infrastructure/adapters/logging/auditLogger.ts`)
+#### 11. AST Service (`src/application/services/ASTService.ts`)
+
+**Purpose**: Structural code validation using Abstract Syntax Trees
+
+**Features**:
+- **Framework Agnostic**: Uses Adapter pattern (`ASTProvider`) to support different languages/parsers.
+- **Rules**: `CLASS_EXISTS`, `FUNCTION_EXISTS`, `EXPORT_EXISTS`, `IMPORT_EXISTS`, `INTERFACE_EXISTS`.
+- **Heuristics**: Automatically infers AST checks from natural language acceptance criteria.
+
+#### 12. Validation Cache Manager (`src/application/services/validationCache.ts`)
+
+**Purpose**: Optimize validation by caching results for unchanged code
+
+**Mechanism**:
+- **Key**: `validation_cache:<project_id>:<criterion_hash>:<file_hash>`
+- **Storage**: Redis
+- **Invalidation**: Automatic via file hash change (SHA-256)
+- **TTL**: 1 hour
+
+#### 13. Analytics Service (`src/application/services/analytics.ts`)
+
+**Purpose**: Track system performance and efficiency
+
+**Metrics**:
+- Iteration counts, duration, bottlenecks
+- Validation pass/fail rates
+- Interrogation rounds
+- Prompt/response sizes
+
+**Persistence**:
+- `sandbox/<project-id>/metrics.jsonl` (append-only)
+
+#### 14. Audit Logger (`src/infrastructure/adapters/logging/auditLogger.ts`)
 
 **Purpose**: Append-only audit trail of all supervisor actions
 
@@ -459,7 +501,7 @@ Task → detectTaskType() → { behavioral | coding | config | testing | docs }
 - Includes full state snapshots (before/after)
 - Includes prompts and responses
 
-#### 12. Prompt Logger (`src/infrastructure/adapters/logging/promptLogger.ts`)
+#### 15. Prompt Logger (`src/infrastructure/adapters/logging/promptLogger.ts`)
 
 **Purpose**: Log all prompts and responses for debugging
 

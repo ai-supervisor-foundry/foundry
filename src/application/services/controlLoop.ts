@@ -15,6 +15,7 @@ import { interrogateAgent } from '../../domain/executors/interrogator';
 import { generateValidationCommands } from '../../domain/executors/commandGenerator';
 import { executeVerificationCommands } from '../../infrastructure/connectors/os/executors/commandExecutor';
 import { log as logShared, logVerbose, logStateTransition, logPerformance } from '../../infrastructure/adapters/logging/logger';
+import { analyticsService } from './analytics';
 import * as path from 'path';
 
 const REQUIRED_STATE_FIELDS = [
@@ -442,6 +443,10 @@ export async function controlLoop(
       return; // Exit loop
     }
 
+    // Initialize analytics for the task
+    analyticsService.initializeTask(task.task_id);
+    analyticsService.recordIteration(task.task_id);
+
     // Set current_task in state and persist
     // This allows UI to see what's running
     state.current_task = task;
@@ -583,6 +588,7 @@ export async function controlLoop(
     const providerStartTime = Date.now();
     const providerResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, resolvedSessionId, featureId);
     const providerDuration = Date.now() - providerStartTime;
+    analyticsService.recordExecution(task.task_id, prompt.length, (providerResult.stdout || providerResult.rawOutput || '').length, providerDuration);
 
     // Save sessionId and usage back to state if returned
     if (providerResult.sessionId) {
@@ -779,7 +785,7 @@ export async function controlLoop(
     // Only immediately halt on critical failures (execution failure, blocked)
     // AMBIGUITY and ASKED_QUESTION will be handled after validation (may be false positives)
     // RESOURCE_EXHAUSTED is handled above with retry logic
-    const criticalHaltReasons: HaltReason[] = ['CURSOR_EXEC_FAILURE', 'BLOCKED', 'OUTPUT_FORMAT_INVALID', 'PROVIDER_CIRCUIT_BROKEN'];
+    const criticalHaltReasons: HaltReason[] = ['BLOCKED', 'OUTPUT_FORMAT_INVALID', 'PROVIDER_CIRCUIT_BROKEN'];
     if (haltReason && criticalHaltReasons.includes(haltReason as any)) {
       log(`[Iteration ${iteration}] Task ${task.task_id}: Critical halt - ${haltReason}`);
       logVerbose('ControlLoop', 'Critical halt condition, halting immediately', {
@@ -820,9 +826,15 @@ export async function controlLoop(
     let validationReport: ValidationReport = await validateTaskOutput(
       task,
       providerResult,
-      sandboxCwd
+      sandboxCwd,
+      projectId
     );
     const validationDuration = Date.now() - validationStartTime;
+    analyticsService.recordValidation(
+      task.task_id, 
+      validationDuration, 
+      validationReport.valid
+    );
     log(`[Iteration ${iteration}] Task ${task.task_id}: Validation completed in ${validationDuration}ms`);
     log(`[Iteration ${iteration}] Task ${task.task_id}: Validation result: ${validationReport.valid ? 'PASS' : 'FAIL'}`);
     logPerformance('Validation', validationDuration, {
@@ -878,6 +890,7 @@ export async function controlLoop(
       });
 
       try {
+        const helperStartTime = Date.now();
         const commandGeneration = await generateValidationCommands(
           providerResult.rawOutput || providerResult.stdout || '',
           validationReport.failed_criteria || [],
@@ -890,6 +903,7 @@ export async function controlLoop(
           helperSessionId,
           helperFeatureId
         );
+        analyticsService.recordHelperAgent(task.task_id, Date.now() - helperStartTime);
         
         // Save helper session back to state
         if (commandGeneration.sessionId) {
@@ -1033,7 +1047,7 @@ export async function controlLoop(
     // 11. Handle validation failure OR non-critical halts (AMBIGUITY/ASKED_QUESTION) → Generate fix prompt and retry
     // If validation passes but AMBIGUITY/ASKED_QUESTION detected, still retry with clarification prompt
     // NEW: If validation confidence is UNCERTAIN, enter interrogation phase before retry
-    const needsRetry = !validationReport.valid || (haltReason && ['AMBIGUITY', 'ASKED_QUESTION'].includes(haltReason));
+    const needsRetry = !validationReport.valid || (haltReason && ['AMBIGUITY', 'ASKED_QUESTION', 'CURSOR_EXEC_FAILURE'].includes(haltReason));
     const needsInterrogation = !validationReport.valid && 
                                 task.task_type !== 'behavioral' &&
                                 (validationReport.confidence === 'UNCERTAIN' || 
@@ -1090,6 +1104,7 @@ export async function controlLoop(
         projectId
       );
       const interrogationDuration = Date.now() - interrogationStartTime;
+      analyticsService.recordInterrogation(task.task_id, interrogationSession.interrogation_results.length, interrogationDuration);
       
       log(`[Iteration ${iteration}] Task ${task.task_id}: Interrogation completed in ${interrogationDuration}ms`);
       log(`Interrogation result: ${interrogationSession.all_criteria_satisfied ? 'ALL SATISFIED' : `${interrogationSession.remaining_failed_criteria.length} still failed`}`);
@@ -1193,10 +1208,15 @@ export async function controlLoop(
         });
         
         await persistence.writeState(state);
+        
+        // Finalize analytics for the blocked task
+        await analyticsService.finalizeTask(task.task_id, 'BLOCKED', sandboxRoot, projectId);
+        
         continue;
       }
 
       log(`[Iteration ${iteration}] Task ${task.task_id}: Retry needed (attempt ${retryCount + 1}/${maxRetries})${isRepeatedError ? ` [REPEATED ERROR ${repeatedErrorCount}/3]` : ''}`);
+      analyticsService.recordRetry(task.task_id, !validationReport.valid ? 'validation_failed' : 'ambiguity_or_question');
       logVerbose('ControlLoop', 'Retry required', {
         iteration,
         task_id: task.task_id,
@@ -1284,6 +1304,10 @@ export async function controlLoop(
           await persistence.writeState(state);
           const blockPersistDuration = Date.now() - blockPersistStartTime;
           logPerformance('BlockedTaskStatePersist', blockPersistDuration, { iteration, task_id: task.task_id });
+          
+          // Finalize analytics for the blocked task
+          await analyticsService.finalizeTask(task.task_id, 'BLOCKED', sandboxRoot, projectId);
+          
           continue; // Skip to next iteration
         } else {
           // Final interrogation confirmed completion - mark as complete
@@ -1442,7 +1466,7 @@ export async function controlLoop(
       });
       
       // Only halt on critical failures during fix attempt
-      const criticalHaltReasons: HaltReason[] = ['CURSOR_EXEC_FAILURE', 'BLOCKED', 'OUTPUT_FORMAT_INVALID', 'PROVIDER_CIRCUIT_BROKEN'];
+      const criticalHaltReasons: HaltReason[] = ['BLOCKED', 'OUTPUT_FORMAT_INVALID', 'PROVIDER_CIRCUIT_BROKEN'];
       if (fixHaltReason && criticalHaltReasons.includes(fixHaltReason as any)) {
         logVerbose('ControlLoop', 'Critical halt during fix attempt', {
           iteration,
@@ -1477,7 +1501,8 @@ export async function controlLoop(
       const fixValidationReport: ValidationReport = await validateTaskOutput(
         task,
         fixProviderResult,
-        sandboxCwd
+        sandboxCwd,
+        projectId
       );
       const fixValidationDuration = Date.now() - fixValidationStartTime;
       log(`[Iteration ${iteration}] Task ${task.task_id}: Fix validation result: ${fixValidationReport.valid ? 'PASS' : 'FAIL'}`);
@@ -1572,6 +1597,9 @@ export async function controlLoop(
     logPerformance('StateUpdate', stateUpdateDuration, { iteration, task_id: task.task_id });
 
     log(`[Iteration ${iteration}] Task ${task.task_id}: ✅ COMPLETED`);
+    analyticsService.logSummary(task.task_id);
+    await analyticsService.finalizeTask(task.task_id, 'COMPLETED', sandboxRoot, projectId);
+    
     log(`[Iteration ${iteration}] Completed tasks: ${state.completed_tasks.length}`);
     logVerbose('ControlLoop', 'Task completed successfully', {
       iteration,

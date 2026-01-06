@@ -73,6 +73,7 @@ export const apiClient = {
   updateTask: (taskId: string, updates: Record<string, any>) => 
     api.post('/api/tasks/update', { taskId, updates }),
   enqueueTask: (task: any) => api.post('/api/tasks/enqueue', task),
+  enqueueTasks: (tasks: any[]) => api.post('/api/tasks/enqueue-bulk', tasks),
   dumpTasks: () => api.get('/api/tasks/dump'),
   
   // Logs endpoints
