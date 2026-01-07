@@ -227,5 +227,32 @@ describe('PromptBuilder', () => {
       expect(minimalState.goal).toBeDefined();
       expect(minimalState.goal?.description).toBe('Build the system');
     });
+
+    it('should include the last completed task even without keywords (Recency Bias)', () => {
+      const task = createMockTask({
+        instructions: 'Do something unrelated',
+      });
+      const state = createMockState({
+        completed_tasks: [
+          {
+            task_id: 'task-1',
+            completed_at: new Date().toISOString(),
+            validation_report: { valid: true, rules_passed: [], rules_failed: [] },
+          },
+          {
+            task_id: 'task-2',
+            completed_at: new Date().toISOString(),
+            validation_report: { valid: true, rules_passed: [], rules_failed: [] },
+          },
+        ],
+      });
+      const sandboxCwd = '/sandbox/test-project';
+
+      const minimalState = buildMinimalState(task, state, sandboxCwd);
+
+      expect(minimalState.completed_tasks).toBeDefined();
+      expect(minimalState.completed_tasks?.length).toBe(1);
+      expect(minimalState.completed_tasks?.[0].task_id).toBe('task-2');
+    });
   });
 });

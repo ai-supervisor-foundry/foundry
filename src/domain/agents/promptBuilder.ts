@@ -29,6 +29,21 @@ export interface MinimalState {
   }>;
 }
 
+
+const RULES_BLOCK = (agentMode: string): string[] => [
+  '## Rules',
+  '- Use ONLY information from Task Description, Acceptance Criteria, and READ-ONLY CONTEXT',
+  '- Do NOT paraphrase, infer, or speculate beyond what is explicitly stated',
+  '- If critical details (file paths, API signatures) are missing:',
+  '  1. Check READ-ONLY CONTEXT (project structure, previous tasks) first',
+  '  2. If still missing, STOP and ask ONE clarifying question',
+  `- Remain in ${agentMode.toUpperCase()} MODE throughout execution`,
+  '- Reference only files that exist in sandbox_root; verify before mentioning',
+  '- Keep responses minimal: code changes + final JSON block only',
+  '- Do NOT explain what you\'re about to do; just do it',
+  ''
+];
+
 /**
  * Validate and filter file paths to only include files that exist in sandbox
  * Prevents hallucinated or absolute path references
@@ -110,21 +125,30 @@ export function buildMinimalState(task: Task, state: SupervisorState, sandboxCwd
     included.push('queue');
   }
 
-  // Include completed tasks only if building on previous work
-  if (
+  // Determine if we should include extended context or just recency bias
+  const shouldExtend = 
     (instructionsLower.includes('extend') ||
     instructionsLower.includes('build on') ||
     instructionsLower.includes('previous implementation') ||
     instructionsLower.includes('based on') ||
     intentLower.includes('extend')) &&
-    taskType !== 'documentation'
-  ) {
-    // Include last 5 completed tasks
+    taskType !== 'documentation';
+
+  if (shouldExtend) {
+    // Include last 5 completed tasks for deep context
     context.completed_tasks = state.completed_tasks?.slice(-5).map(t => ({
       task_id: t.task_id,
       completed_at: t.completed_at,
     }));
     included.push(`completed_tasks(${context.completed_tasks?.length || 0})`);
+  } else if (state.completed_tasks && state.completed_tasks.length > 0) {
+    // Recency Bias: Always include the single most recent completed task
+    // to maintain continuity even without explicit keywords
+    context.completed_tasks = state.completed_tasks.slice(-1).map(t => ({
+      task_id: t.task_id,
+      completed_at: t.completed_at,
+    }));
+    included.push('completed_tasks(1-recency)');
   }
 
   // Include blocked tasks ONLY if task explicitly mentions unblocking
@@ -187,31 +211,30 @@ function detectTaskType(task: Task): TaskType {
 function addTaskTypeGuidelines(sections: string[], taskType: TaskType): void {
   // Shared constraints for code-modifying tasks
   const sharedConstraints = [
-    '- Ensure all exports are typed correctly',
-    '- Do not introduce breaking changes to public APIs',
-    '- No conversational filler; code + JSON only'
+    '- Ensure all exports/imports are typed',
+    '- No conversational filler; code changes + JSON only'
   ];
 
   sections.push('## Guidelines');
   
   switch (taskType) {
     case 'implementation':
-      sections.push('- Focus on clean code structure and established patterns');
+      sections.push('- Follow established project patterns');
       break;
     case 'configuration':
-      sections.push('- Verify file locations and provide fallback values');
+      sections.push('- Verify file locations; use fallback values');
       break;
     case 'testing':
-      sections.push('- Cover edge cases with descriptive assertions');
+      sections.push('- Descriptive assertions for edge cases');
       break;
     case 'documentation':
-      sections.push('- Use clear formatting and validate all links');
+      sections.push('- Clear formatting; validate all links');
       break;
     case 'refactoring':
-      sections.push('- Preserve functionality while improving structure');
+      sections.push('- Improve structure without changing behavior');
       break;
     case 'behavioral':
-      sections.push('- Provide clear conversational response addressing all parts');
+      sections.push('- Clear declarative response addressing all points');
       break;
   }
 
@@ -223,17 +246,6 @@ function addTaskTypeGuidelines(sections: string[], taskType: TaskType): void {
   sections.push('');
 }
 
-function buildRulesSection(sections: string[], agentMode: string): void {
-  sections.push('## Rules');
-  sections.push('- Use ONLY information from Task Description, Acceptance Criteria, and READ-ONLY CONTEXT');
-  sections.push('- Do NOT paraphrase, infer, or speculate beyond what is explicitly stated');
-  sections.push('- If critical details (file paths, API signatures, variable names) are missing, STOP and ask ONE clarifying question');
-  sections.push(`- Remain in ${agentMode.toUpperCase()} MODE throughout execution`);
-  sections.push('- Reference only files that exist in sandbox_root; verify before mentioning');
-  sections.push('- Keep responses minimal: code changes + final JSON block only');
-  sections.push('- Do NOT explain what you\'re about to do; just do it');
-  sections.push('');
-}
 
 /**
  * Deterministic prompt construction
@@ -276,7 +288,7 @@ export function buildPrompt(task: Task, minimalState: MinimalState): string {
 
   // NEW: Consolidated Rules
   const agentMode = task.agent_mode || 'auto';
-  buildRulesSection(sections, agentMode);
+  sections.push(...RULES_BLOCK(agentMode));
 
   // Task Type Guidelines
   const taskType = detectTaskType(task);
@@ -371,14 +383,49 @@ export function buildFixPrompt(
   }
   sections.push('');
 
-  // Simplified Instructions
+  // Extract potential file paths from error messages to provide context
+  const filePathsInErrors = new Set<string>();
+  const pathRegex = /[\w\-./\\]+\.[a-zA-Z0-9]+/; 
+  
+  validationReport.rules_failed.forEach(rule => {
+      const match = rule.match(pathRegex);
+      if (match) filePathsInErrors.add(match[0]);
+  });
+
+  if (filePathsInErrors.size > 0) {
+      sections.push('### Contextual File Content');
+      filePathsInErrors.forEach(filePath => {
+           // Basic validation to prevent path traversal reading
+           if (path.isAbsolute(filePath) || filePath.includes('..')) return;
+           
+           const fullPath = path.join(minimalState.project.sandbox_root, filePath);
+           if (fs.existsSync(fullPath)) {
+               try {
+                   const content = fs.readFileSync(fullPath, 'utf-8');
+                   const lines = content.split('\n');
+                   const preview = lines.slice(0, 50);
+                   
+                   sections.push(`File: ${filePath} (first ${preview.length} lines)`);
+                   sections.push('```');
+                   sections.push(preview.join('\n'));
+                   if (lines.length > 50) sections.push('... (truncated)');
+                   sections.push('```');
+                   sections.push('');
+               } catch (e) {
+                   // Ignore read errors
+               }
+           }
+      });
+  }
+
+  // Consolidated Rules
   const agentMode = task.agent_mode || 'auto';
-  sections.push('## Instructions');
+  sections.push(...RULES_BLOCK(agentMode));
+  
+  // Specific Fix Guidelines
+  sections.push('## Fix Instructions');
   sections.push('- Fix ONLY the issues in Validation Results; do not re-implement the entire task');
-  sections.push('- Apply fixes directly with given data; do not ask questions or re-explain');
   sections.push('- Ensure ALL acceptance criteria are met');
-  sections.push(`- Remain in ${agentMode.toUpperCase()} MODE`);
-  sections.push(`- Working directory: ${minimalState.project.sandbox_root}`);
   sections.push('');
 
   // NEW: Task Type Guidelines
@@ -432,13 +479,14 @@ export function buildClarificationPrompt(
   }
   sections.push('');
 
-  // Simplified Instructions
+  // Consolidated Rules
   const agentMode = task.agent_mode || 'auto';
-  sections.push('## Instructions');
+  sections.push(...RULES_BLOCK(agentMode));
+
+  // Specific Clarification Guidelines
+  sections.push('## Clarification Instructions');
   sections.push('- Implement definitively without ambiguous terms or questions');
   sections.push('- Use exact words: "will", "does", "creates", not "could", "might", "suggests"');
-  sections.push(`- Remain in ${agentMode.toUpperCase()} MODE`);
-  sections.push(`- Working directory: ${minimalState.project.sandbox_root}`);
   sections.push('');
 
   // NEW: Task Type Guidelines
