@@ -1008,3 +1008,25 @@ See [.cursor/rules/supervisor-specs.mdc](.cursor/rules/supervisor-specs.mdc) for
 
 [Add license information]
 
+
+## Local Helper Agent (Optional)
+
+You can configure the supervisor to use a local LLM (via Ollama) for helper agent tasks (command generation), reducing latency and cloud costs.
+
+### Prerequisites
+- [Ollama](https://ollama.com/) installed and running
+- Model pulled (e.g., `ollama pull phi4-mini`)
+
+### Configuration
+
+Add to `.env`:
+```bash
+USE_LOCAL_HELPER_AGENT=true
+LOCAL_HELPER_MODEL=phi4-mini
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+### Benefits
+- **Latency**: ~3-5s (vs 15-30s cloud)
+- **Cost**: Free (no API tokens for validation command generation)
+- **Privacy**: Validation logic runs locally

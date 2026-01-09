@@ -32,12 +32,14 @@ import logsRoutes from './routes/logs.js';
 import tasksRoutes from './routes/tasks.js';
 import commandsRoutes from './routes/commands.js';
 import configRoutes from './routes/config.js';
+import ollamaRoutes from './routes/ollama.js';
 
 app.use('/api/state', stateRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/commands', commandsRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/ollama', ollamaRoutes);
 
 // Serve static files from frontend/dist in production
 if (process.env.NODE_ENV === 'production') {

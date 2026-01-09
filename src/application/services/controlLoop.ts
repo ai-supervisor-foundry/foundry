@@ -3,7 +3,7 @@
 
 import { PersistenceLayer } from './persistence';
 import { QueueAdapter } from '../../domain/executors/taskQueue';
-import { PromptBuilder, buildPrompt, buildFixPrompt, buildClarificationPrompt, buildGoalCompletionPrompt, parseGoalCompletionResponse, MinimalState } from '../../domain/agents/promptBuilder';
+import { PromptBuilder, buildPrompt, buildFixPrompt, buildClarificationPrompt, buildGoalCompletionPrompt, parseGoalCompletionResponse, MinimalState, detectTaskType } from '../../domain/agents/promptBuilder';
 import { CLIAdapter } from '../../infrastructure/adapters/agents/providers/cliAdapter';
 import { sessionManager } from '../../domain/agents/sessionManager';
 import { Validator, validateTaskOutput } from './validator';
@@ -512,7 +512,11 @@ export async function controlLoop(
     });
 
     // 8. Dispatch to CLI / Agent with enforced sandbox cwd
-    const agentMode = task.agent_mode || 'auto';
+    const taskType = detectTaskType(task);
+    const defaultAgentMode = taskType === 'behavioral' ? 'fast' 
+                           : taskType === 'verification' ? 'reasoning' 
+                           : 'auto';
+    const agentMode = task.agent_mode || defaultAgentMode;
     const projectId = state.goal.project_id || 'default';
     
     // Session Resolution & Smart Recovery

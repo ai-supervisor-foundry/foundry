@@ -5,4 +5,5 @@ export enum Provider {
     GEMINI = 'gemini',
     GEMINI_STUB = 'gemini-stub',
     COPILOT = 'copilot',
+    OLLAMA = 'ollama',
 }

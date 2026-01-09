@@ -35,19 +35,21 @@ router.get('/audit', async (req, res, next) => {
   }
 });
 
-// GET /api/logs/prompts?projectId=<id>&limit=<n>
+// GET /api/logs/prompts?projectId=<id>&limit=<n>&offset=<n>
 router.get('/prompts', async (req, res, next) => {
   try {
     const projectId = req.query.projectId as string;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : undefined;
     const type = req.query.type as string | undefined;
+    const provider = req.query.provider as string | undefined;
     
     if (!projectId) {
       return res.status(400).json({ error: 'projectId is required' });
     }
     
-    const logs = await getPromptLogs(projectId, { limit, type: type as any });
-    res.json({ logs });
+    const result = await getPromptLogs(projectId, { limit, offset, type: type as any, provider });
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -80,8 +82,8 @@ router.get('/prompts/:taskId', async (req, res, next) => {
       return res.status(400).json({ error: 'projectId is required' });
     }
     
-    const logs = await getPromptLogs(projectId, { taskId });
-    res.json({ logs });
+    const result = await getPromptLogs(projectId, { taskId });
+    res.json(result);
   } catch (error) {
     next(error);
   }

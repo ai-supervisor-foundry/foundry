@@ -4,8 +4,12 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { Task, SupervisorState } from '../types/types';
+import { Task, SupervisorState, TaskType } from '../types/types';
 import { logVerbose, logPerformance } from '../../infrastructure/adapters/logging/logger';
+
+// Constants for Markdown generation to avoid nested backtick syntax errors in TS
+const MD_JSON_START = "```json";
+const MD_CODE_END = "```";
 
 export interface MinimalState {
   project: {
@@ -28,21 +32,6 @@ export interface MinimalState {
     reason: string;
   }>;
 }
-
-
-const RULES_BLOCK = (agentMode: string): string[] => [
-  '## Rules',
-  '- Use ONLY information from Task Description, Acceptance Criteria, and READ-ONLY CONTEXT',
-  '- Do NOT paraphrase, infer, or speculate beyond what is explicitly stated',
-  '- If critical details (file paths, API signatures) are missing:',
-  '  1. Check READ-ONLY CONTEXT (project structure, previous tasks) first',
-  '  2. If still missing, STOP and ask ONE clarifying question',
-  `- Remain in ${agentMode.toUpperCase()} MODE throughout execution`,
-  '- Reference only files that exist in sandbox_root; verify before mentioning',
-  '- Keep responses minimal: code changes + final JSON block only',
-  '- Do NOT explain what you\'re about to do; just do it',
-  ''
-];
 
 /**
  * Validate and filter file paths to only include files that exist in sandbox
@@ -174,15 +163,21 @@ export function buildMinimalState(task: Task, state: SupervisorState, sandboxCwd
   return context;
 }
 
-type TaskType = 'implementation' | 'configuration' | 'testing' | 'documentation' | 'refactoring' | 'behavioral';
-
 /**
- * Detect task type based on intent and instructions
+ * Detect task type based on intent and instructions, or return explicit type if set
  */
-function detectTaskType(task: Task): TaskType {
+export function detectTaskType(task: Task): TaskType {
+  // If task has an explicit type (and it's not the default 'coding' if no specific intent matches), favor it.
+  if (task.task_type && task.task_type !== 'coding') {
+    return task.task_type;
+  }
+
   const lowerInstructions = task.instructions.toLowerCase();
   const lowerIntent = task.intent.toLowerCase();
   
+  // Explicit type overrides heuristics
+  if (task.task_type) return task.task_type;
+
   if (lowerInstructions.includes('test') || lowerIntent.includes('test')) {
     return 'testing';
   }
@@ -202,56 +197,205 @@ function detectTaskType(task: Task): TaskType {
     return 'behavioral';
   }
 
-  return 'implementation';
+  // Verification detection
+  if (lowerInstructions.match(/\b(verify|check|audit|analyze|confirm)\b/) || 
+      lowerIntent.match(/\b(verify|check|audit|analyze|confirm)\b/)) {
+    return 'verification';
+  }
+
+  return 'coding'; // Default fallback
 }
 
-/**
- * Add task-type-specific guidelines to the prompt
- */
-function addTaskTypeGuidelines(sections: string[], taskType: TaskType): void {
-  // Shared constraints for code-modifying tasks
-  const sharedConstraints = [
+// --- Strategy Pattern for Prompt Construction ---
+
+interface TaskStrategy {
+  getRules(agentMode: string): string[];
+  getGuidelines(): string[];
+  getOutputRequirements(): string[];
+}
+
+const CODING_STRATEGY: TaskStrategy = {
+  getRules: (agentMode: string) => [
+    '## Rules',
+    '- Check READ-ONLY CONTEXT (project structure, previous tasks) first',
+    '- Use ONLY information from Task Description, Acceptance Criteria, and READ-ONLY CONTEXT',
+    '- Do NOT paraphrase, infer, or speculate beyond what is explicitly stated',
+    `- Remain in ${agentMode.toUpperCase()} MODE throughout execution`,
+    '- Reference only files that exist in sandbox_root; verify before mentioning',
+    '- Keep responses minimal: code changes + final JSON block only',
+    '- Do NOT explain what you\'re about to do; just do it',
+    '- STOP and ask ONE clarifying question if the task is ambiguous',
+    ''
+  ],
+  getGuidelines: () => [
+    '## Guidelines',
     '- Ensure all exports/imports are typed',
-    '- No conversational filler; code changes + JSON only'
-  ];
+    '- No conversational filler; code changes + JSON only',
+    '- Follow established project patterns',
+    '- Cover edge cases',
+    ''
+  ],
+  getOutputRequirements: () => [
+    `## Output Requirements
+Your response MUST end with ONLY this JSON block. Do NOT include prose before or after.
 
-  sections.push('## Guidelines');
-  
-  switch (taskType) {
-    case 'implementation':
-      sections.push('- Follow established project patterns');
-      break;
-    case 'configuration':
-      sections.push('- Verify file locations; use fallback values');
-      break;
-    case 'testing':
-      sections.push('- Descriptive assertions for edge cases');
-      break;
-    case 'documentation':
-      sections.push('- Clear formatting; validate all links');
-      break;
-    case 'refactoring':
-      sections.push('- Improve structure without changing behavior');
-      break;
-    case 'behavioral':
-      sections.push('- Clear declarative response addressing all points');
-      break;
-  }
+If you made no file changes, use empty arrays: "files_created": [], "files_updated": [], "changes": []
+If you are unsure or cannot complete, set "status": "failed" and explain briefly in summary.
 
-  // Add shared constraints only for code-modifying task types
-  if (['implementation', 'refactoring', 'testing'].includes(taskType)) {
-    sharedConstraints.forEach(constraint => sections.push(constraint));
-  }
-
-  sections.push('');
+${MD_JSON_START}
+{
+  "status": "completed" | "failed",
+  "files_created": ["relative/path/from/sandbox_root"],
+  "files_updated": ["relative/path/from/sandbox_root"],
+  "changes": ["relative/path/from/sandbox_root"],
+  "neededChanges": true | false,
+  "reasoning": "Briefly explain your technical approach or why it failed",
+  "summary": "One sentence describing what was done or why it failed"
 }
+${MD_CODE_END}
 
+Do not add any other fields. Use the exact keys provided. All file paths must be relative to sandbox_root.
+`
+  ]
+};
+
+const BEHAVIORAL_STRATEGY: TaskStrategy = {
+  getRules: (agentMode: string) => [
+    '## Rules',
+    '- Answer the user\'s question directly and clearly',
+    '- Use information from the READ-ONLY CONTEXT to inform your answer',
+    `- Remain in ${agentMode.toUpperCase()} MODE`,
+    '- Do NOT invent file paths or code if not asked',
+    '- Provide a clear "reasoning" for your answer',
+    ''
+  ],
+  getGuidelines: () => [
+    '## Guidelines',
+    '- Clear declarative response addressing all points',
+    '- Be helpful but concise',
+    '- If the request is a greeting, respond naturally',
+    ''
+  ],
+  getOutputRequirements: () => [
+    `## Output Requirements
+Your response MUST end with ONLY this JSON block. Do NOT include prose before or after.
+
+${MD_JSON_START}
+{
+  "status": "completed" | "failed",
+  "response": "Your actual text response to the user here",
+  "confidence": 0.0-1.0,
+  "reasoning": "Explain why you gave this answer"
+}
+${MD_CODE_END}
+
+Do not add any other fields. Use the exact keys provided.
+`
+  ]
+};
+
+const VERIFICATION_STRATEGY: TaskStrategy = {
+  getRules: (agentMode: string) => [
+    '## Rules',
+    '- Read actual files using `cat` or `grep` to verify criteria',
+    '- Do NOT modify any files (Read-Only)',
+    '- Report specific findings with file paths',
+    '- Mark findings as "pass" or "fail"',
+    `- Remain in ${agentMode.toUpperCase()} MODE`,
+    ''
+  ],
+  getGuidelines: () => [
+    '## Guidelines',
+    '- Be rigorous in your verification',
+    '- Provide evidence (file paths, line numbers) for every finding',
+    '- If a criterion is ambiguous, explain why',
+    ''
+  ],
+  getOutputRequirements: () => [
+    `## Output Requirements
+Your response MUST end with ONLY this JSON block. Do NOT include prose before or after.
+
+${MD_JSON_START}
+{
+  "status": "completed" | "failed",
+  "findings": ["Finding 1: ...", "Finding 2: ..."],
+  "verdict": "pass" | "fail",
+  "reasoning": "Evidence-based conclusion"
+}
+${MD_CODE_END}
+
+Do not add any other fields. Use the exact keys provided.
+`
+  ]
+};
+
+const TESTING_STRATEGY: TaskStrategy = {
+  ...CODING_STRATEGY,
+  getGuidelines: () => [
+    ...CODING_STRATEGY.getGuidelines(),
+    '- Descriptive assertions for edge cases',
+    '- Verify specific failure conditions',
+    '- Ensure test isolation',
+    ''
+  ]
+};
+
+const CONFIGURATION_STRATEGY: TaskStrategy = {
+  ...CODING_STRATEGY,
+  getGuidelines: () => [
+    ...CODING_STRATEGY.getGuidelines(),
+    '- Verify file locations; use fallback values',
+    '- Use environment variables for secrets',
+    '- Validate configuration schema',
+    ''
+  ]
+};
+
+const DOCUMENTATION_STRATEGY: TaskStrategy = {
+  ...CODING_STRATEGY,
+  getGuidelines: () => [
+    ...CODING_STRATEGY.getGuidelines(),
+    '- Clear formatting; validate all links',
+    '- Include code examples where appropriate',
+    '- Keep documentation up-to-date with code',
+    ''
+  ]
+};
+
+const REFACTORING_STRATEGY: TaskStrategy = {
+  ...CODING_STRATEGY,
+  getGuidelines: () => [
+    ...CODING_STRATEGY.getGuidelines(),
+    '- Improve structure without changing behavior',
+    '- Ensure existing tests pass',
+    '- Keep changes atomic and focused',
+    ''
+  ]
+};
+
+function getStrategy(taskType: TaskType): TaskStrategy {
+  switch (taskType) {
+    case 'behavioral':
+      return BEHAVIORAL_STRATEGY;
+    case 'verification':
+      return VERIFICATION_STRATEGY;
+    case 'testing':
+      return TESTING_STRATEGY;
+    case 'configuration':
+      return CONFIGURATION_STRATEGY;
+    case 'documentation':
+      return DOCUMENTATION_STRATEGY;
+    case 'refactoring':
+      return REFACTORING_STRATEGY;
+    case 'coding':
+    case 'implementation':
+    default:
+      return CODING_STRATEGY;
+  }
+}
 
 /**
  * Deterministic prompt construction
- * Follows PROMPT.md and TOOL_CONTRACTS.md exactly
- * Preserves ordering and wording
- * Injects fields verbatim
  */
 export function buildPrompt(task: Task, minimalState: MinimalState): string {
   const startTime = Date.now();
@@ -263,62 +407,45 @@ export function buildPrompt(task: Task, minimalState: MinimalState): string {
   });
   
   const sections: string[] = [];
+  const taskType = detectTaskType(task);
+  const strategy = getStrategy(taskType);
+  const agentMode = task.agent_mode || 'auto';
 
-  // Section 1: Task ID (verbatim)
+  // Section 1: Task ID
   sections.push('## Task ID');
   sections.push(task.task_id);
   sections.push('');
 
-  // Section 2: Task description (verbatim from operator)
+  // Section 2: Task description
   sections.push('## Task Description');
   sections.push(task.instructions);
   sections.push('');
 
-  // Section 3: Intent (verbatim)
+  // Section 3: Intent
   sections.push('## Intent');
   sections.push(task.intent);
   sections.push('');
 
-  // Section 4: Acceptance criteria (verbatim)
+  // Section 4: Acceptance criteria
   sections.push('## Acceptance Criteria');
   for (const criterion of task.acceptance_criteria) {
     sections.push(`- ${criterion}`);
   }
   sections.push('');
 
-  // NEW: Consolidated Rules
-  const agentMode = task.agent_mode || 'auto';
-  sections.push(...RULES_BLOCK(agentMode));
+  // Strategy-based Rules
+  sections.push(...strategy.getRules(agentMode));
 
-  // Task Type Guidelines
-  const taskType = detectTaskType(task);
-  addTaskTypeGuidelines(sections, taskType);
+  // Strategy-based Guidelines
+  sections.push(...strategy.getGuidelines());
 
-  // Section 5: Injected state snapshot (explicit section)
+  // Section 5: Context
   sections.push('## READ-ONLY CONTEXT — DO NOT MODIFY');
   sections.push(JSON.stringify(minimalState, null, 2));
   sections.push('');
 
-  // Section 8: Explicit output format requirement
-  sections.push('## Output Requirements');
-  sections.push('Your response MUST end with ONLY this JSON block. Do NOT include prose before or after.');
-  sections.push('');
-  sections.push('If you made no file changes, use empty arrays: `"files_created": [], "files_updated": [], "changes": []`');
-  sections.push('If you are unsure or cannot complete, set `"status": "failed"` and explain briefly in summary.');
-  sections.push('');
-  sections.push('```json');
-  sections.push('{');
-  sections.push('  "status": "completed" | "failed",');
-  sections.push('  "files_created": ["relative/path/from/sandbox_root"],');
-  sections.push('  "files_updated": ["relative/path/from/sandbox_root"],');
-  sections.push('  "changes": ["relative/path/from/sandbox_root"],');
-  sections.push('  "neededChanges": true | false,');
-  sections.push('  "summary": "One sentence describing what was done or why it failed"');
-  sections.push('}');
-  sections.push('```');
-  sections.push('');
-  sections.push('Do not add any other fields. Use the exact keys provided. All file paths must be relative to sandbox_root.');
-  sections.push('');
+  // Section 8: Output Requirements
+  sections.push(...strategy.getOutputRequirements());
 
   // Section 9: Working directory
   sections.push(`- Working directory: ${minimalState.project.sandbox_root}`);
@@ -330,11 +457,13 @@ export function buildPrompt(task: Task, minimalState: MinimalState): string {
     task_id: task.task_id,
     prompt_length: prompt.length,
     sections_count: sections.length,
+    task_type: taskType
   });
   logVerbose('BuildPrompt', 'Prompt built successfully', {
     task_id: task.task_id,
     prompt_length: prompt.length,
     sections_count: sections.length,
+    task_type: taskType,
     prompt_preview: prompt.substring(0, 200) + (prompt.length > 200 ? '...' : ''),
   });
   return prompt;
@@ -342,7 +471,6 @@ export function buildPrompt(task: Task, minimalState: MinimalState): string {
 
 /**
  * Build a fix prompt with validation feedback
- * Used when validation fails to guide the agent to fix issues
  */
 export function buildFixPrompt(
   task: Task,
@@ -358,6 +486,9 @@ export function buildFixPrompt(
   });
   
   const sections: string[] = [];
+  const taskType = detectTaskType(task);
+  const strategy = getStrategy(taskType);
+  const agentMode = task.agent_mode || 'auto';
 
   // Section 1: Task ID
   sections.push('## Task ID');
@@ -383,9 +514,9 @@ export function buildFixPrompt(
   }
   sections.push('');
 
-  // Extract potential file paths from error messages to provide context
+  // Extract potential file paths from error messages
   const filePathsInErrors = new Set<string>();
-  const pathRegex = /[\w\-./\\]+\.[a-zA-Z0-9]+/; 
+  const pathRegex = /[\w\-.\/\\]+\.[a-zA-Z0-9]+/; 
   
   validationReport.rules_failed.forEach(rule => {
       const match = rule.match(pathRegex);
@@ -395,7 +526,6 @@ export function buildFixPrompt(
   if (filePathsInErrors.size > 0) {
       sections.push('### Contextual File Content');
       filePathsInErrors.forEach(filePath => {
-           // Basic validation to prevent path traversal reading
            if (path.isAbsolute(filePath) || filePath.includes('..')) return;
            
            const fullPath = path.join(minimalState.project.sandbox_root, filePath);
@@ -418,9 +548,8 @@ export function buildFixPrompt(
       });
   }
 
-  // Consolidated Rules
-  const agentMode = task.agent_mode || 'auto';
-  sections.push(...RULES_BLOCK(agentMode));
+  // Strategy-based Rules
+  sections.push(...strategy.getRules(agentMode));
   
   // Specific Fix Guidelines
   sections.push('## Fix Instructions');
@@ -428,14 +557,16 @@ export function buildFixPrompt(
   sections.push('- Ensure ALL acceptance criteria are met');
   sections.push('');
 
-  // NEW: Task Type Guidelines
-  const taskType = detectTaskType(task);
-  addTaskTypeGuidelines(sections, taskType);
+  // Strategy Guidelines
+  sections.push(...strategy.getGuidelines());
 
   // Section 6: Context
   sections.push('## READ-ONLY CONTEXT — DO NOT MODIFY');
   sections.push(JSON.stringify(minimalState, null, 2));
   sections.push('');
+  
+  // Output Requirements reminder
+  sections.push(...strategy.getOutputRequirements());
 
   const prompt = sections.join('\n');
   const duration = Date.now() - startTime;
@@ -447,8 +578,7 @@ export function buildFixPrompt(
 }
 
 /**
- * Build a clarification prompt for ambiguity or questions
- * Used when AMBIGUITY or ASKED_QUESTION detected but validation might still pass
+ * Build a clarification prompt
  */
 export function buildClarificationPrompt(
   task: Task,
@@ -462,6 +592,9 @@ export function buildClarificationPrompt(
   });
   
   const sections: string[] = [];
+  const taskType = detectTaskType(task);
+  const strategy = getStrategy(taskType);
+  const agentMode = task.agent_mode || 'auto';
 
   // Section 1: Task ID
   sections.push('## Task ID');
@@ -479,9 +612,8 @@ export function buildClarificationPrompt(
   }
   sections.push('');
 
-  // Consolidated Rules
-  const agentMode = task.agent_mode || 'auto';
-  sections.push(...RULES_BLOCK(agentMode));
+  // Strategy-based Rules
+  sections.push(...strategy.getRules(agentMode));
 
   // Specific Clarification Guidelines
   sections.push('## Clarification Instructions');
@@ -489,14 +621,16 @@ export function buildClarificationPrompt(
   sections.push('- Use exact words: "will", "does", "creates", not "could", "might", "suggests"');
   sections.push('');
 
-  // NEW: Task Type Guidelines
-  const taskType = detectTaskType(task);
-  addTaskTypeGuidelines(sections, taskType);
+  // Strategy Guidelines
+  sections.push(...strategy.getGuidelines());
 
   // Section 5: Context
   sections.push('## READ-ONLY CONTEXT — DO NOT MODIFY');
   sections.push(JSON.stringify(minimalState, null, 2));
   sections.push('');
+  
+  // Output Requirements reminder
+  sections.push(...strategy.getOutputRequirements());
 
   const prompt = sections.join('\n');
   const duration = Date.now() - startTime;
@@ -563,12 +697,12 @@ export function buildGoalCompletionPrompt(state: SupervisorState, sandboxRoot: s
   sections.push('');
   sections.push('## Output Format');
   sections.push('Respond with JSON in this exact format:');
-  sections.push('```json');
+  sections.push(MD_JSON_START);
   sections.push('{');
   sections.push('  "goal_completed": true or false,');
   sections.push('  "reasoning": "Brief explanation of your assessment"');
   sections.push('}');
-  sections.push('```');
+  sections.push(MD_CODE_END);
   sections.push('');
   sections.push('Be honest and thorough in your assessment.');
   

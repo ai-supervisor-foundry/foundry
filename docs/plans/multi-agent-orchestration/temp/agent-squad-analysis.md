@@ -151,6 +151,243 @@ Reference: AWS Labs [Agent-Squad](https://awslabs.github.io/agent-squad/) (open-
 
 ---
 
+## Orchestrator Configuration & API (Agent-Squad Details)
+
+### Configuration Interface: `AgentSquadConfig`
+
+Agent-Squad exposes a rich configuration interface for fine-grained control. Here's the complete set:
+
+| Config Property | Type | Default | Purpose |
+|---|---|---|---|
+| `LOG_AGENT_CHAT` | boolean | false | Log conversation with agents |
+| `LOG_CLASSIFIER_CHAT` | boolean | false | Log conversation with intent classifier |
+| `LOG_CLASSIFIER_RAW_OUTPUT` | boolean | false | Log raw (unprocessed) classifier output |
+| `LOG_CLASSIFIER_OUTPUT` | boolean | false | Log processed/structured classifier output |
+| `LOG_EXECUTION_TIMES` | boolean | false | Log timing for each operation |
+| `MAX_RETRIES` | number | 3 | Retry attempts if classifier returns invalid XML |
+| `MAX_MESSAGE_PAIRS_PER_AGENT` | number | 100 | Max conversation history size (pairs = 2 messages) |
+| `USE_DEFAULT_AGENT_IF_NONE_IDENTIFIED` | boolean | true | Fallback to default agent if no agent selected |
+| `NO_SELECTED_AGENT_MESSAGE` | string | "I'm sorry, I couldn't determine how to handle your request. Could you please rephrase it?" | Error message when no agent identified (if fallback disabled) |
+| `CLASSIFICATION_ERROR_MESSAGE` | string | undefined | Error message if classifier encounters internal error |
+| `GENERAL_ROUTING_ERROR_MSG_MESSAGE` | string | undefined | Generic error message for unexpected failures |
+
+### Initialization Example
+
+#### TypeScript
+```typescript
+import { AgentSquad, BedrockLLMAgent, LexBotAgent } from "agent-squad";
+
+const orchestrator = new AgentSquad({
+  config: {
+    LOG_AGENT_CHAT: true,
+    LOG_CLASSIFIER_CHAT: true,
+    LOG_EXECUTION_TIMES: true,
+    MAX_RETRIES: 3,
+    USE_DEFAULT_AGENT_IF_NONE_IDENTIFIED: true,
+    MAX_MESSAGE_PAIRS_PER_AGENT: 10,
+  },
+  storage: undefined, // defaults to InMemoryChatStorage; can provide DynamoDBChatStorage
+  classifier: undefined, // defaults to BedrockClassifier; can provide custom
+  logger: console,
+});
+
+// Add agents to the orchestrator
+const travelAgent = new BedrockLLMAgent({
+  name: "Travel Agent",
+  description: "Handles travel bookings and itinerary planning.",
+  streaming: false,
+});
+
+orchestrator.addAgent(travelAgent);
+orchestrator.setDefaultAgent(travelAgent); // Fallback agent
+```
+
+#### Python
+```python
+from agent_squad.orchestrator import AgentSquad, AgentSquadConfig
+from agent_squad.agents import BedrockLLMAgent, BedrockLLMAgentOptions
+from agent_squad.storage import InMemoryChatStorage
+from agent_squad.utils.logger import Logger
+
+orchestrator = AgentSquad(
+    options=AgentSquadConfig(
+        LOG_AGENT_CHAT=True,
+        LOG_CLASSIFIER_CHAT=True,
+        LOG_EXECUTION_TIMES=True,
+        MAX_RETRIES=3,
+        USE_DEFAULT_AGENT_IF_NONE_IDENTIFIED=True,
+        MAX_MESSAGE_PAIRS_PER_AGENT=10,
+    ),
+    storage=InMemoryChatStorage(),
+    classifier=None,  # Defaults to BedrockClassifier
+    logger=Logger(),
+)
+
+# Add agents
+travel_agent = BedrockLLMAgent(
+    BedrockLLMAgentOptions(
+        name="Travel Agent",
+        description="Handles travel bookings and itinerary planning.",
+        streaming=False,
+    )
+)
+orchestrator.add_agent(travel_agent)
+orchestrator.set_default_agent(travel_agent)
+```
+
+### Core API Functions
+
+#### 1. `addAgent(agent)` / `add_agent(agent)`
+- **Purpose**: Register a new agent with the orchestrator.
+- **Why**: Expands the orchestrator's capability to handle new domains or tasks.
+- **Example Use Case**: Adding a weather agent after initializing with a travel agent.
+- **Parameters**:
+  - `agent: Agent` — The agent to register.
+- **Error Handling**: Throws error if agent ID already exists.
+
+#### 2. `getDefaultAgent()` / `get_default_agent()`
+- **Purpose**: Retrieve the currently configured default agent.
+- **Why**: Verify which agent is used as fallback when classifier fails.
+- **Parameters**: None.
+- **Returns**: `Agent` or `None` if not set.
+
+#### 3. `setDefaultAgent(agent)` / `set_default_agent(agent)`
+- **Purpose**: Set the fallback agent for unclassified requests.
+- **Why**: Ensure users always get a response (when `USE_DEFAULT_AGENT_IF_NONE_IDENTIFIED` is `true`).
+- **Parameters**:
+  - `agent: Agent` — The agent to use as default.
+
+#### 4. `getAllAgents()` / `get_all_agents()`
+- **Purpose**: List all registered agents with metadata.
+- **Why**: Debug, display agent list to users, or validate agent inventory.
+- **Returns**: 
+  - **TypeScript**: `{ [key: string]: { name: string; description: string } }`
+  - **Python**: `Dict[str, Dict[str, str]]`
+- **Example**:
+  ```typescript
+  const agents = orchestrator.getAllAgents();
+  Object.entries(agents).forEach(([id, info]) => {
+    console.log(`${id}: ${info.name} - ${info.description}`);
+  });
+  ```
+
+#### 5. `routeRequest(userInput, userId, sessionId, additionalParams?, stream?)` / `route_request(...)`
+- **Purpose**: Main function for processing user requests end-to-end.
+- **Flow**:
+  1. **Classify**: Analyze intent based on user input + agent descriptions + conversation history.
+  2. **Route**: Select best-fitting agent.
+  3. **Process**: Execute agent's `processRequest()`.
+  4. **Store**: Save conversation to storage.
+  5. **Return**: Response (streaming or full).
+- **Why**: Encapsulates entire orchestration pipeline; single entry point.
+- **Parameters**:
+  - `userInput: string` — The user's message.
+  - `userId: string` — Unique user identifier.
+  - `sessionId: string` — Unique session identifier (isolates conversation context).
+  - `additionalParams?: Record<string, any>` — Extra metadata (e.g., `{ priority: "high", location: "NYC" }`).
+  - `stream?: boolean` — Whether to stream agent response or wait for full response.
+- **Returns**:
+  - **TypeScript**: `Promise<AgentResponse>` with `{ metadata, output, streaming, thinking? }`.
+  - **Python**: `AgentResponse` with metadata, output (ConversationMessage or AsyncIterable), and streaming flag.
+- **Example**:
+  ```typescript
+  const response = await orchestrator.routeRequest(
+    "Book me a flight to Paris next week",
+    "user123",
+    "session456",
+    { priority: "high" }
+  );
+  
+  if (response.streaming) {
+    for await (const chunk of response.output) {
+      process.stdout.write(chunk);
+    }
+  } else {
+    console.log(response.output);
+  }
+  ```
+
+### Request Processing Pipeline (High-Level)
+
+When `routeRequest()` is called, the orchestrator executes the following phases:
+
+#### Phase 1: Classification
+- **Input**: `userInput`, conversation history (from storage).
+- **Classifier Role**: Analyzes intent; compares against all registered agents' descriptions.
+- **Output**: `ClassifierResult` with `selectedAgent` (or `null` if no match).
+- **Retry Logic**: If classifier returns invalid XML, retry up to `MAX_RETRIES` times.
+
+#### Phase 2: Routing/Execution
+- **Check Agent Selection**:
+  - If agent selected, proceed to Phase 3.
+  - If no agent and `USE_DEFAULT_AGENT_IF_NONE_IDENTIFIED` is `true`, use default agent.
+  - If no agent and `USE_DEFAULT_AGENT_IF_NONE_IDENTIFIED` is `false`, return `NO_SELECTED_AGENT_MESSAGE`.
+- **Fetch Chat History**: Retrieve agent-specific conversation history (up to `MAX_MESSAGE_PAIRS_PER_AGENT * 2` messages).
+- **Execute Agent**: Call `selectedAgent.processRequest(userInput, userId, sessionId, chatHistory, additionalParams)`.
+
+#### Phase 3: Response Generation
+- **Agent Output**: Receive ConversationMessage or AsyncIterable (streaming).
+- **Streaming vs. Non-Streaming**:
+  - If streaming enabled: Return AsyncIterable; accumulate in background for storage.
+  - If non-streaming: Wait for full response; store immediately.
+
+#### Phase 4: Storage
+- **Save User Input**: Store user message in agent-specific history.
+- **Save Agent Response**: Store agent message in agent-specific history.
+- **Scoping**: All messages isolated by `userId` + `sessionId` + `agentId`.
+- **Truncation**: If history exceeds `MAX_MESSAGE_PAIRS_PER_AGENT * 2`, trim oldest messages.
+
+#### Phase 5: Error Handling
+- **Classification Error**: Log and return `CLASSIFICATION_ERROR_MESSAGE`.
+- **Agent Processing Error**: Log and return `GENERAL_ROUTING_ERROR_MSG_MESSAGE`.
+- **Storage Error**: Log but attempt to return response anyway.
+
+### Storage Architecture
+
+Agent-Squad supports pluggable storage backends:
+
+- **InMemoryChatStorage** (default): Conversation history in memory; lost on restart.
+- **DynamoDBChatStorage**: Persistent storage in AWS DynamoDB; per-user/session scoped.
+- **Custom Storage**: Implement `ChatStorage` interface for custom backends (e.g., DragonflyDB, PostgreSQL).
+
+**Dual-Level Context**:
+1. **Classifier Context**: Global state snapshots used by intent classifier to make routing decisions.
+2. **Agent Context**: Per-agent conversation history; agents see only their own messages (isolated per `userId`, `sessionId`, `agentId`).
+
+### Response Metadata
+
+Every response includes `RequestMetadata`:
+
+```typescript
+// TypeScript
+interface RequestMetadata {
+  userInput: string;
+  userId: string;
+  sessionId: string;
+  agentId: string;
+  agentName: string;
+  additionalParams: Record<string, string>;
+  errorType?: "classification_failed" | "agent_error" | "storage_error" | etc;
+}
+```
+
+```python
+# Python
+@dataclass
+class AgentProcessingResult:
+    user_input: str
+    user_id: str
+    session_id: str
+    agent_id: str
+    agent_name: str
+    additional_params: Dict[str, str]
+    error_type: Optional[str] = None
+```
+
+This metadata enables full audit trails: who, what, when, which agent handled it, and any errors.
+
+---
+
 ## What We Pick (MVP Best-Fit Concepts)
 
 1. **Orchestrator Abstraction**: Cleaner separation of orchestration logic; validates our design.

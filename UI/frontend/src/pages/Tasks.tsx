@@ -833,6 +833,7 @@ export default function Tasks() {
                         <option value="cursor">Cursor</option>
                         <option value="claude">Claude</option>
                         <option value="codex">Codex</option>
+                        <option value="ollama">Ollama (Local)</option>
                         <option value="gemini_stub">Gemini Stub</option>
                       </select>
                     </div>

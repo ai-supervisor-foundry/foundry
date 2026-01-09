@@ -3,7 +3,42 @@
 import { Provider } from "../agents/enums/provider";
 
 export type SupervisorStatus = 'RUNNING' | 'BLOCKED' | 'HALTED' | 'COMPLETED';
-export type TaskType = 'coding' | 'behavioral' | 'configuration' | 'testing' | 'documentation' | 'implementation' | 'refactoring';
+export type TaskType = 
+  | 'coding'           // Standard file modification
+  | 'behavioral'       // Conversational / Greeting (Response-centric)
+  | 'verification'     // Code analysis / auditing (Findings-centric)
+  | 'research'         // External info / library selection (Knowledge-centric)
+  | 'testing'          // Running tests (Results-centric)
+  | 'orchestration'    // Delegating to other agents
+  // Legacy types mapped to 'coding' logic
+  | 'configuration' 
+  | 'documentation' 
+  | 'implementation' 
+  | 'refactoring';
+
+export interface BehavioralOutput {
+  status: 'completed' | 'failed';
+  response: string;
+  confidence: number;
+  reasoning: string;
+}
+
+export interface VerificationOutput {
+  status: 'completed' | 'failed';
+  findings: string[];
+  verdict: 'pass' | 'fail';
+  reasoning: string;
+}
+
+export interface CodingOutput {
+  status: 'completed' | 'failed';
+  files_created: string[];
+  files_updated: string[];
+  changes: string[];
+  neededChanges: boolean;
+  reasoning: string;
+  summary: string;
+}
 
 export interface SupervisorState {
   supervisor: {

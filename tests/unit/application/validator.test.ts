@@ -106,9 +106,10 @@ describe('Validator', () => {
 
       const result = createMockProviderResult({
         stdout: JSON.stringify({
-          analysis: 'Detailed analysis here',
-          findings: ['Finding 1', 'Finding 2'],
-          status: 'complete',
+          response: 'Detailed analysis here: Finding 1, Finding 2',
+          status: 'completed',
+          confidence: 0.9,
+          reasoning: 'Analysis complete'
         }),
         exitCode: 0,
       });
@@ -171,7 +172,7 @@ describe('Validator', () => {
       });
 
       const result = createMockProviderResult({
-        stdout: JSON.stringify({ status: 'partial' }),
+        stdout: JSON.stringify({ status: 'completed', summary: 'Work done' }),
         exitCode: 0,
       });
 

@@ -80,8 +80,8 @@ export const apiClient = {
   getProjects: () => api.get('/api/logs/projects'),
   getAuditLogs: (projectId: string, limit?: number) =>
     api.get('/api/logs/audit', { params: { projectId, limit } }),
-  getPromptLogs: (projectId: string, limit?: number, type?: string) =>
-    api.get('/api/logs/prompts', { params: { projectId, limit, type } }),
+  getPromptLogs: (projectId: string, limit?: number, type?: string, provider?: string, offset?: number) =>
+    api.get('/api/logs/prompts', { params: { projectId, limit, type, provider, offset } }),
   getAuditLogsByTask: (taskId: string, projectId: string) =>
     api.get(`/api/logs/audit/${taskId}`, { params: { projectId } }),
   getPromptLogsByTask: (taskId: string, projectId: string) =>
@@ -99,6 +99,11 @@ export const apiClient = {
   getConfig: () => api.get('/api/config'),
   updateConfig: (config: Record<string, any>) => api.post('/api/config', config),
   
+  // Ollama endpoints
+  getOllamaVersion: () => api.get('/api/ollama/version'),
+  getOllamaModels: () => api.get('/api/ollama/tags'),
+  stopOllama: () => api.post('/api/ollama/stop'),
+
   // Supervisor control
   haltSupervisor: (reason: string = 'User requested halt via UI') => 
     apiClient.executeSupervisorCommand('halt', { reason }),

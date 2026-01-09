@@ -10,6 +10,7 @@ import { dispatchToCodex } from '../../../connectors/agents/providers/codexCLI';
 import { dispatchToGemini } from '../../../connectors/agents/providers/geminiCLI';
 import { dispatchToGeminiStub } from '../../../connectors/agents/providers/geminiStubCLI';
 import { dispatchToCopilot } from '../../../connectors/agents/providers/copilotCLI';
+import { dispatchToOllama } from '../../../connectors/agents/providers/ollamaProvider';
 import Redis from 'ioredis';
 import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared, log as logShared } from '../../logging/logger';
 import { DEFAULT_PRIORITY } from '../../../../config/agents/providers/common';
@@ -186,6 +187,8 @@ export class CLIAdapter {
         return await dispatchToCopilot(prompt, cwd, agentMode, sessionId, featureId);
       case Provider.GEMINI_STUB:
         return await dispatchToGeminiStub(prompt, cwd, agentMode, sessionId, featureId);
+      case Provider.OLLAMA:
+        return await dispatchToOllama(prompt, cwd, agentMode, sessionId, featureId);
       default:
         throw new Error(`Unknown provider: ${provider}`);
     }
@@ -199,17 +202,51 @@ export class CLIAdapter {
     workingDirectory: string,
     agentMode?: string,
     sessionId?: string,
-    featureId?: string
+    featureId?: string,
+    providerOverride?: Provider
   ): Promise<ProviderResult> {
     const startTime = Date.now();
-    log(`Executing CLI adapter for prompt (${prompt.length} chars) in directory: ${workingDirectory}${sessionId ? ` (Session: ${sessionId})` : ''}`);
+    log(`Executing CLI adapter for prompt (${prompt.length} chars) in directory: ${workingDirectory}${sessionId ? ` (Session: ${sessionId})` : ''}${providerOverride ? ` (Override: ${providerOverride})` : ''}`);
     logVerbose('Execute', 'CLI adapter execution started', {
       prompt_length: prompt.length,
       working_directory: workingDirectory,
       agent_mode: agentMode,
       session_id: sessionId,
       feature_id: featureId,
+      provider_override: providerOverride,
     });
+
+    // Handle provider override (e.g., Local Helper Agent)
+    if (providerOverride) {
+      try {
+        const result = await this.executeProvider(providerOverride, prompt, workingDirectory, agentMode, sessionId, featureId);
+        const duration = Date.now() - startTime;
+        logPerformance('CLIAdapterExecution', duration, {
+          provider: providerOverride,
+          success: true,
+          exit_code: result.exitCode,
+          override: true
+        });
+        return result;
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        logPerformance('CLIAdapterExecution', duration, {
+          provider: providerOverride,
+          success: false,
+          override: true,
+          error: String(error)
+        });
+        // Return failed result so caller can handle fallback
+        return {
+          stdout: '',
+          stderr: String(error),
+          exitCode: 1,
+          rawOutput: '',
+          status: 'FAILED',
+          output: String(error)
+        };
+      }
+    }
 
     // Select first available provider
     let selectedProvider = await this.selectProvider();

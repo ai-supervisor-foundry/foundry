@@ -4,6 +4,7 @@ import Tasks from './pages/Tasks';
 import Logs from './pages/Logs';
 import CommandExecutor from './pages/CommandExecutor';
 import StateInspector from './pages/StateInspector';
+import LocalProvider from './pages/LocalProvider';
 import Layout from './components/Layout';
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
           <Route path="/logs" element={<Logs />} />
           <Route path="/commands" element={<CommandExecutor />} />
           <Route path="/state" element={<StateInspector />} />
+          <Route path="/local" element={<LocalProvider />} />
         </Routes>
       </Layout>
     </BrowserRouter>
