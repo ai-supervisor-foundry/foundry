@@ -61,28 +61,6 @@ Agentic APIs are expensive. Foundry uses a **local-first strategy**:
 
 Result: Multi-day agentic chains with bounded token consumption compared to naive approaches.
 
-## How It Works
-
-Foundry operates as an agentic **control plane** that executes operator-defined tasks through a fixed control loop.  
-
-It maintains persistent state in DragonflyDB (Redis-compatible), manages a FIFO task queue, dispatches tasks to your chosen Agents/Providers (Gemini, Copilot, Cursor) with injected state context, and validates outputs deterministically.  
-(We have [parallelism](/docs/plans/task-dependencies-parallel-execution.md) being worked upon as our roadmap - open to contribution.)
-
-The system enforces sandbox isolation per project, provides append-only audit logging, and supports recovery from crashes or restarts by reloading persisted state.
-
-Foundry never invents goals, expands scope, or makes autonomous decisions—all authority remains with the operator who injects goals and tasks explicitly.
-
-### Execution Stages (Current)
-- **Local pre-processing** (Before Agent Call): System tools and scripts execute deterministic checks—regex safety validation, file/byte capacity enforcement, semver compatibility checks, code structure analysis. These run locally without API token cost and may resolve validation gaps, but non-deterministic tasks still require agent review. Flags: `HELPER_DETERMINISTIC_ENABLED`, `HELPER_DETERMINISTIC_PERCENT`.
-- **Provider dispatch**: Task sent to Agents/Providers (Gemini, Copilot, Cursor) with state/context injection and session reuse when available. Provider executes task and returns result.
-- **Helper agent fallback**: When deterministic checks or provider output leave validation gaps, helper agent generates verification commands to confirm correctness. Helper sessions are reused per project feature to retain context and reduce token consumption.
-- **Analytics & metrics**: JSONL metrics (helper durations avg/p95, cache-hit rate, deterministic attempts/success, token usage) persisted alongside audit logs for cost visibility.
-
-### Session Reuse
-- Session IDs resolved per feature (`task:prefix` or `project:<id>`) with caps and error thresholds.
-- Helper sessions isolated under `helper:validation:<projectId>` and persisted in `state.active_sessions`.
-- Toggle via `DISABLE_SESSION_REUSE` if rollback is required.
-
 ## Overview
 
 Foundry is a **control mechanism** that:
@@ -207,35 +185,36 @@ Foundry will **work with and build upon** this existing code. Tasks can referenc
 Before using Foundry, initialize the state key:
 
 ```bash
-npm run cli -- init-state \
-  --redis-host localhost \
-  --redis-port 6499 \
-  --state-key supervisor:state \
-  --queue-name tasks \
-  --queue-db 2 \
-  --execution-mode AUTO
+npm run cli -- init-state
 ```
 
-**Parameters**:
+This creates a state with a default placeholder goal. You can immediately proceed to `start`, or set a real goal first with `set-goal`.
+
+**Optional parameters**:
 - `--redis-host`: DragonflyDB host (default: `localhost`)
 - `--redis-port`: DragonflyDB port (default: `6499`)
-- `--state-key`: Fixed key name for state (operator-defined)
-- `--queue-name`: Task queue name
-- `--queue-db`: Database index for queue (must differ from state DB, default: `2`)
+- `--state-key`: Fixed key name for state (default: `supervisor:state`)
+- `--queue-name`: Task queue name (default: `tasks`)
+- `--queue-db`: Database index for queue (default: `2`)
 - `--state-db`: Database index for state (default: `0`)
 - `--execution-mode`: `AUTO` or `MANUAL` (default: `AUTO`)
+- `--goal`: Goal description (optional; defaults to placeholder "[Placeholder] Goal to be set"; can be updated via `set-goal`)
 
-### 2. Set Goal
+**Example with custom goal during init**:
+```bash
+npm run cli -- init-state --execution-mode AUTO --goal "Build a simple REST API"
+```
 
-Define the goal Foundry will work towards:
+### Do note, you can review the [README in ./UI directory](/UI/README.md) to start up supervisor dashboard as well to visually understand of what you are doing.
+
+![Supervisor Dashboard](/docs/assets/img/supervisor-ui-dashboard.png)
+
+### 2. Set or Update Goal
+
+Define or update the goal Foundry will work towards:
 
 ```bash
 npm run cli -- set-goal \
-  --redis-host localhost \
-  --redis-port 6499 \
-  --state-key supervisor:state \
-  --queue-name tasks \
-  --queue-db 2 \
   --description "A simplified, senior-friendly classifieds super app built with React and Tailwind CSS that aggregates property and vehicle listings into a single, accessible mobile-first experience. The platform combines a robust backend aggregation and scraping system that continuously collects, normalizes, and enriches listings from multiple external sources with a subscription-based daily curated feed that prioritizes relevance, freshness, and user preferences. Featuring phone-only authentication, clear navigation, large readable UI elements, and intelligent search, the system is designed to reduce noise and complexity for end users while delivering a reliable, scalable, and continuously updated marketplace, with the frontend located in ./sandbox/easeclassifieds and the backend and aggregation services in ./sandbox/easeclassifieds-api." \
   --project-id easeclassifieds
 ```
@@ -525,22 +504,11 @@ npm run cli -- start \
 # 1. Start infrastructure
 docker-compose up -d
 
-# 2. Initialize Foundry
-npm run cli -- init-state \
-  --redis-host localhost \
-  --redis-port 6499 \
-  --state-key supervisor:state \
-  --queue-name tasks \
-  --queue-db 2 \
-  --execution-mode AUTO
+# 2. Initialize Foundry (all defaults)
+npm run cli -- init-state
 
 # 3. Set goal
 npm run cli -- set-goal \
-  --redis-host localhost \
-  --redis-port 6499 \
-  --state-key supervisor:state \
-  --queue-name tasks \
-  --queue-db 2 \
   --description "Build microservice with 3 endpoints" \
   --project-id my-service
 
@@ -586,6 +554,62 @@ tail -f sandbox/my-service/audit.log.jsonl
 # Or view verbose application logs
 pm2 logs supervisor --follow
 ```
+
+## How It Works - Detailed
+
+Foundry operates as an agentic **control plane** that executes operator-defined tasks through a fixed control loop.  
+
+It maintains persistent state in DragonflyDB (Redis-compatible), manages a FIFO task queue, dispatches tasks to your chosen Agents/Providers (Gemini, Copilot, Cursor) with injected state context, and validates outputs deterministically.  
+(We have [parallelism](/docs/plans/task-dependencies-parallel-execution.md) being worked upon as our roadmap - open to contribution.)
+
+The system enforces sandbox isolation per project, provides append-only audit logging, and supports recovery from crashes or restarts by reloading persisted state.
+
+Foundry never invents goals, expands scope, or makes autonomous decisions—all authority remains with the operator who injects goals and tasks explicitly.
+
+### Execution Stages (Current)
+- **Local pre-processing** (Before Agent Call): System tools and scripts execute deterministic checks—regex safety validation, file/byte capacity enforcement, semver compatibility checks, code structure analysis. These run locally without API token cost and may resolve validation gaps, but non-deterministic tasks still require agent review. Flags: `HELPER_DETERMINISTIC_ENABLED`, `HELPER_DETERMINISTIC_PERCENT`.
+- **Provider dispatch**: Task sent to Agents/Providers (Gemini, Copilot, Cursor) with state/context injection and session reuse when available. Provider executes task and returns result.
+- **Helper agent fallback**: When deterministic checks or provider output leave validation gaps, helper agent generates verification commands to confirm correctness. Helper sessions are reused per project feature to retain context and reduce token consumption.
+- **Analytics & metrics**: JSONL metrics (helper durations avg/p95, cache-hit rate, deterministic attempts/success, token usage) persisted alongside audit logs for cost visibility.
+
+### Session Reuse
+- Session IDs resolved per feature (`task:prefix` or `project:<id>`) with caps and error thresholds.
+- Helper sessions isolated under `helper:validation:<projectId>` and persisted in `state.active_sessions`.
+- Toggle via `DISABLE_SESSION_REUSE` if rollback is required.
+
+### High-Level Data Flow
+
+```mermaid
+sequenceDiagram
+  participant Operator
+  participant Foundry as Foundry Control Loop
+  participant Queue as Task Queue
+  participant Provider as Provider CLI (Gemini/Cursor/Copilot)
+  participant Sandbox as Sandbox Codebase
+  participant Validator
+  participant State as State Store / Audit Log
+
+  Operator->>Foundry: Set goal + enqueue tasks (with criteria)
+  Foundry->>Queue: Pull next task
+  Foundry->>Provider: Dispatch task with context
+  Provider->>Sandbox: Apply edits
+  Provider-->>Foundry: Result + diffs
+  Foundry->>Validator: Validate vs acceptance criteria
+  Validator-->>Foundry: Pass/Fail (+ questions)
+  Foundry->>State: Persist state logs and queue updates
+  Foundry->>Operator: Status updates (pass/fail/blocked)
+
+```
+<br>
+
+**Component stack (quick map)**
+- Control Loop: deterministic executor orchestrating tasks.
+- Task Queue: FIFO of operator-defined tasks.
+- Provider CLIs: worker tools for code changes (Gemini/Cursor/Copilot).
+- Sandbox: project workspace for applied edits.
+- Validator: checks against acceptance criteria; blocks on ambiguity.
+- State Store & Audit Log: persistent state, append-only logs, recovery.
+
 
 ## Architecture
 
@@ -645,7 +669,8 @@ All commands require these global options:
 ### Command-Specific Options
 
 **`init-state`**:
-- `--execution-mode <mode>` - `AUTO` or `MANUAL` (required)
+- `--execution-mode <mode>` - `AUTO` or `MANUAL` (default: `AUTO`)
+- `--goal <description>` - Goal description (optional; defaults to placeholder if not set)
 
 **`set-goal`**:
 - `--description <text>` - Goal description (required)

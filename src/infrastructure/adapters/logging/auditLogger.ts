@@ -5,6 +5,7 @@
 import { SupervisorState, Task, ValidationReport } from '../../../domain/types/types';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { AuditLogPort } from '../../../domain/ports/auditLog';
 
 function log(message: string, ...args: unknown[]): void {
   const timestamp = new Date().toISOString();
@@ -143,10 +144,26 @@ export interface LegacyAuditLogEntry {
   [key: string]: unknown;
 }
 
-export class AuditLogger {
+export class AuditLogger implements AuditLogPort {
   constructor(
     private logPath: string // Path to append-only log file
   ) {}
+
+  /**
+   * Implementation of AuditLogPort
+   */
+  async appendAuditLog(
+    stateBefore: SupervisorState,
+    stateAfter: SupervisorState,
+    task: Task,
+    validationReport: ValidationReport,
+    sandboxRoot: string,
+    projectId: string,
+    prompt?: string,
+    response?: string
+  ): Promise<void> {
+    return appendAuditLog(stateBefore, stateAfter, task, validationReport, sandboxRoot, projectId, prompt, response);
+  }
 
   async append(entry: LegacyAuditLogEntry): Promise<void> {
     log(`Appending legacy audit log entry: ${entry.event}`);

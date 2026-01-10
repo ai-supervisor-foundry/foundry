@@ -14,6 +14,7 @@ import { dispatchToOllama } from '../../../connectors/agents/providers/ollamaPro
 import Redis from 'ioredis';
 import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared, log as logShared } from '../../logging/logger';
 import { DEFAULT_PRIORITY } from '../../../../config/agents/providers/common';
+import { LLMProviderPort } from '../../../../domain/ports/llmProvider';
 
 function log(message: string, ...args: unknown[]): void {
   logShared('CLIAdapter', message, ...args);
@@ -27,7 +28,7 @@ function logPerformance(operation: string, duration: number, metadata?: Record<s
   logPerformanceShared(`[CLIAdapter] ${operation}`, duration, metadata);
 }
 
-export class CLIAdapter {
+export class CLIAdapter implements LLMProviderPort {
   private circuitBreaker: CircuitBreakerManager;
   private readonly priority: Provider[];
   private providerInUse: Provider | null = null;

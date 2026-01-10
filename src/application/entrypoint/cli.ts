@@ -53,7 +53,8 @@ async function initState(
   client: Redis,
   stateKey: string,
   executionMode: 'AUTO' | 'MANUAL',
-  sandboxRoot: string
+  sandboxRoot: string,
+  goalDescription?: string
 ): Promise<void> {
   const startTime = Date.now();
   logVerbose('InitState', 'Initializing supervisor state', {
@@ -84,7 +85,7 @@ async function initState(
       iteration: 0,
     },
     goal: {
-      description: '', // Must be set via set-goal
+      description: goalDescription || '[Placeholder] Goal to be set', // Default placeholder if not provided
       completed: false,
     },
     queue: {
@@ -758,7 +759,8 @@ async function start(
 program
   .command('init-state')
   .description('Initialize supervisor state')
-  .requiredOption('--execution-mode <mode>', 'Execution mode: AUTO or MANUAL')
+  .option('--execution-mode <mode>', 'Execution mode: AUTO or MANUAL (default: AUTO)', 'AUTO')
+  .option('--goal <description>', 'Initial goal description (optional)', '')
   .action(async (options) => {
     const globalOpts = program.opts();
     const client = new Redis({
@@ -772,7 +774,8 @@ program
         client,
         globalOpts.stateKey,
         options.executionMode,
-        globalOpts.sandboxRoot
+        globalOpts.sandboxRoot,
+        options.goal
       );
     } finally {
       await client.quit();

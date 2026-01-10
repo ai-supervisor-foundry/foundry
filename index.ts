@@ -2,40 +2,32 @@
 // Exports all public APIs
 
 // Control Loop
-export { controlLoop } from './src/controlLoop';
-export type { SupervisorState, Task, ValidationReport, SupervisorStatus } from './src/types';
+export { controlLoop } from './src/application/services/controlLoop';
+export type { SupervisorState, Task, ValidationReport, SupervisorStatus } from './src/domain/types/types';
 
 // Persistence
-export { loadState, persistState, PersistenceLayer } from './src/persistence';
+export { loadState, persistState, PersistenceLayer } from './src/application/services/persistence';
 
 // Queue
-export { enqueueTask, dequeueTask, createQueue, getQueueKey, QueueAdapter } from './src/queue';
+export { enqueueTask, dequeueTask, createQueue, getQueueKey, QueueAdapter } from './src/domain/executors/taskQueue';
 
 // Prompt Builder
-export { buildPrompt, PromptBuilder, MinimalState } from './src/promptBuilder';
+export { buildPrompt, PromptBuilder, MinimalState } from './src/domain/agents/promptBuilder';
 
 // Cursor CLI
-export { dispatchToCursor, CursorCLI } from './src/cursorCLI';
-export type { CursorResult } from './src/haltDetection';
+// export { dispatchToCursor, CursorCLI } from './src/cursorCLI'; // Deprecated/Moved? Checking...
+export type { ProviderResult } from './src/domain/executors/haltDetection'; // Updated type name
 
 // Validation
-export { validateTaskOutput, Validator } from './src/validator';
+export { validateTaskOutput, Validator } from './src/application/services/validator';
 
 // Halt Detection
-export { checkHardHalts, containsAmbiguity } from './src/haltDetection';
-export type { HaltReason } from './src/haltDetection';
-
-// Recovery
-export { detectRecoveryScenario, handleRecoveryScenario } from './src/recovery';
-export type { RecoveryScenario, RecoveryDetection } from './src/recovery';
+export { checkHardHalts } from './src/domain/executors/haltDetection';
+export type { HaltReason } from './src/domain/executors/haltDetection';
 
 // Audit Logging
-export { appendAuditLog, AuditLogger } from './src/auditLogger';
-export type { AuditLogEntry } from './src/auditLogger';
-
-// Output Parsing
-export { parseCursorOutput } from './src/outputParser';
-export type { ParsedOutput } from './src/outputParser';
+export { appendAuditLog, AuditLogger } from './src/infrastructure/adapters/logging/auditLogger';
+export type { AuditLogEntry } from './src/infrastructure/adapters/logging/auditLogger';
 
 // Types
 export type {
@@ -45,5 +37,5 @@ export type {
   Decision,
   Artifact,
   ValidationCheck,
-} from './src/types';
+} from './src/domain/types/types';
 

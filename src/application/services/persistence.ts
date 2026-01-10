@@ -5,6 +5,7 @@
 import { SupervisorState } from '../../domain/types/types';
 import Redis from 'ioredis';
 import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared } from '../../infrastructure/adapters/logging/logger';
+import { PersistencePort } from '../../domain/ports/persistence';
 
 function logVerbose(component: string, message: string, data?: Record<string, unknown>): void {
   logVerboseShared(`Persistence:${component}`, message, data);
@@ -162,7 +163,7 @@ export async function persistState(
 }
 
 // Legacy PersistenceLayer class for backward compatibility
-export class PersistenceLayer {
+export class PersistenceLayer implements PersistencePort {
   constructor(
     private client: Redis,
     private stateKey: string // Operator-defined, fixed key name
