@@ -161,7 +161,7 @@ If tempted → HALT.
 - ONLY When detailed info regarding project is required:
     - README.md - YES
     - ./docs/*.md - YES
-    - !./docs/plans - NO
+    - !./docs/plans - ONLY IF we are working on a plan.
 
 - ONLY When detailed info regarding what Foundry context is
     - ./supervisor-contexts
