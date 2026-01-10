@@ -16,6 +16,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/logs', label: 'Logs' },
     { path: '/commands', label: 'Commands' },
     { path: '/state', label: 'State' },
+    { path: '/local', label: 'Local (Ollama)' },
   ];
 
   return (

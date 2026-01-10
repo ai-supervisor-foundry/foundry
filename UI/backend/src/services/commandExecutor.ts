@@ -98,11 +98,12 @@ function buildSupervisorCommand(
   command: SupervisorCommand,
   options: Record<string, string | number> = {}
 ): string {
-  const supervisorCliPath = path.join(process.cwd(), 'node_modules', '.bin', 'tsx');
-  const cliPath = path.join(process.cwd(), 'src', 'cli.ts');
+  // Resolve path from UI/backend/src to supervisor/
+  const projectRoot = path.resolve(process.cwd(), './'); 
+  const cliPath = path.join(projectRoot, 'src', 'application', 'entrypoint', 'cli.ts');
   
   // Base command
-  let cmd = `${supervisorCliPath} ${cliPath} ${command}`;
+  let cmd = `npx tsx ${cliPath} ${command}`;
   
   // Add required global options
   cmd += ` --redis-host ${config.redis.host}`;
@@ -137,6 +138,7 @@ export async function executeSupervisorCommand(
   
   // Build command
   const fullCommand = buildSupervisorCommand(command, options);
+  console.log('Full supervisor command:', fullCommand);
   
   const startTime = Date.now();
   

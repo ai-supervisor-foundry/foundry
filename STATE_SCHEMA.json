@@ -20,6 +20,9 @@
   "artifacts": {
     "_comment": "Artifacts produced during task execution"
   },
+  "active_sessions": {
+    "_comment": "Persistent sessions for AI providers (Gemini, Copilot, etc.)"
+  },
   "last_updated": {
     "_comment": "Timestamp of the last state update"
   },

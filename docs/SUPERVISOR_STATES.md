@@ -1,4 +1,4 @@
-# Supervisor States
+# Foundry States
 
 ## Explicit States
 

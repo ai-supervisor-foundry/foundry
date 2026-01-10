@@ -101,10 +101,12 @@ export async function getPromptLogs(
   projectId: string,
   options: {
     limit?: number;
+    offset?: number;
     taskId?: string;
     type?: PromptLogEntry['type'];
+    provider?: string;
   } = {}
-): Promise<PromptLogEntry[]> {
+): Promise<{ logs: PromptLogEntry[], total: number }> {
   const sandboxRoot = resolveSandboxRoot();
   const logPath = path.join(
     sandboxRoot,
@@ -125,17 +127,28 @@ export async function getPromptLogs(
     entries = entries.filter(entry => entry.type === options.type);
   }
 
+  // Filter by provider if provided
+  if (options.provider) {
+    entries = entries.filter(entry => 
+      entry.metadata && 
+      (entry.metadata as any).provider === options.provider
+    );
+  }
+
   // Sort by timestamp descending (most recent first)
   entries.sort((a, b) => {
     return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
   });
 
-  // Apply limit
-  if (options.limit && options.limit > 0) {
-    entries = entries.slice(0, options.limit);
-  }
+  const total = entries.length;
 
-  return entries;
+  // Apply limit and offset
+  const start = options.offset || 0;
+  const end = (options.limit && options.limit > 0) ? start + options.limit : undefined;
+  
+  entries = entries.slice(start, end);
+
+  return { logs: entries, total };
 }
 
 /**

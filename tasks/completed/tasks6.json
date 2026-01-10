@@ -1,0 +1,15 @@
+[
+  {
+    "task_id": "state-buster",
+    "intent": "Final project verification",
+    "instructions": "Check that all files are present and match README.",
+    "acceptance_criteria": [
+      "Project structure is correct"
+    ],
+    "working_directory": "easeclassifieds",
+    "status": "pending",
+    "retry_policy": {
+      "max_retries": 2
+    }
+  }
+]

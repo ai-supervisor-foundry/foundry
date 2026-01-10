@@ -4,7 +4,7 @@
 The `ChatVisualizer` component in the frontend uses a limited set of log types to distinguish between supervisor messages and agent responses. New log types have been introduced in the backend (e.g., `HELPER_AGENT_PROMPT`, `GOAL_COMPLETION_CHECK`), but the frontend logic doesn't explicitly account for them, potentially causing rendering issues or misclassification.
 
 ## Analysis
-The `PromptLogType` in `src/promptLogger.ts` defines the following types:
+The `PromptLogType` in `src/infrastructure/adapters/logging/promptLogger.ts` defines the following types:
 - `PROMPT`
 - `RESPONSE`
 - `INTERROGATION_PROMPT`

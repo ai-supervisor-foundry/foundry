@@ -2,8 +2,8 @@
 import Redis from 'ioredis';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { persistState } from '../src/persistence';
-import { SupervisorState } from '../src/types';
+import { persistState } from '../src/application/services/persistence';
+import { SupervisorState } from '../src/domain/types/types';
 import { Command } from 'commander';
 
 const program = new Command();

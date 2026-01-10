@@ -11,7 +11,7 @@ Execute the Goal Completion Check from the **Sandbox Root** (`./sandbox` or just
 
 ## Implementation Steps
 
-1.  **Modify `src/controlLoop.ts`**:
+1.  **Modify `src/application/entrypoint/controlLoop.ts`**:
     *   Locate the `GOAL_COMPLETION_CHECK` block (around line 450).
     *   Change the `working_directory` for the `cliAdapter.execute` call.
     *   **Current**: `const sandboxCwd = path.join(sandboxRoot, projectId);`

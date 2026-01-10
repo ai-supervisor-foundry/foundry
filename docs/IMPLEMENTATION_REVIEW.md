@@ -131,19 +131,30 @@
 - ⚠️ Format matches SANDBOX.md requirement: `/sandbox/<project>`
 - ✅ Matches specification
 
+### 7. Recent Optimizations (2026-01-06)
+**Status**: ✅ Fully Implemented
+- ✅ **Deterministic Validation**: Implemented Phase 1 of optimization plan. Fast, file-based checks skip expensive helper agent calls for common criteria (e.g., file existence, JSON content).
+- ✅ **Validation Caching**: Redis-based result caching to skip redundant checks.
+- ✅ **AST Validation**: Deep structural analysis for code correctness.
+- ✅ **Session Reuse**: State-based session fallback, stable Feature IDs, and provider-specific context limits.
+- ✅ **Prompt Tightening**: Consolidated rules block, strict JSON-only output enforcement.
+- ✅ **Helper Agent Persistence**: Helper agents now reuse sessions.
+- ✅ **Path Validation**: Automated filtering of hallucinated file paths.
+
 ## 📋 Summary
 
-### Overall Compliance: ~98%
+### Overall Compliance: ~99%
 
 **Strengths**:
 - Control loop follows specification exactly
 - Prompt construction is deterministic and complete
 - State management is strict and correct
-- Validation is rule-based and deterministic
+- Validation is rule-based, deterministic, and now highly optimized
 - Architecture separation is maintained
 - Recovery scenarios now explicitly detected
 - Sandbox boundary validation enhanced
 - Complete audit logging with tool_invoked
+- **Performance**: Significant latency reduction via Deterministic Validation and Caching
 
 **Recent Fixes** (Based on Cursor CLI Research):
 1. ✅ Added recovery detection module (recovery.ts)

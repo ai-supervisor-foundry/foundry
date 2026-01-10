@@ -2,17 +2,17 @@
 
 ## Allowed Actions
 - Execute tasks as specified.
-- Receive state context injected by supervisor in task prompt.
+- Receive state context injected by Foundry in task prompt.
 - Produce artifacts per instructions.
 
 ## Forbidden Actions
-- Cursor CLI must not redefine tasks.
-- Cursor CLI must not expand scope.
-- Cursor CLI must not exit AUTO MODE.
-- Cursor cannot enqueue tasks.
-- Cursor cannot reorder tasks.
-- Cursor cannot approve itself.
-- Cursor cannot mutate state.
+- Provider CLIs must not redefine tasks.
+- Provider CLIs must not expand scope.
+- Provider CLIs must not exit AUTO MODE.
+- Providers cannot enqueue tasks.
+- Providers cannot reorder tasks.
+- Providers cannot approve themselves.
+- Providers cannot mutate state.
 
 ## Required Outputs
 - Task completion status.
@@ -20,16 +20,16 @@
 - Artifacts produced.
 
 ## Failure Conditions
-- Cursor CLI must halt if information is missing.
+- Provider CLIs must halt if information is missing.
 
 ## Tool Implementation
-- Supervisor uses Cursor CLI to dispatch tasks.
-- Cursor outputs are untrusted input.
-- Supervisor treats Cursor output like user-submitted code.
+- Foundry uses provider CLIs to dispatch tasks.
+- Provider outputs are untrusted input.
+- Foundry treats provider output like user-submitted code.
 
-## Cursor Prompt Construction
+## Provider Prompt Construction
 
-Every task dispatched to Cursor must include:
+Every task dispatched to a provider must include:
 - Task ID
 - Task description (verbatim from operator)
 - Acceptance criteria (verbatim)
@@ -38,7 +38,22 @@ Every task dispatched to Cursor must include:
 - Explicit instruction to halt on ambiguity
 - Explicit output format requirement
 
-The Cursor agent must never infer missing information.
+The provider agent must never infer missing information.
+
+## Output Format Contract
+
+Agents must conclude their response with a JSON summary block in this exact format. No other fields are allowed.
+
+```json
+{
+  "status": "completed" | "failed",
+  "files_created": ["path/to/file"],  // Optional
+  "files_updated": ["path/to/file"],  // Optional
+  "changes": ["path/to/file"],        // Optional (alias for files_updated)
+  "neededChanges": true | false,      // Optional (false if no changes were needed)
+  "summary": "Brief description of work done"
+}
+```
 
 ## Final Instruction
 

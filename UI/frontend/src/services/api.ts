@@ -63,18 +63,25 @@ export const apiClient = {
   getState: () => api.get('/api/state'),
   getStatus: () => api.get('/api/state/status'),
   getCurrentTask: () => api.get('/api/state/current-task'),
+  setGoal: (description: string, projectId?: string) => 
+    apiClient.executeSupervisorCommand('set-goal', { description, 'project-id': projectId }),
   
   // Tasks endpoints
   getCompletedTasks: () => api.get('/api/tasks/completed'),
   getBlockedTasks: () => api.get('/api/tasks/blocked'),
   getQueue: (limit?: number) => api.get('/api/tasks/queue', { params: { limit } }),
+  updateTask: (taskId: string, updates: Record<string, any>) => 
+    api.post('/api/tasks/update', { taskId, updates }),
+  enqueueTask: (task: any) => api.post('/api/tasks/enqueue', task),
+  enqueueTasks: (tasks: any[]) => api.post('/api/tasks/enqueue-bulk', tasks),
+  dumpTasks: () => api.get('/api/tasks/dump'),
   
   // Logs endpoints
   getProjects: () => api.get('/api/logs/projects'),
   getAuditLogs: (projectId: string, limit?: number) =>
     api.get('/api/logs/audit', { params: { projectId, limit } }),
-  getPromptLogs: (projectId: string, limit?: number, type?: string) =>
-    api.get('/api/logs/prompts', { params: { projectId, limit, type } }),
+  getPromptLogs: (projectId: string, limit?: number, type?: string, provider?: string, offset?: number) =>
+    api.get('/api/logs/prompts', { params: { projectId, limit, type, provider, offset } }),
   getAuditLogsByTask: (taskId: string, projectId: string) =>
     api.get(`/api/logs/audit/${taskId}`, { params: { projectId } }),
   getPromptLogsByTask: (taskId: string, projectId: string) =>
@@ -91,6 +98,16 @@ export const apiClient = {
   // Config endpoint
   getConfig: () => api.get('/api/config'),
   updateConfig: (config: Record<string, any>) => api.post('/api/config', config),
+  
+  // Ollama endpoints
+  getOllamaVersion: () => api.get('/api/ollama/version'),
+  getOllamaModels: () => api.get('/api/ollama/tags'),
+  stopOllama: () => api.post('/api/ollama/stop'),
+
+  // Supervisor control
+  haltSupervisor: (reason: string = 'User requested halt via UI') => 
+    apiClient.executeSupervisorCommand('halt', { reason }),
+  resumeSupervisor: () => apiClient.executeSupervisorCommand('resume'),
 };
 
 export default api;

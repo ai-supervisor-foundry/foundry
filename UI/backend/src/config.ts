@@ -21,6 +21,9 @@ export interface Config {
     port: number;
     pollInterval: number;
   };
+  ollama: {
+    baseUrl: string;
+  };
 }
 
 export function loadConfig(): Config {
@@ -39,6 +42,9 @@ export function loadConfig(): Config {
     server: {
       port: parseInt(process.env.PORT || '3001', 10),
       pollInterval: parseInt(process.env.POLL_INTERVAL || '60000', 10),
+    },
+    ollama: {
+      baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
     },
   };
 }

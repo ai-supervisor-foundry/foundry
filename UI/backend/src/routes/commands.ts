@@ -11,6 +11,7 @@ const router = Router();
 // POST /api/commands/supervisor
 router.post('/supervisor', async (req, res, next) => {
   try {
+    console.log('Executing supervisor command:', req.body);
     const { command, options = {} } = req.body;
     
     if (!command) {
@@ -18,6 +19,7 @@ router.post('/supervisor', async (req, res, next) => {
     }
     
     const result = await executeSupervisorCommand(command, options);
+    console.log('Supervisor command result:', result);
     res.json(result);
   } catch (error) {
     next(error);

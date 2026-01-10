@@ -33,7 +33,7 @@ Parallel Execution:
 
 ### 1. Task Interface Enhancement
 
-**File**: `src/types.ts`
+**File**: `src/domain/types/types.ts`
 
 Add dependency fields to `Task` interface:
 
@@ -53,7 +53,7 @@ export interface TaskDependency {
 
 ### 2. State Schema Enhancement
 
-**File**: `src/types.ts`
+**File**: `src/domain/types/types.ts`
 
 Add dependency tracking to `SupervisorState`:
 
@@ -108,7 +108,7 @@ export interface InFlightTask {
 
 ### 1. Dual Queue Implementation
 
-**File**: `src/queue.ts`
+**File**: `src/domain/executors/taskQueue.ts`
 
 Replace single queue with dual queue system:
 
@@ -169,7 +169,7 @@ export async function dequeueReadyTasks(
 
 ### 2. Dependency Validation Functions
 
-**File**: `src/dependencyValidator.ts` (NEW)
+**File**: `src/domain/validators/dependencyValidator.ts` (NEW)
 
 ```typescript
 // Validate dependencies exist in task list
@@ -211,7 +211,7 @@ export function updateDependencyGraph(
 
 ### 1. Parallel Execution Manager
 
-**File**: `src/parallelExecutor.ts` (NEW)
+**File**: `src/domain/executors/parallelExecutor.ts` (NEW)
 
 ```typescript
 export interface TaskExecution {
@@ -247,7 +247,7 @@ export async function waitForFirstCompletion(
 
 ### 2. Control Loop Changes
 
-**File**: `src/controlLoop.ts`
+**File**: `src/application/entrypoint/controlLoop.ts`
 
 Major refactoring of control loop:
 
@@ -285,7 +285,7 @@ Major refactoring of control loop:
 
 ### 1. Enhanced Enqueue Function
 
-**File**: `src/cli.ts`
+**File**: `src/infrastructure/tooling/project-cli/cli.ts`
 
 Update `enqueue` function to:
 1. Validate all dependencies exist in task list
@@ -350,7 +350,7 @@ async function enqueue(
 
 ### 1. Pre-Execution Validation
 
-**File**: `src/controlLoop.ts`
+**File**: `src/application/entrypoint/controlLoop.ts`
 
 Before starting task execution:
 1. Re-check dependencies (runtime validation)
@@ -381,7 +381,7 @@ function validateTaskReady(
 
 ### 1. Automatic Promotion
 
-**File**: `src/controlLoop.ts`
+**File**: `src/application/entrypoint/controlLoop.ts`
 
 When a task completes:
 1. Update dependency graph
@@ -439,7 +439,7 @@ async function promoteTasksOnCompletion(
 
 ### 1. Execution Slot Management
 
-**File**: `src/controlLoop.ts`
+**File**: `src/application/entrypoint/controlLoop.ts`
 
 ```typescript
 // Calculate available execution slots
@@ -505,7 +505,7 @@ while (true) {
 
 ### 1. Enhanced State Persistence
 
-**File**: `src/persistence.ts`
+**File**: `src/application/services/persistence.ts`
 
 Ensure dependency graph and in-flight tasks are properly serialized/deserialized.
 
@@ -603,15 +603,15 @@ Ensure dependency graph and in-flight tasks are properly serialized/deserialized
 ## Files to Create/Modify
 
 ### New Files:
-1. `src/dependencyValidator.ts` - Dependency validation and graph management
-2. `src/parallelExecutor.ts` - Parallel task execution management
+1. `src/domain/validators/dependencyValidator.ts` - Dependency validation and graph management
+2. `src/domain/executors/parallelExecutor.ts` - Parallel task execution management
 
 ### Modified Files:
-1. `src/types.ts` - Add dependency types and state enhancements
-2. `src/queue.ts` - Dual queue implementation
-3. `src/controlLoop.ts` - Major refactoring for parallel execution
-4. `src/cli.ts` - Enhanced enqueue validation
-5. `src/persistence.ts` - Handle new state fields
+1. `src/domain/types/types.ts` - Add dependency types and state enhancements
+2. `src/domain/executors/taskQueue.ts` - Dual queue implementation
+3. `src/application/entrypoint/controlLoop.ts` - Major refactoring for parallel execution
+4. `src/infrastructure/tooling/project-cli/cli.ts` - Enhanced enqueue validation
+5. `src/application/services/persistence.ts` - Handle new state fields
 
 ## Rollback Plan
 

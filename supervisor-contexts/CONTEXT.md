@@ -41,12 +41,12 @@ The Supervisor provides:
 - **Deterministic Control**: No surprises—explicit validation, clear halt conditions
 - **Long-Running Projects**: Work on complex projects over days or weeks
 - **Full Auditability**: Every action is logged and reviewable
-- **Cost-Effective**: Uses free tier tools (Cursor CLI, DragonflyDB)
+- **Cost-Effective**: Uses free tier tools (provider CLIs, DragonflyDB)
 - **Autonomous Execution**: Works on projects without constant operator intervention
 
 ### The Problem It Solves
 
-AI tools like Cursor are powerful but ephemeral—context is lost on interruption, making long-running projects difficult. The Supervisor bridges this gap by maintaining persistent state and deterministic execution. It enables a **"set it and forget it"** workflow where you provide boilerplates, tasks, and a goal, then the supervisor autonomously builds the project.
+AI coding agents are powerful but ephemeral—context is lost on interruption, making long-running projects difficult. The Supervisor bridges this gap by maintaining persistent state and deterministic execution. It enables a **"set it and forget it"** workflow where you provide boilerplates, tasks, and a goal, then the supervisor autonomously builds the project.
 
 ## Core Principles
 
@@ -59,7 +59,7 @@ AI tools like Cursor are powerful but ephemeral—context is lost on interruptio
 - No refactoring without explicit instruction.
 - State must be persisted after every step.
 - Ambiguity halts execution (with retry mechanism).
-- Cursor CLI is a worker tool, not decision authority.
+- Provider CLIs are worker tools, not decision authority.
 - **AUTO MODE is default and mandatory.**
 - AUTO MODE cannot be disabled without operator instruction.
 - No silent retries.
@@ -94,10 +94,10 @@ The system is organized into distinct modules with clear responsibilities:
 - Owns validation orchestration
 - Manages task lifecycle
 
-#### Tool Dispatcher (`src/cursorCLI.ts`, `src/promptBuilder.ts`, `src/cliAdapter.ts`)
-- Constructs Cursor task prompts
+#### Tool Dispatcher (`src/domain/agents/`, `src/infrastructure/connectors/agents/providers/`)
+- Constructs provider task prompts
 - Injects state snapshots
-- Manages CLI provider selection (Cursor, Gemini, OpenRouter, Claude, Codex)
+- Manages CLI provider selection (Gemini, Copilot, Cursor, Claude, Codex)
 - Handles circuit breaker and fallback logic
 
 #### Persistence Layer (`src/persistence.ts`)
@@ -139,7 +139,7 @@ The supervisor executes a fixed control loop sequence:
 2. **Read injected operator goal** from state
 3. **Select next operator-defined task** from queue (FIFO)
 4. **Dispatch task to tool** via CLI adapter (injecting required state context into task prompt)
-5. **Await completion** (Cursor CLI execution)
+5. **Await completion** (Provider CLI execution)
 6. **Validate output** (deterministic, rule-based)
 7. **Persist updated state** immediately after mutation
 8. **Halt or continue** per explicit instruction
@@ -161,7 +161,7 @@ The supervisor executes a fixed control loop sequence:
 - State is **mutated only after validation**
 - State is **persisted immediately after mutation**
 - State persistence failure **halts execution**
-- Tools (including Cursor CLI) **do not access state directly**. The supervisor injects the required state context into each task prompt.
+- Provider CLIs **do not access state directly**. The supervisor injects the required state context into each task prompt.
 
 ### State Schema
 
@@ -241,7 +241,7 @@ Tasks are defined as JSON objects with the following structure:
 {
   "task_id": "string (unique identifier)",
   "intent": "string (brief description)",
-  "tool": "cursor-cli (only supported tool)",
+  "tool": "cursor | gemini | gemini_stub | copilot | codex | claude",
   "instructions": "string (detailed instructions for agent)",
   "acceptance_criteria": ["array of strings (ALL must be met)"],
   "retry_policy": {
@@ -299,23 +299,53 @@ Tasks are processed in **strict FIFO (First In, First Out) order**:
 
 ### Validation Process
 
-1. **Helper Agent Phase** (optional):
-   - If validation fails, supervisor uses a separate agent instance to generate read-only validation commands
-   - Commands are executed to verify criteria
-   - If commands pass, interrogation is skipped
+1.  **Helper Agent Phase (V2)** (optional):
+    -   If validation fails, supervisor uses a separate agent instance to generate read-only validation commands.
+    -   **Session Reuse**: Helper Agents persist their session context across invocations, significantly reducing latency and enabling learning from previous attempts.
+    -   **Code Discovery**: The Helper Agent is provided with a list of actual filenames from the codebase to prevent hallucinations.
+    -   **Proactive**: Automatically triggered on validation failure.
+    -   Commands are executed to verify criteria.
+    -   If commands pass, interrogation is skipped, and task is marked complete.
 
-2. **Interrogation Phase** (if Helper Agent fails or not used):
-   - Supervisor engages in sequential Q&A with the agent
-   - Uses "internal agent" (Cursor CLI in auto mode) for analysis
-   - Batches all unresolved criteria into a single prompt per round
-   - Maximum 4 rounds of interrogation per task attempt
-   - Direct file verification after agent provides file paths
+2.  **Validation Scoring**:
+    -   Calculates `MatchQuality` for each criterion: `EXACT` (strongest), `HIGH`, `MEDIUM`, `LOW`, `NONE`.
+    -   Overall `confidence` is derived from the lowest quality match.
+    -   If `confidence` is `UNCERTAIN` or `LOW` (with weak matches), interrogation is triggered even if technically "passed" by regex.
 
-3. **Validation Result**:
-   - Returns `confidence: 'HIGH' | 'LOW' | 'UNCERTAIN'`
-   - Returns `failed_criteria` and `uncertain_criteria`
-   - If `HIGH` confidence → task marked complete
-   - If `LOW` or `UNCERTAIN` → retry with fix prompt (up to max_retries)
+3.  **Targeted Interrogation Phase** (if Helper Agent fails or confidence is low):
+    -   **Pre-Analysis**: Before asking, the system scans the codebase for keywords related to the failed criteria.
+    -   **Targeted Prompts**: The interrogation prompt includes these potential file locations ("We found X, is this it?").
+    -   Supervisor engages in sequential Q&A with the agent (max 4 rounds).
+    -   Batches all unresolved criteria into a single prompt per round.
+
+4.  **Validation Result**:
+    -   Returns `confidence: 'HIGH' | 'LOW' | 'UNCERTAIN'`.
+    -   Returns `failed_criteria` and `uncertain_criteria`.
+    -   If `HIGH` confidence → task marked complete.
+    -   If `LOW` or `UNCERTAIN` → retry with fix prompt.
+    -   **Smart Retry**: If the agent fails with the exact same error twice, the retry prompt switches to "Strict Mode" to force a different approach.
+
+### Prompt Construction
+
+The supervisor uses **Smart Context Injection** to minimize token usage and focus the agent:
+
+-   **Base Context**: Project ID and Sandbox Root (always included).
+-   **Goal Context**: Included only if task intent relates to "goal".
+-   **Queue Context**: Included only if task references "previous" or "last" task.
+-   **Completed Tasks**: Included only if task is "extending" or "building on" work (omitted for documentation tasks).
+
+**Strict Prompt Rules**:
+-   **Consolidated Rules**: A single, strict "Rules" block enforces agent behavior (no speculation, stop on ambiguity).
+-   **Output Requirements**: Agents must output **ONLY** a specific JSON structure (no conversational filler).
+-   **Path Validation**: All file paths in the agent's response are validated against the filesystem to filter hallucinations.
+
+**Task-Type Guidelines**:
+Prompts automatically include specific guidelines based on detected task type:
+-   **Implementation**: Focus on code structure and patterns.
+-   **Configuration**: Verify file locations and env vars.
+-   **Testing**: Focus on edge cases and assertions.
+-   **Documentation**: Ensure formatting and links.
+-   **Refactoring**: Preserve functionality.
 
 ### Validation Checklist
 
@@ -327,9 +357,9 @@ Tasks are processed in **strict FIFO (First In, First Out) order**:
 
 ## Tool Contracts
 
-### Cursor CLI Integration
+### Provider CLI Integration
 
-The supervisor uses Cursor CLI to dispatch tasks. Cursor CLI is treated as a **worker tool**, not a decision authority.
+The supervisor uses provider CLIs to dispatch tasks. Provider CLIs are treated as **worker tools**, not decision authority.
 
 #### Allowed Actions
 - Execute tasks as specified
@@ -337,13 +367,13 @@ The supervisor uses Cursor CLI to dispatch tasks. Cursor CLI is treated as a **w
 - Produce artifacts per instructions
 
 #### Forbidden Actions
-- Cursor CLI must **not** redefine tasks
-- Cursor CLI must **not** expand scope
-- Cursor CLI must **not** exit AUTO MODE
-- Cursor cannot enqueue tasks
-- Cursor cannot reorder tasks
-- Cursor cannot approve itself
-- Cursor cannot mutate state
+- Provider CLIs must **not** redefine tasks
+- Provider CLIs must **not** expand scope
+- Provider CLIs must **not** exit AUTO MODE
+- Providers cannot enqueue tasks
+- Providers cannot reorder tasks
+- Providers cannot approve themselves
+- Providers cannot mutate state
 
 #### Required Outputs
 - Task completion status
@@ -351,12 +381,12 @@ The supervisor uses Cursor CLI to dispatch tasks. Cursor CLI is treated as a **w
 - Artifacts produced
 
 #### Failure Conditions
-- Cursor CLI must halt if information is missing
+- Provider CLIs must halt if information is missing
 
 ### CLI Adapter
 
 The supervisor uses a CLI adapter (`src/cliAdapter.ts`) that provides:
-- **Priority-based provider selection**: Gemini → Cursor → Codex → Claude (default order, configurable via `CLI_PROVIDER_PRIORITY` env var)
+- **Priority-based provider selection**: Configurable fallback chain (default order set in config, adjustable via environment)
 - **Circuit breaker**: 1-day TTL for failed providers
 - **Automatic fallback**: On resource exhaustion or provider failure
 - **Model filtering**: Only allowed models (sonnet*, opus*, gpt4*, gpt5*, gemini*)

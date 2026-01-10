@@ -95,6 +95,3 @@ PERFORMANCE_ANALYSIS.md
 
 *.secret
 **/*.secret
-
-!**/sandbox
-!**/sandbox/**

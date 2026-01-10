@@ -1,11 +1,24 @@
 {
-  "task_id": "string",
-  "intent": "string",
-  "tool": "cursor-cli",
-  "instructions": "string",
-  "acceptance_criteria": ["string"],
-  "retry_policy": "object",
-  "status": "string",
+  "task_id": "string (unique identifier)",
+  "intent": "string (brief purpose of the task)",
+  "tool": "cursor | gemini | gemini_stub | copilot | codex | claude",
+  "task_type": {
+    "type": "string",
+    "description": "Task category affecting validation strategy. Auto-detected if omitted.",
+    "enum": ["coding", "behavioral", "configuration", "testing", "documentation"],
+    "examples": [
+      "behavioral - for conversational/response-based tasks (See docs/BEHAVIORAL_TASKS_GUIDE.md)",
+      "coding - for file-based implementation tasks (default)"
+    ]
+  },
+  "instructions": "string (detailed instructions for the agent)",
+  "acceptance_criteria": ["string (list of criteria that must be satisfied)"],
+  "retry_policy": {
+    "max_retries": "number (default: 1, max recommended: 2)",
+    "backoff": "string (optional, e.g., '1m', '5m')"
+  },
+  "status": "pending | in_progress | completed | blocked | failed",
   "working_directory": "string (optional, relative path from sandboxRoot, overrides project_id-based default)",
-  "agent_mode": "string (optional, e.g., 'auto', 'opus', defaults to 'auto')"
+  "agent_mode": "string (optional, e.g., 'auto', 'opus', defaults to 'auto')",
+  "meta": "object (optional, for session tracking, e.g., { session_id: '...', feature_id: '...' })"
 }

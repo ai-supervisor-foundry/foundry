@@ -1,20 +1,22 @@
-# Supervisor
+# Foundry
 
-A **persistent orchestration layer for AI-assisted software development** that enables long-running, restart-safe project execution with full operator control and auditability.
+**The Persistent Control Plane for Autonomous AI Software Factories.**
 
 ## What This Is
 
-The Supervisor is a control plane for AI development that externalizes memory, intent, and control so work can continue across interruptions, sleep, crashes, or session loss. You define a goal and break it into explicit tasks with acceptance criteria. The supervisor executes tasks autonomously using Cursor CLI (in AUTO mode) while maintaining persistent state, deterministic validation, and full auditability.
+**Foundry** is a deterministic orchestration engine that transforms ephemeral AI coding agents into reliable, long-running software developers. Unlike transient chat assistants, Foundry externalizes project state, memory, and intent into a persistent layer (DragonflyDB), enabling it to execute complex, multi-day engineering goals without context loss.
+
+Acting as a strict control plane, it manages a **Software Factory** workflow where **you define the goal and break it into explicit tasks**, which Foundry then autonomously dispatches to provider CLIs (Cursor, Gemini, Copilot) and rigorously validates before progression. With features like sandbox isolation, deterministic output validation, and auto-recovery from ambiguity, Foundry ensures that AI development is audit-safe, restartable, and strictly aligned with operator intent.
 
 ### Software Factory Concept
 
-The Supervisor operates like a **software factory** or **Replit-like environment** where you provide:
+Foundry operates like a **software factory** or **Replit-like environment** where you provide:
 
 1. **Code Boilerplates**: Initial project structure, existing codebase, or starter templates (placed in `sandbox/<project-id>/`)
 2. **Tasks**: Explicit task definitions with acceptance criteria (what needs to be built)
 3. **Goal**: High-level project objective (what the project should achieve)
 
-The Supervisor then **autonomously works on the project** by:
+Foundry then **autonomously works on the project** by:
 - Executing tasks sequentially in the sandbox environment
 - Building upon existing code and boilerplates
 - Validating each task's completion
@@ -28,7 +30,7 @@ Operator provides:
   ├─ Tasks (via enqueue command)
   └─ Goal (via set-goal command)
          ↓
-Supervisor autonomously:
+Foundry autonomously:
   ├─ Executes tasks in order
   ├─ Works with existing code
   ├─ Validates outputs
@@ -36,28 +38,39 @@ Supervisor autonomously:
   └─ Continues until goal met or halted
 ```
 
-This enables a **"set it and forget it"** workflow where you provide the foundation (boilerplates), the plan (tasks), and the destination (goal), then the supervisor builds the project autonomously.
+This enables a **"set it and forget it"** workflow where you provide the foundation (boilerplates), the plan (tasks), and the destination (goal), then Foundry builds the project autonomously.
 
 ## The Problem It Solves
 
-AI tools like Cursor are powerful but ephemeral—context is lost on interruption, making long-running projects difficult. The Supervisor provides:
+AI coding agents are powerful but ephemeral—context is lost on interruption, making long-running projects difficult. Foundry provides:
 - **Persistence**: State survives crashes, restarts, and interruptions
 - **Deterministic Control**: No surprises—explicit validation, clear halt conditions
 - **Long-Running Projects**: Work on complex projects over days or weeks
 - **Full Auditability**: Every action is logged and reviewable
-- **Cost-Effective**: Uses free tier tools (Cursor CLI, DragonflyDB)
+- **Cost-Effective**: Uses free tier tools (provider CLIs, DragonflyDB)
 
 ## How It Works
 
-The supervisor operates as a **strict control mechanism** that executes operator-defined tasks through a fixed control loop. It maintains persistent state in DragonflyDB (Redis-compatible), manages a FIFO task queue, dispatches tasks to Cursor CLI with injected state context, and validates outputs deterministically. The system enforces sandbox isolation per project, provides append-only audit logging, and supports recovery from crashes or restarts by reloading persisted state. The supervisor never invents goals, expands scope, or makes autonomous decisions—all authority remains with the operator who injects goals and tasks explicitly.
+Foundry operates as a **strict control mechanism** that executes operator-defined tasks through a fixed control loop. It maintains persistent state in DragonflyDB (Redis-compatible), manages a FIFO task queue, dispatches tasks to your chosen Agents/Providers (Gemini, Copilot, Cursor) with injected state context, and validates outputs deterministically. The system enforces sandbox isolation per project, provides append-only audit logging, and supports recovery from crashes or restarts by reloading persisted state. Foundry never invents goals, expands scope, or makes autonomous decisions—all authority remains with the operator who injects goals and tasks explicitly.
+
+### Execution Stages (Current)
+- **Deterministic pre-validation**: Fast, non-AI checks (semver/regex), safe regex guard, file/byte caps; can skip helper when confidence is high. Flags: `HELPER_DETERMINISTIC_ENABLED`, `HELPER_DETERMINISTIC_PERCENT`.
+- **Provider run**: Task dispatched to Agents/Providers (Gemini, Copilot, Cursor) with state/context injection and session reuse when available.
+- **Helper agent fallback**: Generates verification commands when deterministic checks are insufficient; helper sessions are reused per project feature to retain context.
+- **Analytics & metrics**: JSONL metrics (helper durations avg/p95, cache-hit rate, deterministic attempts/success) persisted alongside audit logs.
+
+### Session Reuse
+- Session IDs resolved per feature (`task:prefix` or `project:<id>`) with caps and error thresholds.
+- Helper sessions isolated under `helper:validation:<projectId>` and persisted in `state.active_sessions`.
+- Toggle via `DISABLE_SESSION_REUSE` if rollback is required.
 
 ## Overview
 
-The supervisor is a **control mechanism** that:
+Foundry is a **control mechanism** that:
 - Holds externally injected goals
 - Maintains persistent state
 - Executes a fixed control loop
-- Delegates tasks to tools (Cursor CLI)
+- Delegates tasks to provider/agent CLIs
 - Validates results
 - Retries on validation failures and ambiguity (up to max retries)
 - Halts only on critical failures (execution errors, blocked status)
@@ -74,7 +87,7 @@ It does **not**:
 
 - **Node.js**: LTS version (install via [nvm](https://github.com/nvm-sh/nvm))
 - **Docker & Docker Compose**: For running DragonflyDB
-- **Cursor CLI**: Install `cursor` command (see [Cursor CLI docs](https://cursor.com/cli))
+- **Provider CLI(s)**: Install at least one supported provider CLI (e.g., Gemini, Copilot, Cursor). Cursor-specific docs: [Cursor CLI](https://cursor.com/cli)
 
 ### Install Dependencies
 
@@ -92,7 +105,7 @@ npm run build
 
 ### Start DragonflyDB
 
-The supervisor uses DragonflyDB (Redis-compatible) for state persistence and task queuing.
+Foundry uses DragonflyDB (Redis-compatible) for state persistence and task queuing.
 
 1. **Start DragonflyDB container**:
    ```bash
@@ -129,14 +142,14 @@ docker-compose down -v
 The typical workflow follows this pattern:
 
 1. **Prepare Code Boilerplates** (optional but recommended)
-2. **Initialize Supervisor State**
+2. **Initialize Foundry State**
 3. **Set Goal**
 4. **Enqueue Tasks**
-5. **Start Supervisor** (autonomous execution)
+5. **Start Foundry** (autonomous execution)
 
 ### 0. Prepare Code Boilerplates (Optional)
 
-Before starting the supervisor, you can prepare initial code in the sandbox directory:
+Before starting Foundry, you can prepare initial code in the sandbox directory:
 
 ```bash
 # Create project directory
@@ -158,7 +171,7 @@ npm init -y
 - Configuration files (`.env.example`, `tsconfig.json`, etc.)
 - Existing codebase (if continuing work on an existing project)
 
-The supervisor will **work with and build upon** this existing code. Tasks can reference existing files, extend functionality, or create new features.
+Foundry will **work with and build upon** this existing code. Tasks can reference existing files, extend functionality, or create new features.
 
 **Example**: If you have a React boilerplate with `src/App.tsx`, tasks can extend it:
 ```json
@@ -169,9 +182,9 @@ The supervisor will **work with and build upon** this existing code. Tasks can r
 }
 ```
 
-### 1. Initialize Supervisor State
+### 1. Initialize Foundry State
 
-Before using the supervisor, initialize the state key:
+Before using Foundry, initialize the state key:
 
 ```bash
 npm run cli -- init-state \
@@ -186,7 +199,7 @@ npm run cli -- init-state \
 **Parameters**:
 - `--redis-host`: DragonflyDB host (default: `localhost`)
 - `--redis-port`: DragonflyDB port (default: `6499`)
-- `--state-key`: Fixed key name for supervisor state (operator-defined)
+- `--state-key`: Fixed key name for state (operator-defined)
 - `--queue-name`: Task queue name
 - `--queue-db`: Database index for queue (must differ from state DB, default: `2`)
 - `--state-db`: Database index for state (default: `0`)
@@ -194,7 +207,7 @@ npm run cli -- init-state \
 
 ### 2. Set Goal
 
-Define the goal the supervisor will work towards:
+Define the goal Foundry will work towards:
 
 ```bash
 npm run cli -- set-goal \
@@ -224,7 +237,7 @@ Create task JSON file(s) following the task schema. You can create either:
 {
   "task_id": "task-001",
   "intent": "Create API endpoint structure",
-  "tool": "cursor-cli",
+  "tool": "gemini",
   "instructions": "Create a REST API with Express.js. Include routes for /api/v1/users and /api/v1/auth. Use TypeScript.",
   "acceptance_criteria": [
     "Express server starts on port 3000",
@@ -257,7 +270,7 @@ Tasks can reference existing files from your boilerplates. For example:
   {
     "task_id": "frontend-001",
     "intent": "Extend existing React component",
-    "tool": "cursor-cli",
+    "tool": "gemini",
     "instructions": "Extend the existing App.tsx component (located at src/App.tsx) to add user authentication. Follow the existing code style and patterns.",
     "acceptance_criteria": [
       "App.tsx includes authentication logic",
@@ -272,7 +285,7 @@ Tasks can reference existing files from your boilerplates. For example:
   {
     "task_id": "backend-001",
     "intent": "Create API endpoint structure",
-    "tool": "cursor-cli",
+    "tool": "copilot",
     "instructions": "Create a REST API with Express.js. Include routes for /api/v1/users and /api/v1/auth. Use TypeScript.",
     "acceptance_criteria": [
       "Express server starts on port 3000",
@@ -297,7 +310,7 @@ Tasks can reference existing files from your boilerplates. For example:
   {
     "task_id": "backend-002",
     "intent": "Add authentication middleware",
-    "tool": "cursor-cli",
+    "tool": "claude",
     "instructions": "Implement JWT authentication middleware for Express routes.",
     "acceptance_criteria": [
       "JWT middleware validates tokens",
@@ -320,8 +333,8 @@ Tasks can reference existing files from your boilerplates. For example:
 **Task Schema Fields**:
 - `task_id`: Unique identifier
 - `intent`: Brief description of task purpose
-- `tool`: Must be `"cursor-cli"`
-- `instructions`: Detailed instructions for Cursor CLI
+- `tool`: Provider/agent to execute the task (`cursor`, `gemini`, `gemini_stub`, `copilot`, `codex`, `claude`)
+- `instructions`: Detailed instructions for the selected provider CLI
 - `acceptance_criteria`: Array of strings, ALL must be met
 - `retry_policy`: Retry configuration (typically `max_retries: 3`)
 - `status`: Initial status (typically `"pending"`)
@@ -369,9 +382,9 @@ npm run cli -- enqueue \
 
 All tasks will be enqueued in the order they appear (FIFO execution). Tasks are processed in strict First-In-First-Out order: the first task enqueued is the first task processed. The queue uses Redis List with LPUSH (left push) for enqueue and RPOP (right pop) for dequeue to maintain FIFO ordering.
 
-### 5. Start Supervisor Control Loop
+### 5. Start Foundry Control Loop
 
-Run the supervisor control loop (this will process tasks until queue is exhausted or halted):
+Run the Foundry control loop (this will process tasks until queue is exhausted or halted):
 
 ```bash
 npm run cli -- start \
@@ -382,11 +395,11 @@ npm run cli -- start \
   --queue-db 2
 ```
 
-The supervisor will:
+Foundry will:
 1. Load state
 2. Check if status is RUNNING (if not, set it with `resume` command first)
 3. Dequeue next task
-4. Dispatch to Cursor CLI
+4. Dispatch to the configured provider CLI
 5. Validate output
 6. Persist state
 7. Repeat until queue exhausted or halted
@@ -395,7 +408,7 @@ The supervisor will:
 
 ### 6. Monitor Execution
 
-**Check supervisor status** (recommended):
+**Check Foundry status** (recommended):
 ```bash
 npm run cli -- status \
   --redis-host localhost \
@@ -406,7 +419,7 @@ npm run cli -- status \
 ```
 
 This displays:
-- Supervisor status and iteration
+- Foundry status and iteration
 - Goal information and completion status
 - Queue status
 - Task statistics (completed, blocked)
@@ -450,7 +463,7 @@ redis-cli -h localhost -p 6499 GET supervisor:state | jq '.supervisor.status'
 redis-cli -h localhost -p 6499 GET supervisor:state | jq '.current_task'
 ```
 
-### 7. Halt Supervisor
+### 7. Halt Foundry
 
 To stop execution (e.g., on ambiguity or operator intervention):
 
@@ -492,7 +505,7 @@ npm run cli -- start \
 # 1. Start infrastructure
 docker-compose up -d
 
-# 2. Initialize supervisor
+# 2. Initialize Foundry
 npm run cli -- init-state \
   --redis-host localhost \
   --redis-port 6499 \
@@ -538,7 +551,7 @@ npm run cli -- enqueue \
   --queue-db 2 \
   --task-file tasks/all-tasks.json
 
-# 5. Start supervisor control loop
+# 5. Start Foundry control loop
 npm run cli -- start \
   --redis-host localhost \
   --redis-port 6499 \
@@ -556,18 +569,17 @@ pm2 logs supervisor --follow
 
 ## Architecture
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture.
-
-### Key Components
-
-- **Operator Interface** (`src/cli.ts`): CLI commands for operator control
-- **Supervisor Core** (`src/controlLoop.ts`): Main control loop
-- **Tool Dispatcher** (`src/cursorCLI.ts`, `src/promptBuilder.ts`): Cursor CLI integration
-- **Persistence Layer** (`src/persistence.ts`): DragonflyDB state management
-- **Queue Adapter** (`src/queue.ts`): Redis List-based task queue
-- **Validator** (`src/validator.ts`): Deterministic validation
-- **Audit Logger** (`src/auditLogger.ts`): Append-only logging
-- **Logger** (`src/logger.ts`): Centralized verbose logging with stdout flushing for PM2
+- **Operator Interface** (`src/infrastructure/tooling/project-cli/cli.ts`): CLI commands for operator control
+- **Foundry Core** (`src/application/entrypoint/controlLoop.ts`): Main control loop
+- **Tool Dispatcher** (`src/infrastructure/connectors/agents/providers/*`, `src/domain/agents/promptBuilder.ts`): CLI integration
+- **Persistence Layer** (`src/application/services/persistence.ts`): DragonflyDB state management
+- **Queue Adapter** (`src/domain/executors/taskQueue.ts`): Redis List-based task queue
+- **Validator** (`src/application/services/validator.ts`): Deterministic validation
+- **AST Service** (`src/application/services/ASTService.ts`): Structural code analysis
+- **Validation Cache** (`src/application/services/validationCache.ts`): Redis-based result caching
+- **Analytics Service** (`src/application/services/analytics.ts`): Performance tracking
+- **Audit Logger** (`src/infrastructure/adapters/logging/auditLogger.ts`): Append-only logging
+- **Logger** (`src/infrastructure/adapters/logging/logger.ts`): Centralized verbose logging with stdout flushing for PM2
 
 ## Documentation
 
@@ -575,7 +587,7 @@ All specifications and documentation are in the `docs/` directory:
 
 - [Control Loop](docs/LOOP.md) - Control loop steps
 - [State Management](docs/STATE_LIFECYCLE.md) - State lifecycle rules
-- [Tool Contracts](docs/TOOL_CONTRACTS.md) - Cursor CLI contract
+- [Tool Contracts](docs/TOOL_CONTRACTS.md) - Provider/agent contract
 - [Validation](docs/VALIDATION.md) - Validation rules
 - [Sandbox](docs/SANDBOX.md) - Sandbox enforcement
 - [Recovery](docs/RECOVERY.md) - Recovery scenarios
@@ -585,7 +597,7 @@ See [docs/IMPLEMENTATION_REVIEW.md](docs/IMPLEMENTATION_REVIEW.md) for implement
 
 ## State Schema
 
-- [State Schema](STATE_SCHEMA.json) - Supervisor state structure
+- [State Schema](STATE_SCHEMA.json) - Foundry state structure
 - [Task Schema](TASK_SCHEMA.json) - Task structure
 
 ## Configuration
@@ -595,7 +607,7 @@ See [docs/IMPLEMENTATION_REVIEW.md](docs/IMPLEMENTATION_REVIEW.md) for implement
 Set these before running commands:
 
 ```bash
-export CURSOR_CLI_PATH=/path/to/cursor  # Optional, defaults to 'cursor' (uses 'cursor agent' subcommand)
+export CURSOR_CLI_PATH=/path/to/cursor  # Optional, only if using Cursor CLI (defaults to 'cursor agent')
 ```
 
 ### CLI Global Options
@@ -604,7 +616,7 @@ All commands require these global options:
 
 - `--redis-host <host>` - DragonflyDB host (required, default: `localhost`)
 - `--redis-port <port>` - DragonflyDB port (required, default: `6499`)
-- `--state-key <key>` - Supervisor state key (required, operator-defined, e.g., `supervisor:state`)
+- `--state-key <key>` - State key (required, operator-defined, e.g., `supervisor:state`)
 - `--queue-name <name>` - Task queue name (required, e.g., `tasks`)
 - `--queue-db <index>` - Queue database index (required, must differ from state DB, e.g., `2`)
 - `--state-db <index>` - State database index (optional, default: `0`)
@@ -627,11 +639,21 @@ All commands require these global options:
 
 ## Common Operations
 
-### Check Supervisor Status
+### Check Foundry Status
 
 **Using the status command** (recommended):
 ```bash
 npm run cli -- status \
+  --redis-host localhost \
+  --redis-port 6499 \
+  --state-key supervisor:state \
+  --queue-name tasks \
+  --queue-db 2
+```
+
+**Check performance metrics**:
+```bash
+npm run cli -- metrics \
   --redis-host localhost \
   --redis-port 6499 \
   --state-key supervisor:state \
@@ -674,7 +696,7 @@ cat sandbox/<project-id>/audit.log.jsonl | jq 'select(.task_id == "task-001")'
 
 ### View Verbose Application Logs
 
-The supervisor provides detailed verbose logging for debugging and monitoring:
+Foundry provides detailed verbose logging for debugging and monitoring:
 
 ```bash
 # View PM2 logs (recommended)
@@ -693,13 +715,13 @@ pm2 logs supervisor --lines 200 | grep "\[PERFORMANCE\]"
 pm2 logs supervisor --lines 200 | grep "\[STATE_TRANSITION\]"
 ```
 
-**Log Types:**
+**Log Types**:
 - **`[VERBOSE]`** - Detailed application logic, state information, and decision points
 - **`[PERFORMANCE]`** - Operation timing metrics (duration in milliseconds)
 - **`[STATE_TRANSITION]`** - State changes and transitions (e.g., `RUNNING → HALTED`)
 - **Standard logs** - Iteration numbers, task IDs, validation results, etc.
 
-**Example verbose log output:**
+**Example verbose log output**:
 ```
 [2025-12-28T15:48:06.123Z] [VERBOSE] [ControlLoop] Starting iteration 1
 [2025-12-28T15:48:06.125Z] [PERFORMANCE] StateLoad took 15ms | Metadata: {"iteration":1}
@@ -708,7 +730,7 @@ pm2 logs supervisor --lines 200 | grep "\[STATE_TRANSITION\]"
 [2025-12-28T15:48:06.140Z] [PERFORMANCE] TaskRetrieval took 5ms | Metadata: {"iteration":1,"source":"queue","has_task":true}
 ```
 
-### Clear Supervisor State
+### Clear State
 
 **Warning**: This deletes all state. Use with caution.
 
@@ -753,6 +775,24 @@ FLUSHDB
 
 ## Troubleshooting
 
+### Diagnostics & Investigation Tools
+
+For troubleshooting system issues, use the [Investigation Scripts](./scripts/investigations/README.md) toolkit—a set of reusable diagnostic tools for inspecting provider health, task queue state, and execution logs.
+
+**Quick Diagnostics**:
+```bash
+# Check provider status and circuit breakers
+npx ts-node scripts/investigations/provider-health.ts
+
+# Inspect task queue and blocked tasks
+npx ts-node scripts/investigations/task-queue-inspect.ts
+
+# Analyze execution logs and error patterns
+npx ts-node scripts/investigations/log-analyzer.ts --summary
+```
+
+For detailed usage, examples, and a troubleshooting matrix, see [Investigation Scripts README](./scripts/investigations/README.md).
+
 ### DragonflyDB Not Starting
 
 ```bash
@@ -791,17 +831,17 @@ npm run cli -- init-state --state-key supervisor:state:new ...
 redis-cli -h localhost -p 6499 DEL supervisor:state
 ```
 
-### Supervisor Retry Behavior
+### Foundry Retry Behavior
 
-The supervisor now automatically retries tasks on validation failures or ambiguity:
+Foundry now automatically retries tasks on validation failures or ambiguity:
 
-1. **Validation Failures**: If a task fails validation, the supervisor:
+1. **Validation Failures**: If a task fails validation, Foundry:
    - Generates a fix prompt with validation feedback
    - Retries the task (up to `max_retries` from `retry_policy`, default: 3)
-   - Only blocks the task if max retries exceeded (supervisor continues to next task)
+   - Only blocks the task if max retries exceeded (Foundry continues to next task)
 
 2. **Ambiguity/Questions**: If ambiguity or questions are detected:
-   - Supervisor validates the output first (may be a false positive)
+   - Foundry validates the output first (may be a false positive)
    - If validation passes but ambiguity detected, generates clarification prompt
    - Retries with instructions to avoid ambiguous language
    - Only halts on critical failures (execution errors, blocked status)
@@ -811,7 +851,7 @@ The supervisor now automatically retries tasks on validation failures or ambigui
    redis-cli -h localhost -p 6499 GET supervisor:state | jq '.blocked_tasks'
    ```
 
-4. **Critical Halts**: Supervisor only halts immediately on:
+4. **Critical Halts**: Foundry only halts immediately on:
    - `CURSOR_EXEC_FAILURE`: Cursor CLI execution failed
    - `BLOCKED`: Cursor explicitly reported blocked status
    - `OUTPUT_FORMAT_INVALID`: Output format doesn't match expected schema
@@ -833,7 +873,7 @@ The supervisor now automatically retries tasks on validation failures or ambigui
    redis-cli -h localhost -p 6499 GET supervisor:state | jq '.supervisor | to_entries | map(select(.key | startswith("retry_count_")))'
    ```
 
-4. **Supervisor will automatically retry** - no manual intervention needed unless max retries exceeded
+4. **Foundry will automatically retry** - no manual intervention needed unless max retries exceeded
 
 ### Queue Exhausted but Goal Incomplete
 
@@ -846,13 +886,13 @@ If queue is exhausted but goal is not complete:
 
 2. **Enqueue additional tasks**:
    ```bash
-   npm run cli -- enqueue --task-file task-next.json ...
-   ```
+npm run cli -- enqueue --task-file task-next.json ...
+```
 
-3. **Resume supervisor**:
+3. **Resume Foundry**:
    ```bash
-   npm run cli -- resume ...
-   ```
+npm run cli -- resume ...
+```
 
 ### Sandbox Directory Issues
 
@@ -892,13 +932,13 @@ supervisor/
 
 **Key Points**:
 - Place your **code boilerplates** in `sandbox/<project-id>/` before starting
-- The supervisor will **work with and build upon** existing files
+- Foundry will **work with and build upon** existing files
 - All project files, logs, and artifacts are contained within the project directory
 - Tasks execute in this directory context, so they can reference existing files
 
 ## Programmatic Usage
 
-The supervisor can be used programmatically by importing from the main entry point:
+Foundry can be used programmatically by importing from the main entry point:
 
 ```typescript
 import {
@@ -949,8 +989,8 @@ const queue = createQueue('tasks', { host: 'localhost', port: 6499 }, 2);
 const task: Task = {
   task_id: 'task-001',
   intent: 'Create API endpoint',
-  tool: 'cursor-cli',
-  instructions: 'Create Express.js endpoint...',
+  tool: 'cursor',
+  instructions: 'Create Express.js endpoint...', 
   acceptance_criteria: ['Server starts', 'Endpoint responds'],
   retry_policy: { max_retries: 3 },
   status: 'pending',
@@ -971,8 +1011,9 @@ See [src/index.ts](src/index.ts) for all exported APIs.
 4. **Validation**: No task runs without validation
 5. **State Persistence**: State persisted after every step
 6. **Retry on Failures**: Validation failures and ambiguity trigger automatic retries (up to max retries)
-7. **Halt on Critical Failures**: Only execution errors and blocked status halt immediately
-8. **AUTO MODE**: Default and mandatory execution mode
+7. **Optimized**: Skips redundant validation via Redis-based caching
+8. **Measurable**: Detailed performance analytics for every task
+9. **AUTO MODE**: Default and mandatory execution mode
 
 See [.cursor/rules/supervisor-specs.mdc](.cursor/rules/supervisor-specs.mdc) for complete specifications.
 
@@ -980,3 +1021,27 @@ See [.cursor/rules/supervisor-specs.mdc](.cursor/rules/supervisor-specs.mdc) for
 
 [Add license information]
 
+
+## Local Helper Agent (Optional)
+
+You can configure Foundry to use a local LLM (via Ollama) for helper agent tasks (command generation), reducing latency and cloud costs.
+
+### Prerequisites
+- [Ollama](https://ollama.com/) installed and running
+- Model pulled (e.g., `ollama pull phi4-mini`)
+
+### Configuration
+
+Add to `.env`:
+```bash
+USE_LOCAL_HELPER_AGENT=true
+LOCAL_HELPER_MODEL=phi4-mini
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+### Benefits
+- **Latency**: ~3-5s (vs 15-30s cloud)
+- **Cost**: Free (no API tokens for validation command generation)
+- **Privacy**: Validation logic runs locally
+
+```

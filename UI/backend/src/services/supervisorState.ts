@@ -90,6 +90,61 @@ export async function loadSupervisorState(): Promise<SupervisorState | null> {
 }
 
 /**
+ * Save supervisor state to DragonflyDB
+ */
+export async function saveSupervisorState(state: SupervisorState): Promise<void> {
+  try {
+    const client = getRedisClient();
+    const serialized = JSON.stringify(state);
+    await client.set(config.supervisor.stateKey, serialized);
+  } catch (error) {
+    console.error('Error saving supervisor state:', error);
+    throw new Error('Failed to save state');
+  }
+}
+
+/**
+ * Update a task in the supervisor state (completed or blocked)
+ */
+export async function updateTaskInState(taskId: string, updates: Record<string, any>): Promise<boolean> {
+  const state = await loadSupervisorState();
+  if (!state) return false;
+  
+  let found = false;
+
+  // Check completed tasks
+  if (state.completed_tasks) {
+    const index = state.completed_tasks.findIndex((t: any) => t.task_id === taskId);
+    if (index !== -1) {
+      state.completed_tasks[index] = { ...(state.completed_tasks[index] as object), ...updates };
+      found = true;
+    }
+  }
+
+  // Check blocked tasks
+  if (!found && state.blocked_tasks) {
+    const index = state.blocked_tasks.findIndex((t: any) => t.task_id === taskId);
+    if (index !== -1) {
+      state.blocked_tasks[index] = { ...(state.blocked_tasks[index] as object), ...updates };
+      found = true;
+    }
+  }
+  
+  // Also check if it's the current task (though usually read-only)
+  if (!found && (state as any).current_task && (state as any).current_task.task_id === taskId) {
+      (state as any).current_task = { ...(state as any).current_task, ...updates };
+      found = true;
+  }
+
+  if (found) {
+    await saveSupervisorState(state);
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * Get supervisor status only
  */
 export async function getSupervisorStatus(): Promise<{
