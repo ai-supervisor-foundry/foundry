@@ -3,6 +3,7 @@
 ## Scope
 - Audit README.md and non-plan docs under docs/*.md against last week changes: prompt tightening, helper agent optimization, session reuse, AST/validation upgrades, provider-agnostic dispatch.
 - Deliver targeted edits; no content changes applied yet.
+- Style note: refer to Agents/Providers with examples in parentheses, e.g., "Agents/Providers (Gemini, Copilot, Cursor)", unless the doc is explicitly provider-specific.
 
 ## Findings & Proposed Updates
 

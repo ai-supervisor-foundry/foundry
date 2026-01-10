@@ -8,7 +8,9 @@
 
 ## Validation Rules
 
-- Validation logic must be deterministic, rule-based, and non-AI.
+- Validation logic must be deterministic, rule-based, and non-AI (across Agents/Providers: Gemini, Copilot, Cursor).
+- Deterministic pre-validation: safe regex guard, file/byte caps, semver matching, confidence tiers (high/medium) to decide helper invocation.
+- Helper Agent: invoked when deterministic checks are insufficient; reuses helper sessions per project feature and reports cache stats when available.
 - Examples: file exists, tests pass, diff matches criteria, artifact count matches expectation.
 - If validation cannot be automated → HALT + operator clarification.
 
@@ -48,6 +50,11 @@ To improve performance, validation results are cached in Redis:
 - **Key**: Combined hash of Project ID + Criterion + File Content (SHA-256).
 - **Behavior**: If file content hasn't changed, the previous validation result (Pass/Fail) is reused instantly.
 - **TTL**: 1 hour.
+
+### Task Type Routing (current)
+- Coding/config/testing tasks: file and content checks (regex/AST), test commands when provided.
+- Behavioral/conversational tasks: text-pattern checks; skip interrogation.
+- Note: broader task-type expansion is tracked separately (see task-type-system-redesign plan).
 
 ### Why Interrogation Skips for Behavioral Tasks
 

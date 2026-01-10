@@ -25,7 +25,7 @@ The Supervisor is a **persistent orchestration layer** for AI-assisted software 
 - **Deterministic Control**: Explicit validation, clear halt conditions
 - **Long-Running Projects**: Work on complex projects over days or weeks
 - **Full Auditability**: Every action is logged and reviewable
-- **Cost-Effective**: Uses free tier tools (Cursor CLI, DragonflyDB)
+- **Cost-Effective**: Uses free tier tools (Agents/Providers: Gemini, Copilot, Cursor) and DragonflyDB
 
 ### High-Level Architecture
 
@@ -41,7 +41,7 @@ The Supervisor is a **persistent orchestration layer** for AI-assisted software 
 │                                                                   │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
 │  │   CLI Layer  │──▶│ Control Loop │──▶│  Tool Layer  │         │
-│  │  (Operator   │  │  (Orchestrates│  │  (Cursor CLI)│         │
+│  │  (Operator   │  │  (Orchestrates│  │  (Agents/Providers)│    │
 │  │   Interface) │  │   Execution) │  │              │         │
 │  └──────────────┘  └──────────────┘  └──────────────┘         │
 │         │                  │                  │                  │
@@ -94,10 +94,11 @@ Each module has distinct, non-overlapping responsibilities:
 │  Supervisor Core                                             │
 │  ├─ Owns control loop                                        │
 │  ├─ Owns state read/write                                    │
-│  └─ Owns validation                                         │
+│  ├─ Owns validation (deterministic + helper + session mgmt)  │
+│  └─ Owns analytics/metrics                                   │
 │                                                               │
 │  Tool Dispatcher                                             │
-│  ├─ Constructs Cursor task prompts                           │
+│  ├─ Constructs task prompts for Agents/Providers            │
 │  └─ Injects state snapshots                                  │
 │                                                               │
 │  Persistence Layer                                           │
@@ -143,9 +144,12 @@ graph TB
     
     subgraph "Supervisor Core"
         ControlLoop[Control Loop]
+        DeterministicValidator[Deterministic Validator]
         Validator[Validator]
         HaltDetection[Halt Detection]
         Interrogator[Interrogator]
+        HelperAgent[Helper Agent Pipeline]
+        SessionManager[Session Manager]
         ASTService[AST Service]
         ValidationCache[Validation Cache]
         Analytics[Analytics Service]
@@ -153,7 +157,7 @@ graph TB
     
     subgraph "Tool Layer"
         PromptBuilder[Prompt Builder]
-        CursorCLI[Cursor CLI Dispatcher]
+        CursorCLI[Agents/Providers Dispatcher]
     end
     
     subgraph "Persistence Layer"
@@ -175,14 +179,20 @@ graph TB
     
     ControlLoop -->|Load/Save| Persistence
     ControlLoop -->|Dequeue| Queue
+    ControlLoop -->|Pre-Check| DeterministicValidator
+    ControlLoop -->|Resolve Session| SessionManager
     ControlLoop -->|Build Prompt| PromptBuilder
     ControlLoop -->|Execute| CursorCLI
     ControlLoop -->|Validate| Validator
+    ControlLoop -->|Helper Fallback| HelperAgent
     ControlLoop -->|Check Halts| HaltDetection
     ControlLoop -->|Interrogate| Interrogator
     ControlLoop -->|Log| AuditLogger
     ControlLoop -->|Log Prompts| PromptLogger
     ControlLoop -->|Record Metrics| Analytics
+    
+    SessionManager -->|Read/Write Sessions| Persistence
+    HelperAgent -->|Generate Commands| CursorCLI
     
     Validator -->|Parse Code| ASTService
     Validator -->|Check Cache| ValidationCache
@@ -234,16 +244,20 @@ graph TB
    - If goal incomplete → HALT
    - If goal complete → COMPLETED
 6. Determine Working Directory
-7. Build Prompt (with minimal state snapshot)
-8. Dispatch to CLI Adapter
-9. Check Hard Halts (critical failures only)
-10. Validate Output
-11. Handle Retries/Interrogation:
+7. Run Deterministic Pre-Validation (caps, regex/semver, safe extensions)
+8. Resolve Session (feature-scoped) and enforce context/error limits
+9. Build Prompt (with minimal state snapshot)
+10. Dispatch to Agents/Providers CLI with session ID
+11. Check Hard Halts (critical failures only)
+12. Validate Output (deterministic rules, AST/content checks)
+13. On Validation Gaps → Invoke Helper Agent (session-reused)
+14. Handle Retries/Interrogation:
     - If validation fails → Build fix prompt → Retry
     - If ambiguity → Build clarification prompt → Retry
     - If uncertain → Interrogate agent → Retry
-12. On Success:
-    - Update state (iteration++, last_task_id, etc.)
+15. Record Analytics/Metrics (helper durations, cache stats)
+16. On Success:
+    - Update state (iteration++, last_task_id, active_sessions, etc.)
     - Persist state
     - Append audit log
 ```
@@ -286,6 +300,26 @@ graph TB
   },
   "queue": {
     "exhausted": false
+  },
+  "active_sessions": {
+    "task:mobile": {
+      "session_id": "abc-123",
+      "provider": "gemini",
+      "last_used": "2026-01-09T...",
+      "error_count": 0,
+      "total_tokens": 85000,
+      "feature_id": "task:mobile",
+      "task_id": "mobile_expo_init"
+    },
+    "helper:validation:projectId": {
+      "session_id": "def-456",
+      "provider": "gemini",
+      "last_used": "2026-01-09T...",
+      "error_count": 0,
+      "total_tokens": 42000,
+      "feature_id": "helper:validation:projectId",
+      "task_id": "mobile_expo_init"
+    }
   },
   "completed_tasks": [...],
   "blocked_tasks": [...],
@@ -344,17 +378,52 @@ queue:tasks (Redis List)
 }
 ```
 
-#### 6. Session Manager (`src/domain/agents/sessionManager.ts`)
+#### 6. Deterministic Validator (`src/application/services/deterministicValidator.ts`)
 
-**Purpose**: Manage lifecycle and persistence of LLM sessions
+**Purpose**: Fast, non-AI pre-validation to skip helper agent when confidence is high
 
 **Features**:
-- **State-Based Fallback**: Uses internal state if provider discovery fails.
-- **Stable Feature IDs**: Generates deterministic session keys based on task prefixes/projects.
-- **Helper Agent Persistence**: Reuses sessions for helper agents to speed up validation.
-- **Provider-Specific Discovery**: Strategies for Gemini, Copilot, etc.
+- **Catastrophic Regex Guard**: Detects unsafe regex patterns before execution
+- **File/Byte Caps**: MAX_FILES_SCANNED (2000), MAX_TOTAL_BYTES_READ (10MB), MAX_FILE_SIZE (512KB)
+- **Semver Matching**: Uses `semver.satisfies()` for version constraint checks
+- **Safe Extensions**: Filters text files only (.ts, .js, .json, .md, etc.)
+- **Confidence Tiers**: High confidence → skip helper; medium → invoke helper
+- **Gating**: Controlled via `HELPER_DETERMINISTIC_ENABLED` and `HELPER_DETERMINISTIC_PERCENT` env flags
 
-#### 7. Tool Dispatcher (`src/infrastructure/connectors/agents/providers/cursorCLI.ts`, `copilotCLI.ts`, etc.)
+**Rules**: 13 checks including expo_project (high), no_boilerplate (medium), builds_successfully_proxy (medium), prisma_setup (high), tests_present (high)
+
+#### 7. Session Manager (`src/domain/agents/sessionManager.ts`)
+
+**Purpose**: Manage lifecycle and persistence of LLM sessions across iterations
+
+**Features**:
+- **State-Based Fallback**: Uses `state.active_sessions` if provider discovery fails
+- **Stable Feature IDs**: Generates deterministic session keys (`task:prefix`, `project:<id>`)
+- **Helper Agent Isolation**: Helper sessions use `helper:validation:<projectId>` prefix
+- **Context/Error Limits**: Per-provider caps (Gemini: 350K tokens currently, plan: 1.5M)
+- **Provider-Specific Discovery**: Strategies for Gemini (`listSessions()`), Copilot, etc.
+- **Session Reuse Toggle**: Disable via `DISABLE_SESSION_REUSE` env flag
+
+#### 8. Helper Agent Pipeline (`src/domain/executors/interrogator.ts` → `generateValidationCommands()`)
+
+**Purpose**: Generate verification commands when validation gaps exist
+
+**Flow**:
+1. Deterministic validation returns `valid=false` with failed criteria
+2. Helper agent receives: provider response, failed criteria, sandbox context
+3. Helper generates verification commands (grep, cat, ls, etc.) as JSON
+4. Supervisor executes commands to gather evidence
+5. Evidence used to update validation confidence
+
+**Session Reuse**:
+- Helper sessions isolated under `helper:validation:<projectId>`
+- Persisted in `state.active_sessions[helperFeatureId]`
+- Context accumulates across validation retries (30-60% token savings)
+- Cache stats tracked: `cache_read_input_tokens`, `input_tokens`
+
+**Metrics**: Helper duration avg/P95, cache hit rate recorded via AnalyticsService
+
+#### 9. Tool Dispatcher (`src/infrastructure/connectors/agents/providers/cursorCLI.ts`, `copilotCLI.ts`, etc.)
 
 **Purpose**: Execute CLI commands in sandboxed environment via various providers
 
@@ -368,7 +437,7 @@ queue:tasks (Redis List)
 - 30-minute timeout per task
 - Supports agent modes (auto, opus, etc.)
 
-#### 8. Validator (`src/application/services/validator.ts`)
+#### 10. Validator (`src/application/services/validator.ts`)
 
 **Purpose**: Deterministic, rule-based validation of task output
 
@@ -412,7 +481,7 @@ Task → detectTaskType() → { behavioral | coding | config | testing | docs }
   - `failed_criteria`: string[]
   - `uncertain_criteria`: string[]
 
-#### 9. Halt Detection (`src/domain/executors/haltDetection.ts`)
+#### 11. Halt Detection (`src/domain/executors/haltDetection.ts`)
 
 **Purpose**: Detect hard halt conditions in CLI output
 
@@ -428,7 +497,7 @@ Task → detectTaskType() → { behavioral | coding | config | testing | docs }
 - Critical halts stop immediately
 - Non-critical halts trigger retry with clarification
 
-#### 10. Interrogator (`src/domain/executors/interrogator.ts`)
+#### 12. Interrogator (`src/domain/executors/interrogator.ts`)
 
 **Purpose**: Ask agent about uncertain/failed validation criteria
 
@@ -445,7 +514,7 @@ Task → detectTaskType() → { behavioral | coding | config | testing | docs }
 - Max questions per criterion (default: 1)
 - Final interrogation before blocking task
 
-#### 11. AST Service (`src/application/services/ASTService.ts`)
+#### 13. AST Service (`src/application/services/ASTService.ts`)
 
 **Purpose**: Structural code validation using Abstract Syntax Trees
 
@@ -454,7 +523,7 @@ Task → detectTaskType() → { behavioral | coding | config | testing | docs }
 - **Rules**: `CLASS_EXISTS`, `FUNCTION_EXISTS`, `EXPORT_EXISTS`, `IMPORT_EXISTS`, `INTERFACE_EXISTS`.
 - **Heuristics**: Automatically infers AST checks from natural language acceptance criteria.
 
-#### 12. Validation Cache Manager (`src/application/services/validationCache.ts`)
+#### 14. Validation Cache Manager (`src/application/services/validationCache.ts`)
 
 **Purpose**: Optimize validation by caching results for unchanged code
 
@@ -464,7 +533,7 @@ Task → detectTaskType() → { behavioral | coding | config | testing | docs }
 - **Invalidation**: Automatic via file hash change (SHA-256)
 - **TTL**: 1 hour
 
-#### 13. Analytics Service (`src/application/services/analytics.ts`)
+#### 15. Analytics Service (`src/application/services/analytics.ts`)
 
 **Purpose**: Track system performance and efficiency
 
@@ -473,11 +542,15 @@ Task → detectTaskType() → { behavioral | coding | config | testing | docs }
 - Validation pass/fail rates
 - Interrogation rounds
 - Prompt/response sizes
+- **Deterministic**: attempts, success count
+- **Helper Agent**: duration avg/P95, cache hit rate, total calls
+- **Validation**: time in validation/interrogation/execution phases
 
 **Persistence**:
-- `sandbox/<project-id>/metrics.jsonl` (append-only)
+- `sandbox/<project-id>/metrics.jsonl` (append-only JSONL)
+- Fields: `task_id`, `start_time`, `end_time`, `total_duration_ms`, `iterations`, `status`, phase timing, helper stats, cache stats
 
-#### 14. Audit Logger (`src/infrastructure/adapters/logging/auditLogger.ts`)
+#### 16. Audit Logger (`src/infrastructure/adapters/logging/auditLogger.ts`)
 
 **Purpose**: Append-only audit trail of all supervisor actions
 
@@ -501,7 +574,7 @@ Task → detectTaskType() → { behavioral | coding | config | testing | docs }
 - Includes full state snapshots (before/after)
 - Includes prompts and responses
 
-#### 15. Prompt Logger (`src/infrastructure/adapters/logging/promptLogger.ts`)
+#### 17. Prompt Logger (`src/infrastructure/adapters/logging/promptLogger.ts`)
 
 **Purpose**: Log all prompts and responses for debugging
 
@@ -540,7 +613,7 @@ sequenceDiagram
     participant Persistence
     participant Queue
     participant PromptBuilder
-    participant CursorCLI
+    participant ProviderCLI as Agents/Providers CLI
     participant Validator
     participant AuditLogger
 
@@ -560,17 +633,17 @@ sequenceDiagram
         ControlLoop->>PromptBuilder: buildPrompt(task, minimalState)
         PromptBuilder-->>ControlLoop: prompt
         
-        ControlLoop->>CursorCLI: execute(prompt, cwd)
-        CursorCLI-->>ControlLoop: cursorResult
+        ControlLoop->>ProviderCLI: execute(prompt, cwd)
+        ProviderCLI-->>ControlLoop: providerResult
         
-        ControlLoop->>Validator: validateTaskOutput(task, cursorResult)
+        ControlLoop->>Validator: validateTaskOutput(task, providerResult)
         Validator-->>ControlLoop: validationReport
         
         alt Validation Failed or Ambiguity
             ControlLoop->>PromptBuilder: buildFixPrompt() or buildClarificationPrompt()
             PromptBuilder-->>ControlLoop: fixPrompt
-            ControlLoop->>CursorCLI: execute(fixPrompt, cwd)
-            CursorCLI-->>ControlLoop: fixResult
+            ControlLoop->>ProviderCLI: execute(fixPrompt, cwd)
+            ProviderCLI-->>ControlLoop: fixResult
             ControlLoop->>Validator: validateTaskOutput(task, fixResult)
             Validator-->>ControlLoop: validationReport
         end
@@ -593,7 +666,7 @@ sequenceDiagram
 │  2. Task Execution                                           │
 │     ├─▶ Dequeue Task                                         │
 │     ├─▶ Build Prompt                                         │
-│     ├─▶ Execute Cursor CLI                                   │
+│     ├─▶ Execute Agent/Provider CLI                           │
 │     ├─▶ Validate Output                                      │
 │     └─▶ Handle Retries (if needed)                           │
 │                                                               │
@@ -634,7 +707,7 @@ sequenceDiagram
 │    │          Build Fix/Clarification Prompt                  │
 │    │          │                                               │
 │    │          ▼                                               │
-│    │          Execute Cursor CLI with Fix Prompt              │
+│    │          Execute Agent/Provider CLI with Fix Prompt      |
 │    │          │                                               │
 │    │          ▼                                               │
 │    │          Re-validate Output                              │
@@ -800,7 +873,7 @@ flowchart TD
     CheckGoal -->|Yes| Complete[Status = COMPLETED, Persist, Exit]
     UseRetryTask --> BuildPrompt[Build Prompt with Minimal State]
     DequeueTask -->|Task Found| BuildPrompt
-    BuildPrompt --> ExecuteCursor[Execute Cursor CLI]
+    BuildPrompt --> ExecuteCursor[Execute Agent/Provider CLI]
     ExecuteCursor --> CheckHardHalts{Check Hard Halts}
     CheckHardHalts -->|Critical| Halt3[HALT: Critical Failure]
     CheckHardHalts -->|Non-Critical| Validate[Validate Output]
@@ -815,7 +888,7 @@ flowchart TD
     CheckAmbiguity -->|Yes| CheckRetries
     CheckValidation -->|No| CheckRetries
     CheckRetries -->|Yes| BuildFixPrompt[Build Fix/Clarification Prompt]
-    BuildFixPrompt --> ExecuteFix[Execute Cursor CLI with Fix]
+    BuildFixPrompt --> ExecuteFix[Execute Agent/Provider CLI with Fix]
     ExecuteFix --> Revalidate[Re-validate Output]
     Revalidate -->|Pass| UpdateState
     Revalidate -->|Fail| StoreRetry[Store retry_task, Persist, Continue]
@@ -853,8 +926,8 @@ flowchart TD
 - Build prompt with task instructions and acceptance criteria
 - Log prompt to `prompts.log.jsonl`
 
-#### Step 5: Execute Cursor CLI
-- Spawn cursor CLI process in sandbox directory
+#### Step 5: Execute Agent/Provider CLI
+- Spawn provider CLI process in sandbox directory
 - Capture stdout/stderr verbatim
 - 30-minute timeout per task
 - Log response to `prompts.log.jsonl`
@@ -879,7 +952,7 @@ flowchart TD
     - Interrogate agent with targeted questions
   - Build fix/clarification prompt
   - **Smart Retry**: If agent fails with the exact same error twice, switch to "Strict Mode" fix prompt
-  - Execute Cursor CLI with fix prompt
+  - Execute Agent/Provider CLI with fix prompt
   - Re-validate output
   - If still fails: Store retry_task for next iteration
   - If max retries exceeded: Final interrogation → Block or Complete
@@ -992,7 +1065,7 @@ interface Task {
   task_id: string;                    // Unique identifier
   intent: string;                      // Brief description
   tool: 'cursor';                  // Must be 'cursor'
-  instructions: string;                 // Detailed instructions for Cursor CLI
+  instructions: string;                 // Detailed instructions for provider CLI
   acceptance_criteria: string[];       // ALL must be met
   retry_policy: {
     max_retries: number;                // Default: 3
@@ -1003,7 +1076,7 @@ interface Task {
   test_command?: string;                // Command to run for validation
   tests_required?: boolean;             // Whether tests must pass
   expected_json_schema?: Record<string, string>;  // JSON schema for output
-  agent_mode?: 'auto' | 'opus' | string;  // Cursor CLI agent mode
+  agent_mode?: 'auto' | 'opus' | string;  // Provider agent mode
 }
 ```
 
@@ -1027,7 +1100,7 @@ interface Task {
    - Check types, required fields, no extra fields
 
 5. **Exit Code Rule**
-   - Cursor CLI exit code should be 0 (non-critical)
+  - Provider CLI exit code should be 0 (non-critical)
 
 ---
 
@@ -1068,7 +1141,7 @@ supervisor/
 ```
 
 **Sandbox Enforcement**:
-- All Cursor CLI execution happens in sandbox directory
+- All provider CLI execution happens in sandbox directory
 - Working directory determined by:
   1. `task.working_directory` (if provided)
   2. `sandbox/<project-id>` (default)
@@ -1100,7 +1173,7 @@ supervisor/
    - Missing required fields → HALT: MISSING_STATE_FIELD
 
 2. **Execution Errors**
-   - Cursor CLI execution failure → HALT: CURSOR_EXEC_FAILURE
+  - Provider CLI execution failure → HALT: PROVIDER_EXEC_FAILURE
    - Invalid working directory → HALT: CURSOR_EXEC_FAILURE
    - Timeout (30 minutes) → HALT: CURSOR_EXEC_FAILURE
 

@@ -2,7 +2,7 @@
 
 - Start session (load PROMPT.md & rules).
 - Inject explicit goal.
-- Execute control loop (tasks dispatched via Cursor CLI).
+- Execute control loop (tasks dispatched via Agents/Providers: Gemini, Copilot, Cursor).
 - Review outputs/diffs.
 - Persist state.
 - Stop execution.
@@ -25,6 +25,8 @@
 | Resource Retries | 0 | Infrastructure failures (no automatic retries) |
 | Initial Interrogation | 1 round | Max 1 clarifying question per criterion |
 | Final Interrogation | 0 rounds | Final check before blocking (disabled) |
+| Deterministic helper skip | Flagged via `HELPER_DETERMINISTIC_ENABLED` / `HELPER_DETERMINISTIC_PERCENT` |
+| Session reuse | Disable via `DISABLE_SESSION_REUSE`; per-provider context caps apply |
 
 ---
 
@@ -89,4 +91,5 @@ This displays:
 - **Execution Time**: Total time spent in the control loop.
 - **Bottlenecks**: Total character counts for token usage estimation.
 - **Slowest Task**: Identifies the most complex task in the sequence.
+- **Helper/Cache**: Helper avg/p95 duration and cache hit rate (if available).
 

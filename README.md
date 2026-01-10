@@ -49,7 +49,18 @@ AI coding agents are powerful but ephemeral—context is lost on interruption, m
 
 ## How It Works
 
-The supervisor operates as a **strict control mechanism** that executes operator-defined tasks through a fixed control loop. It maintains persistent state in DragonflyDB (Redis-compatible), manages a FIFO task queue, dispatches tasks to your chosen provider CLI with injected state context, and validates outputs deterministically. The system enforces sandbox isolation per project, provides append-only audit logging, and supports recovery from crashes or restarts by reloading persisted state. The supervisor never invents goals, expands scope, or makes autonomous decisions—all authority remains with the operator who injects goals and tasks explicitly.
+The supervisor operates as a **strict control mechanism** that executes operator-defined tasks through a fixed control loop. It maintains persistent state in DragonflyDB (Redis-compatible), manages a FIFO task queue, dispatches tasks to your chosen Agents/Providers (Gemini, Copilot, Cursor) with injected state context, and validates outputs deterministically. The system enforces sandbox isolation per project, provides append-only audit logging, and supports recovery from crashes or restarts by reloading persisted state. The supervisor never invents goals, expands scope, or makes autonomous decisions—all authority remains with the operator who injects goals and tasks explicitly.
+
+### Execution Stages (Current)
+- **Deterministic pre-validation**: Fast, non-AI checks (semver/regex), safe regex guard, file/byte caps; can skip helper when confidence is high. Flags: `HELPER_DETERMINISTIC_ENABLED`, `HELPER_DETERMINISTIC_PERCENT`.
+- **Provider run**: Task dispatched to Agents/Providers (Gemini, Copilot, Cursor) with state/context injection and session reuse when available.
+- **Helper agent fallback**: Generates verification commands when deterministic checks are insufficient; helper sessions are reused per project feature to retain context.
+- **Analytics & metrics**: JSONL metrics (helper durations avg/p95, cache-hit rate, deterministic attempts/success) persisted alongside audit logs.
+
+### Session Reuse
+- Session IDs resolved per feature (`task:prefix` or `project:<id>`) with caps and error thresholds.
+- Helper sessions isolated under `helper:validation:<projectId>` and persisted in `state.active_sessions`.
+- Toggle via `DISABLE_SESSION_REUSE` if rollback is required.
 
 ## Overview
 

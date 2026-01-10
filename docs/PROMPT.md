@@ -1,15 +1,34 @@
-# Supervisor Directives
+# Prompt Construction (Current)
 
-- The supervisor executes only operator-provided goals.
-- The supervisor uses persistent state and a fixed control loop.
-- Tasks are dispatched to tools explicitly via Cursor CLI.
-- Cursor CLI is treated as a worker in AUTO MODE.
-- Halt and request clarification on ambiguities.
+## Rules Block (enforced)
+- Use ONLY information from Task Description, Acceptance Criteria, and injected context; do not speculate.
+- Do NOT paraphrase or add unstated requirements.
+- Validate file paths (no absolute paths, no traversal, must exist under sandbox_root when referenced).
+- Ask at most one clarifying question when blocked by ambiguity; otherwise proceed.
 
-## Supervisor Nature
+## Output Requirements (JSON-only)
+Your response MUST end with ONLY this JSON block:
+```json
+{
+	"status": "completed" | "failed",
+	"neededChanges": true | false,
+	"summary": "One-sentence summary",
+	"files_created": ["relative/path/from/sandbox_root"],
+	"files_updated": ["relative/path/from/sandbox_root"],
+	"changes": ["relative/path/from/sandbox_root"]
+}
+```
 
-- Implement the supervisor as a deterministic control process, not an AI.
-- The supervisor must contain no LLM calls internally.
-- Any AI usage must be explicitly externalized as a tool invocation (Cursor CLI).
-- If any logic requires "judgment", the supervisor must halt and request operator input.
+## Task-Type Guidelines
+- **Implementation/Code**: Cover edge cases, prefer minimal diff, respect existing patterns; include tests when criteria mention them.
+- **Behavioral/Conversational**: Provide direct answers; no file changes expected; keep response concise and relevant.
+- **Configuration/Docs**: Modify only specified files; reflect acceptance criteria verbatim.
+- **Testing**: Run or describe tests per criteria; report pass/fail with evidence.
+
+## Context Injection (minimal state)
+- Include goal, current task, last few completed tasks, blocked tasks, and queue snippets only when relevant to the task.
+- Do not inject full state; prefer minimal, task-relevant context to reduce prompt size.
+
+## Agents/Providers
+- Prompts are dispatched via Agents/Providers (Gemini, Copilot, Cursor); content must remain provider-agnostic.
 
