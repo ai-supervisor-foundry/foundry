@@ -1,7 +1,7 @@
 {
-  "name": "supervisor",
+  "name": "foundry",
   "version": "1.0.0",
-  "description": "Deterministic control-plane system for long-running, restart-safe software work",
+  "description": "The Persistent Control Plane for Autonomous AI Software Factories",
   "main": "index.ts",
   "scripts": {
     "cli": "tsx src/application/entrypoint/cli.ts",

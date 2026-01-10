@@ -2,7 +2,7 @@
 
 ## Allowed Actions
 - Execute tasks as specified.
-- Receive state context injected by supervisor in task prompt.
+- Receive state context injected by Foundry in task prompt.
 - Produce artifacts per instructions.
 
 ## Forbidden Actions
@@ -23,9 +23,9 @@
 - Provider CLIs must halt if information is missing.
 
 ## Tool Implementation
-- Supervisor uses provider CLIs to dispatch tasks.
+- Foundry uses provider CLIs to dispatch tasks.
 - Provider outputs are untrusted input.
-- Supervisor treats provider output like user-submitted code.
+- Foundry treats provider output like user-submitted code.
 
 ## Provider Prompt Construction
 

@@ -1,11 +1,11 @@
 # Main overview (This project):
-# Supervisor
+# Foundry
 
 A **persistent orchestration layer for AI-assisted software development** that enables long-running, restart-safe project execution with full operator control and auditability.
 
 ## What This Is
 
-The Supervisor is a control plane for AI development that externalizes memory, intent, and control so work can continue across interruptions, sleep, crashes, or session loss. You define a goal and break it into explicit tasks with acceptance criteria. The supervisor executes tasks autonomously via your configured provider/agent CLI (e.g., Gemini, Copilot, Cursor) in AUTO mode while maintaining persistent state, deterministic validation, and full auditability.
+Foundry is a control plane for AI development that externalizes memory, intent, and control so work can continue across interruptions, sleep, crashes, or session loss. You define a goal and break it into explicit tasks with acceptance criteria. Foundry executes tasks autonomously via your configured provider/agent CLI (e.g., Gemini, Copilot, Cursor) in AUTO mode while maintaining persistent state, deterministic validation, and full auditability.
 
 **Workflow**:
 ```
@@ -14,7 +14,7 @@ Operator provides:
   ├─ Tasks (via enqueue command)
   └─ Goal (via set-goal command)
          ↓
-Supervisor autonomously:
+Foundry autonomously:
   ├─ Executes tasks in order
   ├─ Works with existing code
   ├─ Validates outputs
@@ -22,11 +22,11 @@ Supervisor autonomously:
   └─ Continues until goal met or halted
 ```
 
-This enables a **"set it and forget it"** workflow where you provide the foundation (boilerplates), the plan (tasks), and the destination (goal), then the supervisor builds the project autonomously.
+This enables a **"set it and forget it"** workflow where you provide the foundation (boilerplates), the plan (tasks), and the destination (goal), then Foundry builds the project autonomously.
 
 ## The Problem It Solves
 
-AI coding agents are powerful but ephemeral—context is lost on interruption, making long-running projects difficult. The Supervisor provides:
+AI coding agents are powerful but ephemeral—context is lost on interruption, making long-running projects difficult. Foundry provides:
 - **Persistence**: State survives crashes, restarts, and interruptions
 - **Deterministic Control**: No surprises—explicit validation, clear halt conditions
 - **Long-Running Projects**: Work on complex projects over days or weeks
@@ -35,11 +35,11 @@ AI coding agents are powerful but ephemeral—context is lost on interruption, m
 
 ## How It Works
 
-The supervisor operates as a **strict control mechanism** that executes operator-defined tasks through a fixed control loop. It maintains persistent state in DragonflyDB (Redis-compatible), manages a FIFO task queue, dispatches tasks to your chosen provider CLI with injected state context, and validates outputs deterministically. The system enforces sandbox isolation per project, provides append-only audit logging, and supports recovery from crashes or restarts by reloading persisted state. The supervisor never invents goals, expands scope, or makes autonomous decisions—all authority remains with the operator who injects goals and tasks explicitly.
+Foundry operates as a **strict control mechanism** that executes operator-defined tasks through a fixed control loop. It maintains persistent state in DragonflyDB (Redis-compatible), manages a FIFO task queue, dispatches tasks to your chosen provider CLI with injected state context, and validates outputs deterministically. The system enforces sandbox isolation per project, provides append-only audit logging, and supports recovery from crashes or restarts by reloading persisted state. Foundry never invents goals, expands scope, or makes autonomous decisions—all authority remains with the operator who injects goals and tasks explicitly.
 
 ## Overview
 
-The supervisor is a **control mechanism** that:
+Foundry is a **control mechanism** that:
 - Holds externally injected goals
 - Maintains persistent state
 - Executes a fixed control loop
@@ -54,9 +54,9 @@ It does **not**:
 - Replace the operator
 - Make autonomous decisions
 
-## Supervisor Specifications
+## Foundry Specifications
 
-- The supervisor does not define goals.
+- Foundry does not define goals.
 - Operator must inject goals.
 - Scope cannot be expanded by AI.
 - All tasks require explicit acceptance criteria.
@@ -107,8 +107,8 @@ If tempted → HALT.
 
 1. PM2 logs check is always non-streamed, non-interactive.
 
-2. Supervisor PM2 Management:
-   - Supervisor runs via `npm run cli -- start` (uses tsx to run TypeScript directly, NOT a compiled binary)
+2. Foundry PM2 Management:
+   - Foundry runs via `npm run cli -- start` (uses tsx to run TypeScript directly, NOT a compiled binary)
    - Start: `pm2 start ecosystem.config.js` (NOT `pm2 start dist/index.js`)
    - Stop: First `npm run cli -- halt`, then `pm2 stop supervisor`, then `pm2 delete supervisor`
    - Restart: `pm2 restart supervisor` (after halt if needed)
@@ -142,20 +142,20 @@ If tempted → HALT.
 4. Update context files when making significant changes to keep them current.
 5. Use context files to quickly onboard new agents or understand project state.
 
-## Supervisor Context Files (`supervisor-contexts/`)
+## Foundry Context Files (`supervisor-contexts/`)
 
-1. **Main Context**: Read `supervisor-contexts/CONTEXT.md` first for complete supervisor system documentation (architecture, state management, validation, tool contracts, etc.).
+1. **Main Context**: Read `supervisor-contexts/CONTEXT.md` first for complete Foundry system documentation (architecture, state management, validation, tool contracts, etc.).
 2. **Sliding Window**: Check `supervisor-contexts/windows/` for the 10 latest context files with recent changes, updates, and critical information.
 3. **File Size**: Each window file targets 50K-100K tokens (30K-60K words) for very large context models.
-4. **Usage**: Use supervisor context files when working on the supervisor system itself (not project tasks).
+4. **Usage**: Use Foundry context files when working on the Foundry system itself (not project tasks).
 5. **Updates**: Window files are manually maintained by the operator—do not auto-generate them.
 
 
-## Supervisor
-1. Supervisor when updated and has to be restarted should follow lifecycle: Halt, stop. Rebuild. Restart. Resume.
+## Foundry
+1. Foundry when updated and has to be restarted should follow lifecycle: Halt, stop. Rebuild. Restart. Resume.
 
 ## Tasks Specs
-1. Blocked tasks will never be autocompleted, They will always be set to pending and let the supervisor decide.
+1. Blocked tasks will never be autocompleted, They will always be set to pending and let the Foundry decide.
 
 # Conditional Contexts
 - ONLY When detailed info regarding project is required:
@@ -163,8 +163,8 @@ If tempted → HALT.
     - ./docs/*.md - YES
     - !./docs/plans - NO
 
-- ONLY When detailed info regarding what supervisor context is
+- ONLY When detailed info regarding what Foundry context is
     - ./supervisor-contexts
 
-- ONLY When detailed info regarding what projects supervisor is working on and what we are doing in there is required:
+- ONLY When detailed info regarding what projects Foundry is working on and what we are doing in there is required:
     - ./contexts/sandbox/

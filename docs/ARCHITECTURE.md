@@ -9,7 +9,7 @@ Implement the following roles as distinct modules/concerns:
 - Injects tasks
 - Issues HALT / RESUME
 
-### Supervisor Core
+### Foundry Core (formerly Supervisor Core)
 - Owns control loop
 - Owns state read/write
 - Owns validation (deterministic pre-checks, helper orchestration, session reuse)
@@ -32,4 +32,3 @@ Implement the following roles as distinct modules/concerns:
 - ValidationCache/ASTService: Redis-backed validation caching and structural code analysis.
 
 No module may cross responsibilities.
-
