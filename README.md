@@ -1,5 +1,16 @@
 # Foundry
 
+![Status](https://img.shields.io/badge/Status-Beta-orange)
+![License](https://img.shields.io/badge/License-MIT-blue)
+![Build](https://img.shields.io/badge/Build-Passing-brightgreen)
+
+> [!WARNING]
+> **Public Beta Notice**
+> 
+> Foundry is currently in **Active Beta**. While the core control loop and state persistence are stable, internal APIs and task schemas may evolve. 
+> 
+> **Use with caution** in production environments. We recommend monitoring execution via the `audit.log` or verbose logs.
+
 **The Persistent Control Plane for Autonomous AI Software Factories.**
 
 ## What This Is
@@ -1017,11 +1028,6 @@ See [src/index.ts](src/index.ts) for all exported APIs.
 
 See [.cursor/rules/supervisor-specs.mdc](.cursor/rules/supervisor-specs.mdc) for complete specifications.
 
-## License
-
-[Add license information]
-
-
 ## Local Helper Agent (Optional)
 
 You can configure Foundry to use a local LLM (via Ollama) for helper agent tasks (command generation), reducing latency and cloud costs.
@@ -1043,5 +1049,9 @@ OLLAMA_BASE_URL=http://localhost:11434
 - **Latency**: ~3-5s (vs 15-30s cloud)
 - **Cost**: Free (no API tokens for validation command generation)
 - **Privacy**: Validation logic runs locally
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ```
