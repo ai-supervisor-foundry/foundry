@@ -4,71 +4,79 @@
 ![License](https://img.shields.io/badge/License-MIT-blue)
 ![Build](https://img.shields.io/badge/Build-Passing-brightgreen)
 
+### **The Persistent Control Plane for Autonomous AI Software Factories.**
+
+<br>
+
 > [!WARNING]
 > **Public Beta Notice**
 > 
 > Foundry is currently in **Active Beta**. While the core control loop and state persistence are stable, internal APIs and task schemas may evolve. 
 > 
+> **Bring Your Own Keys (BYOK)**: Foundry requires your own agentic subscriptions (API keys for Gemini, Copilot, Cursor, etc.). You are responsible for managing your subscription credentials and associated costs.
+> 
 > **Use with caution** in production environments. We recommend monitoring execution via the `audit.log` or verbose logs.
 
-**The Persistent Control Plane for Autonomous AI Software Factories.**
 
 ## What This Is
 
-**Foundry** is a deterministic orchestration engine that transforms ephemeral AI coding agents into reliable, long-running software developers. Unlike transient chat assistants, Foundry externalizes project state, memory, and intent into a persistent layer (DragonflyDB), enabling it to execute complex, multi-day engineering goals without context loss.
+**Foundry** is an AI orchestration engine that runs long-running chains of agentic tasks for coding projects—minimizing context loss and manual restarts.  
 
-Acting as a strict control plane, it manages a **Software Factory** workflow where **you define the goal and break it into explicit tasks**, which Foundry then autonomously dispatches to provider CLIs (Cursor, Gemini, Copilot) and rigorously validates before progression. With features like sandbox isolation, deterministic output validation, and auto-recovery from ambiguity, Foundry ensures that AI development is audit-safe, restartable, and strictly aligned with operator intent.
+You define a **goal** and break it into explicit **tasks**. Foundry works through them: dispatching to your AI agents (Gemini, Cursor, Copilot), validating relentlessly, and persisting state after every step. If it crashes? Resume where it left off. No manual babysitting.
 
-### Software Factory Concept
+**Built for multi-day agentic coding workflows. Built for determinism. Built for autonomous workflows for lower costs.**
 
-Foundry operates like a **software factory** or **Replit-like environment** where you provide:
+## Why Foundry Exists
 
-1. **Code Boilerplates**: Initial project structure, existing codebase, or starter templates (placed in `sandbox/<project-id>/`)
-2. **Tasks**: Explicit task definitions with acceptance criteria (what needs to be built)
-3. **Goal**: High-level project objective (what the project should achieve)
+**The Challenge with Long Agentic Coding Chains:**
+- **Context degradation**: After multiple task repetitions and iterations, agent drift occurs → Links between contexts break → Tasks can't reference prior work reliably
+- **Manual recovery burden**: If execution halts, resuming requires human intervention and feedback → Wasted setup time
+- **Cost spiral**: Without validation, agents make redundant calls → Token costs accumulate
+- **No audit trail**: Can't review what happened or why it failed
 
-Foundry then **autonomously works on the project** by:
-- Executing tasks sequentially in the sandbox environment
-- Building upon existing code and boilerplates
-- Validating each task's completion
-- Maintaining persistent state across sessions
-- Continuing work until the goal is achieved or tasks are exhausted
+**The Solution**: Foundry acts as a **deterministic supervisor** for agentic chains. It orchestrates tasks, validates outputs relentlessly, maintains context across repetitions, and keeps costs bounded.
 
-**Workflow**:
-```
-Operator provides:
-  ├─ Code Boilerplates (in sandbox/<project-id>/)
-  ├─ Tasks (via enqueue command)
-  └─ Goal (via set-goal command)
-         ↓
-Foundry autonomously:
-  ├─ Executes tasks in order
-  ├─ Works with existing code
-  ├─ Validates outputs
-  ├─ Persists state
-  └─ Continues until goal met or halted
-```
+## How It Works: The Three Pillars
 
-This enables a **"set it and forget it"** workflow where you provide the foundation (boilerplates), the plan (tasks), and the destination (goal), then Foundry builds the project autonomously.
+### 1. You Control the Scope (Operator Authority)
+- Define a **goal** (what the project achieves)
+- Enqueue **tasks** with acceptance criteria (what each task delivers)
+- Provide **boilerplate code** or existing codebase (starting point)
 
-## The Problem It Solves
+Foundry never invents scope, expands goals, or makes autonomous decisions. You're in control. It's just execution.
 
-AI coding agents are powerful but ephemeral—context is lost on interruption, making long-running projects difficult. Foundry provides:
-- **Persistence**: State survives crashes, restarts, and interruptions
-- **Deterministic Control**: No surprises—explicit validation, clear halt conditions
-- **Long-Running Projects**: Work on complex projects over days or weeks
-- **Full Auditability**: Every action is logged and reviewable
-- **Cost-Effective**: Uses free tier tools (provider CLIs, DragonflyDB)
+### 2. Foundry Executes Reliably (Deterministic Validation)
+- Tasks run sequentially in an isolated sandbox
+- Each output is validated against acceptance criteria
+- State persists after every step (DragonflyDB)
+- On failure: Auto-retry with feedback, or block and wait for your input
+
+**Reduces hallucinations via validation. Maintains context across iterations. Predictable behavior via deterministic checks.**
+
+### 3. Cost-Optimized by Design (Hybrid Control Plane)
+Agentic APIs are expensive. Foundry uses a **local-first strategy**:
+- **Routine validation runs locally** (regex checks, file validation, code structure analysis without API calls) = **no API token cost**
+- **Helper agent sessions are cached** per project feature = **token reduction across iterations**
+- **AI agents only handle true reasoning** = **every API call earns its cost**
+
+Result: Multi-day agentic chains with bounded token consumption compared to naive approaches.
 
 ## How It Works
 
-Foundry operates as a **strict control mechanism** that executes operator-defined tasks through a fixed control loop. It maintains persistent state in DragonflyDB (Redis-compatible), manages a FIFO task queue, dispatches tasks to your chosen Agents/Providers (Gemini, Copilot, Cursor) with injected state context, and validates outputs deterministically. The system enforces sandbox isolation per project, provides append-only audit logging, and supports recovery from crashes or restarts by reloading persisted state. Foundry never invents goals, expands scope, or makes autonomous decisions—all authority remains with the operator who injects goals and tasks explicitly.
+Foundry operates as an agentic **control plane** that executes operator-defined tasks through a fixed control loop.  
+
+It maintains persistent state in DragonflyDB (Redis-compatible), manages a FIFO task queue, dispatches tasks to your chosen Agents/Providers (Gemini, Copilot, Cursor) with injected state context, and validates outputs deterministically.  
+(We have [parallelism](/docs/plans/task-dependencies-parallel-execution.md) being worked upon as our roadmap - open to contribution.)
+
+The system enforces sandbox isolation per project, provides append-only audit logging, and supports recovery from crashes or restarts by reloading persisted state.
+
+Foundry never invents goals, expands scope, or makes autonomous decisions—all authority remains with the operator who injects goals and tasks explicitly.
 
 ### Execution Stages (Current)
-- **Deterministic pre-validation**: Fast, non-AI checks (semver/regex), safe regex guard, file/byte caps; can skip helper when confidence is high. Flags: `HELPER_DETERMINISTIC_ENABLED`, `HELPER_DETERMINISTIC_PERCENT`.
-- **Provider run**: Task dispatched to Agents/Providers (Gemini, Copilot, Cursor) with state/context injection and session reuse when available.
-- **Helper agent fallback**: Generates verification commands when deterministic checks are insufficient; helper sessions are reused per project feature to retain context.
-- **Analytics & metrics**: JSONL metrics (helper durations avg/p95, cache-hit rate, deterministic attempts/success) persisted alongside audit logs.
+- **Local pre-processing** (Before Agent Call): System tools and scripts execute deterministic checks—regex safety validation, file/byte capacity enforcement, semver compatibility checks, code structure analysis. These run locally without API token cost and may resolve validation gaps, but non-deterministic tasks still require agent review. Flags: `HELPER_DETERMINISTIC_ENABLED`, `HELPER_DETERMINISTIC_PERCENT`.
+- **Provider dispatch**: Task sent to Agents/Providers (Gemini, Copilot, Cursor) with state/context injection and session reuse when available. Provider executes task and returns result.
+- **Helper agent fallback**: When deterministic checks or provider output leave validation gaps, helper agent generates verification commands to confirm correctness. Helper sessions are reused per project feature to retain context and reduce token consumption.
+- **Analytics & metrics**: JSONL metrics (helper durations avg/p95, cache-hit rate, deterministic attempts/success, token usage) persisted alongside audit logs for cost visibility.
 
 ### Session Reuse
 - Session IDs resolved per feature (`task:prefix` or `project:<id>`) with caps and error thresholds.
@@ -170,6 +178,7 @@ mkdir -p sandbox/my-project
 cp -r my-boilerplate/* sandbox/my-project/
 
 # Or initialize a new project structure
+## (You can also use the Foundry for this, BUT might as well save tokens and resources where you can - AI has a huge carbon footprint)
 cd sandbox/my-project
 npm init -y
 # ... add initial files, dependencies, etc.
@@ -1049,6 +1058,126 @@ OLLAMA_BASE_URL=http://localhost:11434
 - **Latency**: ~3-5s (vs 15-30s cloud)
 - **Cost**: Free (no API tokens for validation command generation)
 - **Privacy**: Validation logic runs locally
+
+## Environmental Impact: Reducing AI Carbon Footprint
+
+AI inference consumes significant computational resources and energy. Recent research from [Google Cloud (August 2025)](https://cloud.google.com/blog/products/infrastructure/measuring-the-environmental-impact-of-ai-inference/) shows that a single Gemini text prompt uses **0.24 watt-hours of energy** and emits **0.03 grams of CO₂ equivalent**.
+
+Research from [Greenly (May 2025)](https://aimagazine.com/articles/greenly-how-sustainable-can-chatgpt-and-deepseek-really-be) found that ChatGPT-4 processing one million emails monthly generates **7,138 tonnes of CO₂e annually**—comparable to 4,300 round-trip flights between Paris and New York.
+
+### How Foundry Reduces Carbon Footprint
+
+Foundry's hybrid control plane approach reduces unnecessary inference calls and token consumption:
+
+**1. Local Pre-Processing (Reduced Cloud Emissions)**
+- Deterministic checks run locally without cloud API calls: regex validation, file caps, semver checks, code structure analysis
+- Reduces unnecessary cloud API calls by routing routine validation locally
+- Research context: [MIT Technology Review (2023)](https://www.technologyreview.com/2023/12/01/1084189/making-an-image-with-generative-ai-uses-as-much-energy-as-charging-your-phone/) reports that generating text 1,000 times uses as much energy as charging a smartphone to 16%—demonstrating the cumulative cost of repeated inference calls that local pre-processing can avoid
+
+**2. Session Reuse (Token Reduction)**
+- Helper agent sessions cached in DragonflyDB prevent context re-injection across iterations
+- Reused sessions require fewer input tokens per inference than fresh sessions
+- Research context: [Google Cloud's inference optimization achieved 33x energy reduction and 44x carbon footprint reduction in Gemini over 12 months](https://cloud.google.com/blog/products/infrastructure/measuring-the-environmental-impact-of-ai-inference/). Foundry implements similar principles by reducing redundant API calls.
+
+**3. Agent as Last Resort**
+- Provider CLIs only engaged when deterministic checks cannot resolve the task
+- Aims to route routine validation locally, reserving agent calls for true reasoning tasks
+- Comparison: Research shows models using Mixture-of-Experts (MoE) architectures like DeepSeek activate only necessary compute resources, demonstrating the efficiency gains of selective processing
+
+### Why This Matters
+
+While Foundry focuses on inference efficiency (not training), reducing redundant inference calls directly addresses the operational carbon footprint of deployed AI systems.
+
+Academic research ([arXiv:2311.16863](https://arxiv.org/abs/2311.16863), published at ACM FAccT '24) systematically demonstrates that generative, multi-purpose models are orders of magnitude more expensive in terms of energy and emissions than task-specific approaches. Foundry's hybrid strategy aligns with these findings by routing work through local deterministic systems first and only engaging expensive general-purpose models when necessary.
+
+### Best Practices for Cost-Efficient (Carbon-conscious) Deployment
+
+1. **Prepare boilerplates before starting** - Foundry builds from existing code, reducing total task iterations
+2. **Use local helper agent when possible** - Configure [Ollama](https://ollama.com/) for verification commands (reduced cloud inference)
+3. **Set precise acceptance criteria** - Can reduce validation cycles when criteria are clear
+4. **Enable deterministic validation** - Use `HELPER_DETERMINISTIC_ENABLED=true` to prioritize local processing
+5. **Monitor token usage** - Track helper durations and cache hit rates to optimize consumption
+6. **Reuse sessions across projects** - Feature-scoped session IDs reduce redundant context injection
+
+### Track Your Own Emissions
+
+Use open-source tools to measure and track the carbon footprint of your compute:
+
+- **[CodeCarbon](https://github.com/mlco2/codecarbon)** - Open-source Python package for estimating carbon emissions from compute workloads. Tracks CPU, GPU, RAM power consumption and applies regional carbon intensity data. Supports offline mode, cloud deployments, and integration with Comet ML.
+  - Dashboard: https://dashboard.codecarbon.io/
+  - Documentation: https://mlco2.github.io/codecarbon/
+
+### References & Further Reading
+
+**Primary Research** (2024-2025):
+- **[Google Cloud: "How much energy does Google's AI use? We did the math" (August 2025)](https://cloud.google.com/blog/products/infrastructure/measuring-the-environmental-impact-of-ai-inference/)** - Comprehensive methodology for measuring AI inference emissions. Reports Gemini: 0.24 Wh / 0.03 gCO₂e per prompt. Documents full-stack efficiency approach including TPU optimization, data center overhead (PUE 1.09), and water consumption reduction.
+
+- **[Greenly: "AI Sustainability: Greenly's Findings on DeepSeek & ChatGPT" (May 2025)](https://aimagazine.com/articles/greenly-how-sustainable-can-chatgpt-and-deepseek-really-be)** - Comparative analysis of model efficiency and emissions. Reports ChatGPT-4 at 7,138 tCO₂e annually for processing 1M emails. Discusses Mixture-of-Experts architecture benefits and sustainable AI progression strategies.
+
+**Foundational Research**:
+- **[arXiv:2311.16863 - "Power Hungry Processing: Watts Driving the Cost of AI Deployment?" (November 2023, updated October 2024)](https://arxiv.org/abs/2311.16863)** - Systematic comparison of inference costs across ML systems. Published in ACM FAccT '24 (June 3-6, 2024, Rio de Janeiro). Demonstrates generative multi-purpose models are substantially more expensive than task-specific systems for equivalent tasks.
+
+- **[arXiv:1910.09700 - "Quantifying the Carbon Emissions of Machine Learning" (October 2019)](https://arxiv.org/abs/1910.09700)** - Foundational methodology for ML emissions measurement. Introduces Machine Learning Emissions Calculator. Discusses hardware, training duration, and data center location impacts.
+
+**Measurement Tools & Standards**:
+- **[CodeCarbon GitHub](https://github.com/mlco2/codecarbon)** - Open-source emissions tracking. Supported by Mila, DataForGoodFR, Comet.ml, and BCG GAMMA. 1.7k+ stars on GitHub with 89+ contributors.
+
+## Important Notes
+
+### Provider Flexibility: Architecture Supports Any Model
+
+Foundry's architecture is **provider-agnostic** by design. The system uses hexagonal, contract-driven architecture: adding new provider connectors (APIs, SDKs, local models, custom agents) requires only implementing the `ProviderConnector` interface in `src/infrastructure/connectors/agents/`. Zero changes to core control loop or state management. We integrate whatever works best for the use case.
+
+**Currently**: Using CLI-based providers (Cursor, Gemini CLI, Copilot, Codex) during development—a pragmatic choice because they're cost-effective (~USD20/month for experimentation). But this is an implementation detail, not an architectural constraint.
+
+### Safeguards: Preventing Interrogation Loops and Token Exhaustion
+
+Foundry enforces hard limits to prevent resource exhaustion:
+
+**Task Retries**:
+- `max_retries` per task (configurable in `retry_policy`, default: 3)
+- Retries triggered on validation failures or detected ambiguity
+- After max retries exhausted: performs **final interrogation round**, then blocks task if still failing
+- Blocked tasks are tracked in `state.blocked_tasks` (Foundry continues to next task—never halts on retry exhaustion)
+
+**Interrogation Cycles** (Helper Agent):
+- Helper agent invoked **only when deterministic validation fails**
+- Batched interrogation: All failed criteria in one prompt per round (not sequential per-criterion)
+- Max interrogation rounds: **2 per task** (capped via `maxQuestionsPerCriterion = 2`)
+- Pre-analysis before interrogation: Scans codebase for potential file locations matching criterion keywords
+- Session reuse prevents context re-injection across iterations (same session = fewer input tokens)
+- If interrogation still fails after max rounds → task blocked (no further agent calls)
+
+**Context Window & Token Limits**:
+- Per-session context limits enforced by provider:
+  - Gemini: 350K tokens (2M context, 500K buffer)
+  - Copilot: 350K tokens (conservative)
+  - Cursor/Claude: 250K tokens
+  - Codex: 8K tokens
+  - Default: 100K tokens (fallback)
+- When session exceeds limit: automatically starts new session (context preserved, not lost)
+- Session error cap: 5 errors before forcing new session
+- State context injected per task (minimal snapshot—not cumulative across all tasks)
+
+**Resource Exhaustion**:
+- Detected when provider returns resource limit error
+- Automatic exponential backoff retry: 1min → 5min → 20min → 1hr → 2hrs
+- Max resource exhaustion retries: 0 (executes once per backoff window)
+- After exhaustion limit hit: permanently halts (no further processing)
+
+**Monitoring**:
+- Analytics service tracks per-task: `interrogation_rounds`, `helper_agent_calls`, `helper_duration_ms`, `cache_hit_rate`, `deterministic_attempts/success`
+- Review metrics: `npm run cli -- metrics ...`
+- All interrogation prompts and responses logged to `prompts.log.jsonl` for audit
+
+### Design Constraints
+
+1. **Operator Authority**: Only operator injects goals and tasks. Foundry never autonomously expands scope.
+2. **Deterministic Execution**: Fixed control loop, no heuristics or learning across runs.
+3. **State Persistence**: Every step persists; automatic recovery from crashes by reloading state.
+4. **Sandbox Isolation**: Projects isolated per directory; zero cross-project state leakage.
+5. **Audit Trail**: All decisions (validation, interrogation, blocking, retries) logged to append-only audit files for full review.
+6. **Task Blocking Model**: Tasks don't halt Foundry—failed tasks are marked blocked and execution continues. Foundry only halts on: provider circuit breaker, explicit blocked status, or resource exhaustion.
 
 ## License
 
