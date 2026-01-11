@@ -2,7 +2,6 @@
 import { PersistenceLayer } from '../persistence';
 import { QueueAdapter } from '../../../domain/executors/taskQueue';
 import { PromptBuilder } from '../../../domain/agents/promptBuilder';
-import { CLIAdapter } from '../../../infrastructure/adapters/agents/providers/cliAdapter';
 import { Validator } from '../validator';
 import { AuditLogger } from '../../../infrastructure/adapters/logging/auditLogger';
 import { log as logShared, logVerbose, logStateTransition, logPerformance } from '../../../infrastructure/adapters/logging/logger';
@@ -28,20 +27,24 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+import { LLMProviderPort } from '../../../domain/ports/llmProvider';
+import { LoggerPort, PromptLoggerPort } from '../../../domain/ports/logger';
+import { CommandExecutorPort } from '../../../domain/ports/commandExecutor';
+
 export async function controlLoop(
   persistence: PersistenceLayer,
   queue: QueueAdapter,
   promptBuilder: PromptBuilder,
-  cliAdapter: CLIAdapter,
+  cliAdapter: LLMProviderPort,
   validator: Validator,
   auditLogger: AuditLogger,
-  sandboxRoot: string
+  sandboxRoot: string,
+  // Port dependencies injected for testability
+  logger: LoggerPort = new LoggerAdapter(),
+  promptLogger: PromptLoggerPort = new PromptLoggerAdapter(),
+  commandExecutor: CommandExecutorPort = new CommandExecutorAdapter(),
+  maxIterations: number = Infinity
 ): Promise<void> {
-  // Create Adapters for Ports
-  const logger = new LoggerAdapter();
-  const promptLogger = new PromptLoggerAdapter();
-  const commandExecutor = new CommandExecutorAdapter();
-  
   // Initialize modules with injected dependencies
   const stateManager = new StateManager(persistence); // PersistenceLayer implements PersistencePort
   const taskRetriever = new TaskRetriever(queue);
@@ -99,7 +102,7 @@ export async function controlLoop(
   let iteration = 0;
   logShared('ControlLoop', 'Control loop started');
 
-  while (true) {
+  while (iteration < maxIterations) {
     iteration++;
     const iterationStartTime = Date.now();
     logVerbose('ControlLoop', `Starting iteration ${iteration}`);
@@ -152,6 +155,7 @@ export async function controlLoop(
         if (goalResult.completed) {
             logShared('ControlLoop', `[Iteration ${iteration}] Queue exhausted, goal completed - exiting`);
             state.supervisor.status = 'COMPLETED';
+            state.goal.completed = true;
             await stateManager.persistState(state, iteration);
             await auditLogger.append({ event: 'COMPLETED', timestamp: new Date().toISOString() });
             return;

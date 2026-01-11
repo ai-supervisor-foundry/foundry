@@ -8,6 +8,8 @@
     "build": "tsc",
     "dev": "tsx watch src/application/entrypoint/cli.ts",
     "test": "jest",
+    "test:unit": "jest tests/unit",
+    "test:functional": "jest tests/functional",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "prepare": "husky"

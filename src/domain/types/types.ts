@@ -84,6 +84,7 @@ export interface SessionInfo {
 }
 
 export interface Task {
+  project_id?: string; // Optional per-task project/sandbox
   task_id: string;
   intent: string;
   tool: Provider;

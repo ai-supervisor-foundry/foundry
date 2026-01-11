@@ -17,7 +17,10 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^@mocks/(.*)$': '<rootDir>/tests/mocks/$1',
+    '^@helpers/(.*)$': '<rootDir>/tests/helpers/$1',
   },
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   testPathIgnorePatterns: ['/node_modules/', '/dist/'],
   globals: {
     'ts-jest': {

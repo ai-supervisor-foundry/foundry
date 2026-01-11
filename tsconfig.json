@@ -1,11 +1,16 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
+    "module": "CommonJS",
     "lib": ["ES2022"],
     "moduleResolution": "node",
     "outDir": "./dist",
-    "rootDir": "./src",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@mocks/*": ["tests/mocks/*"],
+      "@helpers/*": ["tests/helpers/*"]
+    },
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -19,7 +24,6 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist", "sandbox", "tmp", "scratch"]
 }
-

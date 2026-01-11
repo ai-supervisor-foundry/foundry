@@ -9,12 +9,12 @@ on:
       - main
 
 jobs:
-  build-and-test:
+  build-and-test-unit:
     runs-on: ubuntu-latest
     
     strategy:
       matrix:
-        node-version: [20.x, lts/*]
+        node-version: [lts/*]
     
     steps:
       - name: Checkout code
@@ -53,8 +53,8 @@ jobs:
       - name: TypeScript compilation
         run: npm run build
       
-      - name: Run tests
-        run: npm test
+      - name: Run Unit Tests
+        run: npm test:unit
       
       - name: Upload coverage to Codecov (Node 20.x only)
         if: matrix.node-version == '20.x'
@@ -64,3 +64,39 @@ jobs:
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
+
+  build-and-test-functional:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [lts/*]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+      
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ matrix.node-version }}-
+            ${{ runner.os }}-node-
+      
+      - name: Cache TypeScript build
+        uses: actions/cache@v5
+        with:
+          path: |
+            dist
+            **/*.tsbuildinfo
+          key: ${{ runner.os }}-tsc-${{ matrix.node-version }}-${{ hashFiles('src/**/*.ts', 'tsconfig.json') }}
+          restore-keys: |

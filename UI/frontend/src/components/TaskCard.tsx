@@ -8,6 +8,8 @@ interface TaskCardProps {
     task_id: string;
     intent?: string;
     status?: string;
+    task_type?: string;
+    tool?: string;
     instructions?: string;
     acceptance_criteria?: string[];
     retry_policy?: any;
@@ -103,6 +105,19 @@ export default function TaskCard({ task, className = '', isCurrent = false, onEd
           
           {task.intent && (
             <p className="text-sm text-gray-700 font-medium mb-1">{task.intent}</p>
+          )}
+          
+          {task.task_type && (
+            <div className="mb-2">
+              <span className="inline-block px-2 py-0.5 bg-purple-100 text-purple-800 text-xs font-medium rounded">
+                {task.task_type}
+              </span>
+              {task.tool && (
+                <span className="ml-2 inline-block px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+                  {task.tool}
+                </span>
+              )}
+            </div>
           )}
           
           {task.validation_report && !expanded && (
@@ -301,10 +316,24 @@ export default function TaskCard({ task, className = '', isCurrent = false, onEd
             </div>
           )}
           
-          {(task.working_directory || task.agent_mode || task.required_artifacts || task.test_command) && (
+          {(task.working_directory || task.agent_mode || task.required_artifacts || task.test_command || task.task_type) && (
             <div>
               <h4 className="font-semibold text-sm mb-2">Configuration</h4>
               <div className="bg-gray-50 rounded p-3 space-y-2 text-sm">
+                {task.task_type && (
+                  <div>
+                    <span className="font-medium text-gray-700">Task Type:</span>
+                    <span className="ml-2 inline-block px-2 py-0.5 bg-purple-100 text-purple-800 font-mono text-xs rounded">
+                      {task.task_type}
+                    </span>
+                  </div>
+                )}
+                {task.tool && (
+                  <div>
+                    <span className="font-medium text-gray-700">Provider:</span>
+                    <span className="ml-2 text-gray-600 font-mono">{task.tool}</span>
+                  </div>
+                )}
                 {task.working_directory && (
                   <div>
                     <span className="font-medium text-gray-700">Working Directory:</span>

@@ -1,8 +1,11 @@
 # Task Type System Redesign V2 (Enhanced)
 
-**Status:** Proposed  
+**Status:** Completed  
+**Date:** 2026-01-09  
 **Priority:** Critical  
 **Goal:** Enable Supervisor to handle non-coding tasks (Conversational, Verification, Research) by decoupling the prompt/validation logic from the "Code Modification" paradigm.
+
+**Implementation Note:** Strategy pattern successfully implemented. Behavioral and verification task types work with separate validation paths and output schemas as designed.
 
 ---
 

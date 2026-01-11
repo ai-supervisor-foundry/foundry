@@ -100,7 +100,7 @@ function buildSupervisorCommand(
 ): string {
   // Resolve path from UI/backend/ to supervisor root (go up 2 levels)
   const supervisorRoot = path.resolve(process.cwd(), '../../'); 
-  const cliPath = path.join(supervisorRoot, 'src', 'application', 'entrypoint', 'cli.ts');
+  const cliPath = path.join(supervisorRoot, 'src/application/entrypoint/cli.ts');
   
   // Base command
   let cmd = `npx tsx ${cliPath} ${command}`;
