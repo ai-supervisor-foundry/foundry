@@ -4,7 +4,7 @@
 ![License](https://img.shields.io/badge/License-MIT-blue)
 ![Build](https://img.shields.io/badge/Build-Passing-brightgreen)
 
-### **The Persistent Control Plane for Autonomous AI Software Factories.**
+### **The persistent control plane for autonomous agentic software development — Kubernetes for AI coding agents**
 
 <br>
 
@@ -18,23 +18,26 @@
 > **Use with caution** in production environments. We recommend monitoring execution via the `audit.log` or verbose logs.
 
 
-## What This Is
+## What This Is (High level)
 
-Foundry is an **autonomous AI software development platform**.  
-It is designed to build **real software**.  
+Foundry is an **persistent control plane for autonomous agentic software development**. (Minimized _Human-in-theLoop_).
+It is designed to build **real, multi-component software**.
 
-Think of it as the **"Kubernetes of Agentic Coding"**—it orchestrates "headless" AI worker nodes (Cursor, Copilot, Gemini) to execute complex, long-running engineering plans reliably.
+Foundry is the **Kubernetes for AI coding agents**.
+
+It orchestrates "headless" AI worker nodes (Cursor, Copilot, Gemini) to execute complex, long-running engineering plans reliably.
 > <small>We will incorporate other providers that are model-only approaches, shortly.</small>
 
-It tries to not sleep, persist state, retain context context, and avoid drifts.  
-Foundry ensures it gets built, validated, and persisted, step by atomic step.
+It runs continously, persist state, retain context, and avoid drifts.
 
-Foundry works through your **goal** and **tasks** using providers, validating and persisting state after every step. If it crashes? Resume where it left off. No manual babysitting.
+Foundry ensures the goal & tasks are achieved, validated, and persisted, step by atomic step.
+
+Foundry uses a number of providers providers. Its crash resilient design allows you to resume where a network/provider halt occured. No more manual babysitting.
 
 
 **Built for multi-day agentic coding workflows. Built for determinism. Built for autonomous workflows for lower costs.**
 
-## Why Foundry Exists
+## Why Foundry Exists (The Why)
 
 **The Challenge with Long Agentic Coding Chains:**
 - **Context degradation**: After multiple task repetitions and iterations, agent drift occurs → Links between contexts break → Tasks can't reference prior work reliably
@@ -48,13 +51,17 @@ Foundry works through your **goal** and **tasks** using providers, validating an
 
 Most agent frameworks (CrewAI, AutoGen) focus on "conversational teams" or "autonomous planning." Foundry focuses on **infrastructure-grade execution**.
 
-### 1. The "Headless Worker" Abstraction (BYO-CLI)
-Instead of rebuilding RAG pipelines from scratch, Foundry wraps **off-the-shelf Human CLIs** (Cursor, GitHub Copilot, Gemini) and drives them as autonomous worker nodes.
-*   **Benefit:** Leverage the $20/month proprietary context engines of Cursor/Copilot for free. Foundry manages the session, you get the intelligence.
+### 1. The "Headless Worker" Abstraction (BYOK, BYO-CLI)
+
+Instead of rebuilding RAG pipelines from scratch, Foundry wraps **standard CLIs & APIs** (Cursor, GitHub Copilot, Gemini, Ollama) and drives them as autonomous worker nodes.
+
+*   **Benefit:** Leverage the $20/month proprietary context engines of your providers for free. Foundry manages the session, you get the intelligence.
 
 ### 2. The Anti-Planner (Strict Determinism)
-Foundry is a **Task Runner**, not a Problem Solver. It explicitly removes the "planning" capability from the agent to solve the recursion/drift problem.
-*   **Benefit:** Zero scope creep. The Operator defines the DAG (Directed Acyclic Graph) of tasks; Foundry enforces the execution. It never invents new tasks or hallucinates goals.
+The Execution Engine (Strict Determinism) Foundry is a Task Runner, not a Planner. It decouples intent (the plan) from execution (the agent).
+By removing the "planning" responsibility from the worker agent, Foundry eliminates recursive scope creep and ensures the agent focuses solely on executing the explicit goals/behaviours defined by the Operator.
+
+*   **Benefit:** Zero scope creep. The Operator defines a list of tasks; Foundry enforces the execution - much like a backlog queue. It never invents new tasks or hallucinates goals, eventhough it might validate and reason a completed task.
 
 ### 3. Local-First "Hybrid" Validation
 Foundry uses a cost-optimized validation pipeline that runs **free, local deterministic checks** (AST analysis, Regex, file capacity) *before* ever asking an LLM to verify.
@@ -64,7 +71,7 @@ Foundry uses a cost-optimized validation pipeline that runs **free, local determ
 Modeled after distributed systems, Foundry persists state to DragonflyDB (Redis) after every atomic step.
 *   **Benefit:** You can kill the process, upgrade the Supervisor code, restart the server, and `resume` exactly where it left off—even days later.
 
-## How It Works: The Three Pillars
+## How It Works: The Three Pillars (The How)
 
 ### 1. You Control the Scope (Operator Authority)
 - Define a **goal** (what the project achieves)
