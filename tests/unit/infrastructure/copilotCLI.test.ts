@@ -19,6 +19,8 @@ describe('CopilotCLI', () => {
     const child = new EventEmitter() as any;
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
+    child.stdin = { end: jest.fn() };
+    child.pid = 12345; // Add mock PID for logging
     
     mockSpawn.mockReturnValue(child);
 
