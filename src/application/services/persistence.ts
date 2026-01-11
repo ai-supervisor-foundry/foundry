@@ -48,6 +48,26 @@ export async function loadState(
   const parseStartTime = Date.now();
   try {
     const parsed = JSON.parse(rawValue) as SupervisorState;
+
+    // BACKFILL: Handle missing intent/summary in old state
+    if (parsed.completed_tasks) {
+      for (let i = 0; i < parsed.completed_tasks.length; i++) {
+        const task = parsed.completed_tasks[i];
+        
+        // If intent is missing, use task_id as placeholder
+        if (!task.intent) {
+          task.intent = `[Legacy] ${task.task_id}`;
+          // Legacy tasks didn't have context, so we mark it as not required (or false)
+          // ensuring we don't try to use empty/legacy fields in smart ways unless needed
+          task.requires_context = false;
+          logVerbose('LoadState', 'Backfilled missing intent', {
+            task_id: task.task_id,
+            fallback_intent: task.intent,
+          });
+        }
+      }
+    }
+
     const parseDuration = Date.now() - parseStartTime;
     logPerformance('StateJSONParse', parseDuration, {
       state_key: stateKey,

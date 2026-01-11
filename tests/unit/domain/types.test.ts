@@ -113,6 +113,9 @@ describe('Types', () => {
           {
             task_id: 'task-1',
             completed_at: '2024-01-01T00:00:00Z',
+            intent: 'Initial setup',
+            summary: 'Completed: Initial setup',
+            requires_context: true,
             validation_report: {
               valid: true,
               rules_passed: ['r1'],
@@ -125,6 +128,9 @@ describe('Types', () => {
       };
 
       expect(state.completed_tasks?.[0].task_id).toBe('task-1');
+      expect(state.completed_tasks?.[0].intent).toBe('Initial setup');
+      expect(state.completed_tasks?.[0].summary).toBe('Completed: Initial setup');
+      expect(state.completed_tasks?.[0].requires_context).toBe(true);
     });
 
     it('should track blocked tasks', () => {

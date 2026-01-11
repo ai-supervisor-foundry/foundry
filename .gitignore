@@ -100,3 +100,4 @@ grafana_data/
 PERFORMANCE_ANALYSIS.md
 
 *\.log\.*
+dist

@@ -9,7 +9,7 @@
     "_comment": "The task currently being executed"
   },
   "completed_tasks": {
-    "_comment": "List of tasks that have been completed"
+    "_comment": "List of tasks that have been completed. Includes 'intent', 'summary', and 'requires_context' for context tracking."
   },
   "blocked_tasks": {
     "_comment": "List of tasks that are blocked and cannot proceed"

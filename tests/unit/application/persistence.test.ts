@@ -189,6 +189,31 @@ describe('Persistence', () => {
       expect(loaded.goal.description).toBe('Complete feature X');
       expect(loaded.goal.project_id).toBe('proj-1');
     });
+
+    it('should backfill missing intent for legacy completed tasks', async () => {
+      const legacyState = {
+        supervisor: { status: 'RUNNING', iteration: 1 },
+        goal: { description: 'test', completed: false },
+        queue: { exhausted: false },
+        completed_tasks: [
+          {
+            task_id: 'legacy-task-1',
+            completed_at: '2024-01-01T00:00:00Z',
+            validation_report: { valid: true, rules_passed: [], rules_failed: [] },
+          },
+        ],
+        last_updated: new Date().toISOString(),
+        execution_mode: 'AUTO',
+      } as any;
+      const stateKey = 'supervisor:state';
+
+      mockRedis.get.mockResolvedValue(JSON.stringify(legacyState));
+
+      const loaded = await loadState(mockRedis, stateKey);
+
+      expect(loaded.completed_tasks?.[0].intent).toBe('[Legacy] legacy-task-1');
+      expect(loaded.completed_tasks?.[0].requires_context).toBe(false);
+    });
   });
 
   describe('State persistence round-trip', () => {

@@ -20,9 +20,17 @@
 
 ## What This Is
 
-**Foundry** is an AI orchestration engine that runs long-running chains of agentic tasks for coding projects—minimizing context loss and manual restarts.  
+Foundry is an **autonomous AI software development platform**.  
+It is designed to build **real software**.  
 
-You define a **goal** and break it into explicit **tasks**. Foundry works through them: dispatching to your AI agents (Gemini, Cursor, Copilot), validating relentlessly, and persisting state after every step. If it crashes? Resume where it left off. No manual babysitting.
+Think of it as the **"Kubernetes of Agentic Coding"**—it orchestrates "headless" AI worker nodes (Cursor, Copilot, Gemini) to execute complex, long-running engineering plans reliably.
+> <small>We will incorporate other providers that are model-only approaches, shortly.</small>
+
+It tries to not sleep, persist state, retain context context, and avoid drifts.  
+Foundry ensures it gets built, validated, and persisted, step by atomic step.
+
+Foundry works through your **goal** and **tasks** using providers, validating and persisting state after every step. If it crashes? Resume where it left off. No manual babysitting.
+
 
 **Built for multi-day agentic coding workflows. Built for determinism. Built for autonomous workflows for lower costs.**
 
@@ -35,6 +43,26 @@ You define a **goal** and break it into explicit **tasks**. Foundry works throug
 - **No audit trail**: Can't review what happened or why it failed
 
 **The Solution**: Foundry acts as a **deterministic supervisor** for agentic chains. It orchestrates tasks, validates outputs relentlessly, maintains context across repetitions, and keeps costs bounded.
+
+## Why Foundry is Different (USPs)
+
+Most agent frameworks (CrewAI, AutoGen) focus on "conversational teams" or "autonomous planning." Foundry focuses on **infrastructure-grade execution**.
+
+### 1. The "Headless Worker" Abstraction (BYO-CLI)
+Instead of rebuilding RAG pipelines from scratch, Foundry wraps **off-the-shelf Human CLIs** (Cursor, GitHub Copilot, Gemini) and drives them as autonomous worker nodes.
+*   **Benefit:** Leverage the $20/month proprietary context engines of Cursor/Copilot for free. Foundry manages the session, you get the intelligence.
+
+### 2. The Anti-Planner (Strict Determinism)
+Foundry is a **Task Runner**, not a Problem Solver. It explicitly removes the "planning" capability from the agent to solve the recursion/drift problem.
+*   **Benefit:** Zero scope creep. The Operator defines the DAG (Directed Acyclic Graph) of tasks; Foundry enforces the execution. It never invents new tasks or hallucinates goals.
+
+### 3. Local-First "Hybrid" Validation
+Foundry uses a cost-optimized validation pipeline that runs **free, local deterministic checks** (AST analysis, Regex, file capacity) *before* ever asking an LLM to verify.
+*   **Benefit:** Drastically lower token costs. The LLM is treated as a "Judge of Last Resort," not a first-line debugger.
+
+### 4. Crash-Proof Infrastructure
+Modeled after distributed systems, Foundry persists state to DragonflyDB (Redis) after every atomic step.
+*   **Benefit:** You can kill the process, upgrade the Supervisor code, restart the server, and `resume` exactly where it left off—even days later.
 
 ## How It Works: The Three Pillars
 
@@ -132,6 +160,37 @@ To remove data volume:
 docker-compose down -v
 ```
 
+## Configuration
+
+Foundry uses environment variables for configuration. Copy `.env.example` to `.env` and adjust as needed.
+
+```bash
+cp .env.example .env
+```
+
+### Key Environment Variables
+
+| Variable | Description | Default | 
+| :--- | :--- | :--- |
+| **Provider Keys** | | |
+| `ANTHROPIC_API_KEY` | API Key for Claude (via Anthropic) | |
+| `OPENROUTER_API_KEY` | API Key for OpenRouter (optional) | |
+| **CLI Paths** | Override if tools are not in PATH | |
+| `GEMINI_CLI_PATH` | Path to Gemini CLI | `gemini` or `npx` |
+| `COPILOT_CLI_PATH` | Path to Copilot CLI | `npx` |
+| `CURSOR_CLI_PATH` | Path to Cursor CLI | `cursor` |
+| **State Management** | | |
+| `REDIS_HOST` | DragonflyDB/Redis Host | `localhost` |
+| `REDIS_PORT` | DragonflyDB/Redis Port | `6499` |
+| `STATE_KEY` | Redis key for supervisor state | `supervisor:state` |
+| **Validation** | | |
+| `HELPER_DETERMINISTIC_ENABLED` | Enable local file/regex validation | `true` |
+| `HELPER_AGENT_MODE` | Helper Agent Mode (`auto`/`manual`) | `auto` |
+| `USE_LOCAL_HELPER_AGENT` | Use local Ollama for validation | `true` |
+| **System** | | |
+| `CIRCUIT_BREAKER_TTL_SECONDS` | Time before retrying failed provider | `86400` |
+| `PERFORMANCE_LOGGING_ENABLED` | Enable detailed perf logs | `false` |
+
 ## Usage
 
 ### Software Factory Workflow
@@ -205,7 +264,7 @@ This creates a state with a default placeholder goal. You can immediately procee
 npm run cli -- init-state --execution-mode AUTO --goal "Build a simple REST API"
 ```
 
-### Do note, you can review the [README in ./UI directory](/UI/README.md) to start up supervisor dashboard as well to visually understand of what you are doing.
+### Do note, you can review the [README in ./UI directory](/UI/README.md) to start up supervisor dashboard as well to visually understand of what you are doing. 
 
 ![Supervisor Dashboard](/docs/assets/img/supervisor-ui-dashboard.png)
 
@@ -1207,5 +1266,3 @@ Foundry enforces hard limits to prevent resource exhaustion:
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-```
