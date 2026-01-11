@@ -20,9 +20,12 @@
 
 ## What This Is
 
-**Foundry** is an AI orchestration engine that runs long-running chains of agentic tasks for coding projects—minimizing context loss and manual restarts.  
+Foundry is an **autonomous AI software development platform** and orchestration engine designed to build **real software at scale**.
 
-You define a **goal** and break it into explicit **tasks**. Foundry works through them: dispatching to your AI agents (Gemini, Cursor, Copilot), validating relentlessly, and persisting state after every step. If it crashes? Resume where it left off. No manual babysitting.
+It acts as a **persistent AI developer**—coordinating agents, validating every step, and resuming long-running builds reliably without losing context or requiring manual recovery.
+
+Foundry works through your **goal** and **tasks**, using AI agents Providers (Gemini, Cursor, Copilot), validating relentlessly, and persisting state after every step. If it crashes? Resume where it left off. No manual babysitting.
+
 
 **Built for multi-day agentic coding workflows. Built for determinism. Built for autonomous workflows for lower costs.**
 
@@ -132,6 +135,37 @@ To remove data volume:
 docker-compose down -v
 ```
 
+## Configuration
+
+Foundry uses environment variables for configuration. Copy `.env.example` to `.env` and adjust as needed.
+
+```bash
+cp .env.example .env
+```
+
+### Key Environment Variables
+
+| Variable | Description | Default | 
+| :--- | :--- | :--- |
+| **Provider Keys** | | |
+| `ANTHROPIC_API_KEY` | API Key for Claude (via Anthropic) | |
+| `OPENROUTER_API_KEY` | API Key for OpenRouter (optional) | |
+| **CLI Paths** | Override if tools are not in PATH | |
+| `GEMINI_CLI_PATH` | Path to Gemini CLI | `gemini` or `npx` |
+| `COPILOT_CLI_PATH` | Path to Copilot CLI | `npx` |
+| `CURSOR_CLI_PATH` | Path to Cursor CLI | `cursor` |
+| **State Management** | | |
+| `REDIS_HOST` | DragonflyDB/Redis Host | `localhost` |
+| `REDIS_PORT` | DragonflyDB/Redis Port | `6499` |
+| `STATE_KEY` | Redis key for supervisor state | `supervisor:state` |
+| **Validation** | | |
+| `HELPER_DETERMINISTIC_ENABLED` | Enable local file/regex validation | `true` |
+| `HELPER_AGENT_MODE` | Helper Agent Mode (`auto`/`manual`) | `auto` |
+| `USE_LOCAL_HELPER_AGENT` | Use local Ollama for validation | `true` |
+| **System** | | |
+| `CIRCUIT_BREAKER_TTL_SECONDS` | Time before retrying failed provider | `86400` |
+| `PERFORMANCE_LOGGING_ENABLED` | Enable detailed perf logs | `false` |
+
 ## Usage
 
 ### Software Factory Workflow
@@ -205,7 +239,7 @@ This creates a state with a default placeholder goal. You can immediately procee
 npm run cli -- init-state --execution-mode AUTO --goal "Build a simple REST API"
 ```
 
-### Do note, you can review the [README in ./UI directory](/UI/README.md) to start up supervisor dashboard as well to visually understand of what you are doing.
+### Do note, you can review the [README in ./UI directory](/UI/README.md) to start up supervisor dashboard as well to visually understand of what you are doing. 
 
 ![Supervisor Dashboard](/docs/assets/img/supervisor-ui-dashboard.png)
 
@@ -1207,5 +1241,3 @@ Foundry enforces hard limits to prevent resource exhaustion:
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-```
