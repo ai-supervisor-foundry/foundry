@@ -28,7 +28,7 @@ Foundry is the **Kubernetes for AI coding agents**.
 It orchestrates "headless" AI worker nodes (Cursor, Copilot, Gemini) to execute complex, long-running engineering plans reliably.
 > <small>We will incorporate other providers that are model-only approaches, shortly.</small>
 
-It runs continously, persist state, retain context, and avoid drifts.
+It runs continously, persists state, retain context, and avoids drifts.
 
 Foundry ensures the goal & tasks are achieved, validated, and persisted, step by atomic step.
 
