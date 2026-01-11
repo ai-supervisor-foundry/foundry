@@ -23,6 +23,17 @@ export interface MinimalState {
   queue?: {
     last_task_id?: string;
   };
+  recent_completed_tasks?: Array<{
+    task_id: string;
+    completed_at: string;
+    intent: string;
+    success: boolean;
+  }>;
+  active_blockers?: Array<{
+    task_id: string;
+    reason: string;
+    blocked_at: string;
+  }>;
   completed_tasks?: Array<{
     task_id: string;
     completed_at: string;
@@ -77,6 +88,26 @@ export function buildMinimalState(task: Task, state: SupervisorState, sandboxCwd
       sandbox_root: sandboxCwd,
     },
   };
+
+  // ALWAYS: Include last 3-5 completed tasks (working memory)
+  if (state.completed_tasks && state.completed_tasks.length > 0) {
+    const recentTasks = state.completed_tasks.slice(-5);
+    context.recent_completed_tasks = recentTasks.map(t => ({
+      task_id: t.task_id,
+      completed_at: t.completed_at,
+      intent: t.intent || `[Unknown] ${t.task_id}`,
+      success: t.validation_report.valid,
+    }));
+  }
+
+  // ALWAYS: Include active blockers (critical awareness)
+  if (state.blocked_tasks && state.blocked_tasks.length > 0) {
+    context.active_blockers = state.blocked_tasks.map(t => ({
+      task_id: t.task_id,
+      reason: t.reason,
+      blocked_at: t.blocked_at,
+    }));
+  }
 
   const instructionsLower = task.instructions.toLowerCase();
   const intentLower = task.intent.toLowerCase();

@@ -254,5 +254,53 @@ describe('PromptBuilder', () => {
       expect(minimalState.completed_tasks?.length).toBe(1);
       expect(minimalState.completed_tasks?.[0].task_id).toBe('task-2');
     });
+
+    it('should ALWAYS include recent_completed_tasks with intents', () => {
+      const task = createMockTask();
+      const state = createMockState({
+        completed_tasks: [
+          {
+            task_id: 't1',
+            completed_at: '2024-01-01',
+            intent: 'Setup DB',
+            validation_report: { valid: true, rules_passed: [], rules_failed: [] },
+          },
+          {
+            task_id: 't2',
+            completed_at: '2024-01-02',
+            intent: 'Create API',
+            validation_report: { valid: true, rules_passed: [], rules_failed: [] },
+          },
+        ],
+      });
+      const sandboxCwd = '/sandbox/test-project';
+
+      const minimalState = buildMinimalState(task, state, sandboxCwd);
+
+      expect(minimalState.recent_completed_tasks).toBeDefined();
+      expect(minimalState.recent_completed_tasks).toHaveLength(2);
+      expect(minimalState.recent_completed_tasks![0].intent).toBe('Setup DB');
+      expect(minimalState.recent_completed_tasks![1].intent).toBe('Create API');
+    });
+
+    it('should ALWAYS include active_blockers', () => {
+      const task = createMockTask();
+      const state = createMockState({
+        blocked_tasks: [
+          {
+            task_id: 'b1',
+            reason: 'Missing API key',
+            blocked_at: '2024-01-01',
+          },
+        ],
+      });
+      const sandboxCwd = '/sandbox/test-project';
+
+      const minimalState = buildMinimalState(task, state, sandboxCwd);
+
+      expect(minimalState.active_blockers).toBeDefined();
+      expect(minimalState.active_blockers).toHaveLength(1);
+      expect(minimalState.active_blockers![0].reason).toBe('Missing API key');
+    });
   });
 });

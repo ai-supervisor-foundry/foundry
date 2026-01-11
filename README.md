@@ -20,11 +20,16 @@
 
 ## What This Is
 
-Foundry is an **autonomous AI software development platform** and orchestration engine designed to build **real software at scale**.
+Foundry is an **autonomous AI software development platform**.  
+It is designed to build **real software**.  
 
-It acts as a **persistent AI developer**—coordinating agents, validating every step, and resuming long-running builds reliably without losing context or requiring manual recovery.
+Think of it as the **"Kubernetes of Agentic Coding"**—it orchestrates "headless" AI worker nodes (Cursor, Copilot, Gemini) to execute complex, long-running engineering plans reliably.
+> <small>We will incorporate other providers that are model-only approaches, shortly.</small>
 
-Foundry works through your **goal** and **tasks**, using AI agents Providers (Gemini, Cursor, Copilot), validating relentlessly, and persisting state after every step. If it crashes? Resume where it left off. No manual babysitting.
+It tries to not sleep, persist state, retain context context, and avoid drifts.  
+Foundry ensures it gets built, validated, and persisted, step by atomic step.
+
+Foundry works through your **goal** and **tasks** using providers, validating and persisting state after every step. If it crashes? Resume where it left off. No manual babysitting.
 
 
 **Built for multi-day agentic coding workflows. Built for determinism. Built for autonomous workflows for lower costs.**
@@ -38,6 +43,26 @@ Foundry works through your **goal** and **tasks**, using AI agents Providers (Ge
 - **No audit trail**: Can't review what happened or why it failed
 
 **The Solution**: Foundry acts as a **deterministic supervisor** for agentic chains. It orchestrates tasks, validates outputs relentlessly, maintains context across repetitions, and keeps costs bounded.
+
+## Why Foundry is Different (USPs)
+
+Most agent frameworks (CrewAI, AutoGen) focus on "conversational teams" or "autonomous planning." Foundry focuses on **infrastructure-grade execution**.
+
+### 1. The "Headless Worker" Abstraction (BYO-CLI)
+Instead of rebuilding RAG pipelines from scratch, Foundry wraps **off-the-shelf Human CLIs** (Cursor, GitHub Copilot, Gemini) and drives them as autonomous worker nodes.
+*   **Benefit:** Leverage the $20/month proprietary context engines of Cursor/Copilot for free. Foundry manages the session, you get the intelligence.
+
+### 2. The Anti-Planner (Strict Determinism)
+Foundry is a **Task Runner**, not a Problem Solver. It explicitly removes the "planning" capability from the agent to solve the recursion/drift problem.
+*   **Benefit:** Zero scope creep. The Operator defines the DAG (Directed Acyclic Graph) of tasks; Foundry enforces the execution. It never invents new tasks or hallucinates goals.
+
+### 3. Local-First "Hybrid" Validation
+Foundry uses a cost-optimized validation pipeline that runs **free, local deterministic checks** (AST analysis, Regex, file capacity) *before* ever asking an LLM to verify.
+*   **Benefit:** Drastically lower token costs. The LLM is treated as a "Judge of Last Resort," not a first-line debugger.
+
+### 4. Crash-Proof Infrastructure
+Modeled after distributed systems, Foundry persists state to DragonflyDB (Redis) after every atomic step.
+*   **Benefit:** You can kill the process, upgrade the Supervisor code, restart the server, and `resume` exactly where it left off—even days later.
 
 ## How It Works: The Three Pillars
 

@@ -101,6 +101,8 @@ export interface Task {
   working_directory?: string; // Relative path from sandboxRoot, overrides project_id-based default
   // Agent mode override (optional)
   agent_mode?: string; // Agent mode to use (e.g., 'auto', 'opus'), defaults to 'auto'
+  // Context toggle (optional)
+  requires_context?: boolean; // Whether to track context for this task (default: true)
   // Metadata for session tracking and grouping
   meta?: {
     session_id?: string;
@@ -118,6 +120,9 @@ export interface CompletedTask {
   task_id: string;
   completed_at: string;
   validation_report: ValidationReport;
+  intent?: string;
+  summary?: string;
+  requires_context?: boolean;
 }
 
 export interface BlockedTask {

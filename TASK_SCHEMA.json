@@ -20,5 +20,6 @@
   "status": "pending | in_progress | completed | blocked | failed",
   "working_directory": "string (optional, relative path from sandboxRoot, overrides project_id-based default)",
   "agent_mode": "string (optional, e.g., 'auto', 'opus', defaults to 'auto')",
+  "requires_context": "boolean (optional, default: true) - Whether to track semantic context for this task",
   "meta": "object (optional, for session tracking, e.g., { session_id: '...', feature_id: '...' })"
 }
