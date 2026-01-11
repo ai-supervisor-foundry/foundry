@@ -1,5 +1,11 @@
 # Validation & Interrogation Token Optimization Analysis
 
+**Status:** Mostly Superseded  
+**Date:** 2025-12 (Analysis)  
+**Implementation:** 2026-01-09 (Achieved via architectural simplification)
+
+**Note:** The optimization goals (60-75% token reduction, faster validation) were achieved through task-type system redesign and architectural simplification rather than the specific advanced techniques described here. See `docs/plans/done/task-type-system-redesign-v2.md` for actual implementation. Advanced features (deep AST structural validation, parallel validation, provider prompt caching, token budgets) remain unimplemented but are non-critical given current performance.
+
 ## Executive Summary
 
 After deep analysis of `interrogator.ts`, `validator.ts`, and `controlLoop.ts`, I've identified **significant opportunities to reduce token usage, agent cycles, and costs** by up to **60-75%** through strategic optimization of the validation-interrogation pipeline.

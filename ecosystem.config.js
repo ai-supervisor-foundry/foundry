@@ -7,7 +7,7 @@ module.exports = {
       cwd: '/home/ahmedhaider/work/projects/auto-layer/supervisor',
       instances: 1,
       exec_mode: 'fork',
-      autorestart: true,
+      autorestart: false,  // DO NOT auto-restart - operator controls lifecycle via halt/resume/start commands
       watch: false,
       max_memory_restart: '1G',
       env: {
