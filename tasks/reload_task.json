@@ -1,0 +1,8 @@
+{
+  "task_id": "task-1768058079605",
+  "intent": "Testing project.",
+  "instructions": "1. Create a mono repo nextjs project. (if doesn't exist)\n2. Create a sample blog site.\n3. Should have mocked login features, username and password are admin, admin.",
+  "acceptance_criteria": [
+    "Should meet instructions."
+  ]
+}

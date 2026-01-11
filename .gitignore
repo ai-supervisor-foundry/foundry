@@ -71,8 +71,13 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Development helpers / dir
-sandbox
+sandbox/**/*
 **/sandbox/**
+!sandbox/.cursor
+!sandbox/.cursor/**
+!.github/instructions/SANDBOX.instructions.md
+!**/sandbox/**/GEMINI.md
+!sandbox/GEMINI.md
 postgres
 pgadmin
 .pgpass
@@ -94,5 +99,4 @@ prometheus_data/
 grafana_data/
 PERFORMANCE_ANALYSIS.md
 
-*.log.*
-**/*.log.*
+*\.log\.*

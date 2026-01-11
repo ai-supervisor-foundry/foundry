@@ -4,9 +4,14 @@ import * as path from 'path';
 import * as os from 'os';
 import { promisify } from 'util';
 import { ProviderResult } from '../../../../domain/executors/haltDetection';
+import { logVerbose } from '../../../adapters/logging/logger';
 
 const execAsync = promisify(exec);
 const SESSION_DIR = path.join(os.homedir(), '.copilot', 'session-state');
+
+function log(message: string, ...args: unknown[]): void {
+  logVerbose('CopilotCLI', message, { args });
+}
 
 export interface CopilotOptions {
   model?: string;
@@ -63,7 +68,7 @@ export class CopilotCLI {
     args.push('--prompt', prompt);
 
     if (this.debug) {
-      console.log(`[CopilotCLI] Spawning: ${cliPath} ${args.join(' ')}`);
+      log(`Spawning: ${cliPath} ${args.join(' ')}`);
     }
 
     return new Promise((resolve, reject) => {
@@ -71,6 +76,9 @@ export class CopilotCLI {
         env: process.env,
         stdio: ['pipe', 'pipe', 'pipe'] // Capture stdout/stderr
       });
+
+      log(`Spawned process with PID: ${child.pid}`);
+      child.stdin.end();
 
       let stdout = '';
       let stderr = '';
@@ -244,8 +252,7 @@ export async function dispatchToCopilot(
   sessionId?: string,
   featureId?: string
 ): Promise<ProviderResult> {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] [CopilotCLI] Executing in directory: ${cwd}`);
+  log(`Executing in directory: ${cwd}`);
   
   // Prepend feature tag if starting new session
   let finalPrompt = prompt;

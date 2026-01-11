@@ -319,9 +319,21 @@ async function validateCoding(
     const allArtifacts = new Set<string>(task.required_artifacts || []);
     if (agentSummary?.files_created) agentSummary.files_created.forEach(f => allArtifacts.add(f));
     if (agentSummary?.files_updated) agentSummary.files_updated.forEach(f => allArtifacts.add(f));
-    if (agentSummary?.changes) agentSummary.changes.forEach(f => allArtifacts.add(f));
+    if (agentSummary?.changes) {
+      agentSummary.changes.forEach(f => {
+        // Handle both string format and object format {file_path: "...", change_type: "..."}
+        const filePath = typeof f === 'string' ? f : (typeof f === 'object' && f !== null && 'file_path' in f) ? (f as any).file_path : null;
+        if (filePath && typeof filePath === 'string') {
+          allArtifacts.add(filePath);
+        }
+      });
+    }
 
     for (const artifactPath of allArtifacts) {
+      // Skip if not a string (defensive check)
+      if (typeof artifactPath !== 'string') {
+        continue;
+      }
       // Reject absolute paths or '..'
       if (path.isAbsolute(artifactPath) || artifactPath.includes('..')) {
         continue;
