@@ -1,8 +1,12 @@
 # Foundry
 
-![Status](https://img.shields.io/badge/Status-Beta-orange)
-![License](https://img.shields.io/badge/License-MIT-blue)
-![Build](https://img.shields.io/badge/Build-Passing-brightgreen)
+<div align="center">
+
+[![Status](https://img.shields.io/badge/Status-Beta-orange?style=for-the-badge)](https://github.com/auto-layer/supervisor)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge&logo=opensourceinitiative)](https://opensource.org/licenses/MIT)
+[![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge)](https://github.com/ai-supervisor-foundry/foundry/actions)
+
+</div>
 
 ### **The persistent control plane for autonomous agentic software development — Kubernetes for AI coding agents**
 
@@ -20,20 +24,24 @@
 
 ## What This Is (High level)
 
-Foundry is an **persistent control plane for autonomous agentic software development**. (Minimized _Human-in-theLoop_).
-It is designed to build **real, multi-component software**.
+Foundry is the **Orchestration Layer for AI Software Engineering**.
 
-Foundry is the **Kubernetes for AI coding agents**.
+Just as Kubernetes orchestrates containers, Foundry orchestrates **Agentic Capabilities**. It treats advanced AI tools (Cursor, Copilot, Gemini) not as assistants, but as **managed resources**.
 
-It orchestrates "headless" AI worker nodes (Cursor, Copilot, Gemini) to execute complex, long-running engineering plans reliably.
+**The Orchestration Lifecycle:**
+1.  **Provision:** Foundry spins up a clean, isolated context (Sandbox) for a specific task.
+2.  **Dispatch:** It routes the task to the most suitable "Worker Node" (e.g., Gemini for reasoning, Cursor for editing).
+3.  **Monitor:** It watches the execution in real-time, enforcing constraints (time, scope, file access).
+4.  **Validate & Persist:** It runs deterministic checks (tests, AST) and commits the state only when criteria are met.
+
+This moves AI coding from "Chatting with a Bot" to "Managing a Factory."
+
+Foundry operates as a **persistent control plane**. It runs continuously to:
+*   **Persist state:** Save progress after every atomic step to DragonflyDB.
+*   **Retain context:** Prevent agent drift by managing the context window explicitly.
+*   **Ensure reliability:** Its crash-resilient design allows you to resume exactly where a network/provider halt occurred. No more manual babysitting.
+
 > <small>We will incorporate other providers that are model-only approaches, shortly.</small>
-
-It runs continously, persists state, retain context, and avoids drifts.
-
-Foundry ensures the goal & tasks are achieved, validated, and persisted, step by atomic step.
-
-Foundry uses a number of providers providers. Its crash resilient design allows you to resume where a network/provider halt occured. No more manual babysitting.
-
 
 **Built for multi-day agentic coding workflows. Built for determinism. Built for autonomous workflows for lower costs.**
 
