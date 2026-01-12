@@ -1,8 +1,12 @@
 # Foundry
 
-![Status](https://img.shields.io/badge/Status-Beta-orange)
-![License](https://img.shields.io/badge/License-MIT-blue)
-![Build](https://img.shields.io/badge/Build-Passing-brightgreen)
+<div align="center">
+
+[![Status](https://img.shields.io/badge/Status-Beta-orange?style=for-the-badge)](https://github.com/auto-layer/supervisor)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge&logo=opensourceinitiative)](https://opensource.org/licenses/MIT)
+[![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge)](https://github.com/ai-supervisor-foundry/foundry/actions)
+
+</div>
 
 ### **The persistent control plane for autonomous agentic software development — Kubernetes for AI coding agents**
 
@@ -32,16 +36,12 @@ Just as Kubernetes orchestrates containers, Foundry orchestrates **Agentic Capab
 
 This moves AI coding from "Chatting with a Bot" to "Managing a Factory."
 
-Foundry ensures goals & tasks are achieved, validated, and persisted, step by atomic step. Its crash-resilient design allows you to resume exactly where a network/provider halt occurred. No more manual babysitting.
+Foundry operates as a **persistent control plane**. It runs continuously to:
+*   **Persist state:** Save progress after every atomic step to DragonflyDB.
+*   **Retain context:** Prevent agent drift by managing the context window explicitly.
+*   **Ensure reliability:** Its crash-resilient design allows you to resume exactly where a network/provider halt occurred. No more manual babysitting.
 
 > <small>We will incorporate other providers that are model-only approaches, shortly.</small>
-
-It runs continously, persists state, retain context, and avoids drifts.
-
-Foundry ensures the goal & tasks are achieved, validated, and persisted, step by atomic step.
-
-Foundry uses a number of providers providers. Its crash resilient design allows you to resume where a network/provider halt occured. No more manual babysitting.
-
 
 **Built for multi-day agentic coding workflows. Built for determinism. Built for autonomous workflows for lower costs.**
 
