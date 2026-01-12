@@ -17,8 +17,22 @@ services:
     networks:
       - supervisor-network
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull phi4-mini && wait"]
+    restart: unless-stopped
+    networks:
+      - supervisor-network
+
 volumes:
   dragonfly-data:
+    driver: local
+  ollama_data:
     driver: local
 
 networks:

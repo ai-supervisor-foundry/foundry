@@ -42,7 +42,7 @@ describe('CopilotCLI', () => {
     expect(mockSpawn).toHaveBeenCalledWith(
       expect.stringContaining('npx'), // or just 'npx'
       expect.arrayContaining([
-        'copilot',
+        '@github/copilot',
         '--model',
         'gpt-4',
         '--allow-all-tools',

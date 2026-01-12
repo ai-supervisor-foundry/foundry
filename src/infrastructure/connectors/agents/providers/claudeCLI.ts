@@ -1,5 +1,5 @@
 // Claude CLI Dispatcher
-// TODO: Research Claude CLI command structure and implement
+// TASK: Research Claude CLI command structure and implement
 
 import { ProviderResult } from '../../../../domain/executors/haltDetection';
 import { spawn } from 'child_process';
@@ -31,12 +31,16 @@ export async function dispatchToClaude(
     throw new Error(`Invalid cwd: ${cwd} - ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  // Claude Code CLI: Installed at ~/.local/bin/claude
+  // Claude Code CLI: Installed at ~/.local/bin/claude or via npm
   // Documentation: https://docs.claude.com/en/docs/claude-code/cli-reference
   // Command: claude -p/--print [prompt] for non-interactive output
-  const defaultClaudePath = path.join(os.homedir(), '.local', 'bin', 'claude');
-  const claudeCommand = process.env.CLAUDE_CLI_PATH || defaultClaudePath;
+  const useNpx = !process.env.CLAUDE_CLI_PATH;
+  const claudeCommand = process.env.CLAUDE_CLI_PATH || 'npx';
   const args: string[] = [];
+  
+  if (useNpx) {
+    args.push('@anthropic-ai/claude-code');
+  }
   
   // Use --print for non-interactive mode (prints response and exits)
   args.push('--print');
