@@ -36,6 +36,12 @@ Foundry ensures goals & tasks are achieved, validated, and persisted, step by at
 
 > <small>We will incorporate other providers that are model-only approaches, shortly.</small>
 
+It runs continously, persists state, retain context, and avoids drifts.
+
+Foundry ensures the goal & tasks are achieved, validated, and persisted, step by atomic step.
+
+Foundry uses a number of providers providers. Its crash resilient design allows you to resume where a network/provider halt occured. No more manual babysitting.
+
 
 **Built for multi-day agentic coding workflows. Built for determinism. Built for autonomous workflows for lower costs.**
 
