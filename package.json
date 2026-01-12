@@ -5,6 +5,7 @@
   "main": "index.ts",
   "scripts": {
     "cli": "tsx src/application/entrypoint/cli.ts",
+    "setup": "tsx scripts/setup.ts",
     "build": "tsc",
     "dev": "tsx watch src/application/entrypoint/cli.ts",
     "test": "jest",
@@ -15,10 +16,14 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@anthropic-ai/claude-code": "^2.1.5",
     "@github/copilot": "^0.0.373",
+    "@google/gemini-cli": "^0.22.5",
+    "@types/inquirer": "^9.0.9",
     "commander": "^11.1.0",
     "dotenv": "^17.2.3",
     "glob": "^10.3.10",
+    "inquirer": "^13.2.0",
     "ioredis": "^5.3.2",
     "ollama": "^0.6.3",
     "semver": "^7.5.4",

@@ -19,6 +19,35 @@ module.exports = {
       time: true,
       merge_logs: true,
     },
+    {
+      name: 'ui-backend',
+      script: 'dist/server.js',
+      cwd: './UI/backend',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3001
+      },
+      error_file: '../../logs/ui-backend-error.log',
+      out_file: '../../logs/ui-backend-out.log',
+      time: true
+    },
+    {
+      name: 'ui-frontend',
+      script: 'npm',
+      args: 'run preview -- --port 5173 --host',
+      cwd: './UI/frontend',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      error_file: '../../logs/ui-frontend-error.log',
+      out_file: '../../logs/ui-frontend-out.log',
+      time: true
+    }
   ],
 };
 

@@ -47,7 +47,7 @@ export class CopilotCLI {
     const args: string[] = [];
     
     if (isNpx) {
-      args.push('copilot');
+      args.push('@github/copilot');
     }
 
     if (sessionId) {

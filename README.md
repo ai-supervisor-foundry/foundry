@@ -126,13 +126,25 @@ It does **not**:
 ### Prerequisites
 
 - **Node.js**: LTS version (install via [nvm](https://github.com/nvm-sh/nvm))
-- **Docker & Docker Compose**: For running DragonflyDB
-- **Provider CLI(s)**: Install at least one supported provider CLI (e.g., Gemini, Copilot, Cursor). Cursor-specific docs: [Cursor CLI](https://cursor.com/cli)
+- **Docker & Docker Compose**: For running DragonflyDB and Ollama.
+- **Cursor (Optional)**: If using Cursor as a provider, you must install the [Cursor application](https://cursor.com).
 
 ### Install Dependencies
 
 ```bash
 npm install
+```
+
+### Setup & Authentication (Interactive)
+
+Run the setup wizard to:
+1. Authenticate providers (Gemini, Copilot, Claude)
+2. Start Docker infrastructure (Ollama + DragonflyDB)
+3. Build the Supervisor UI
+4. Start all services via PM2
+
+```bash
+npm run setup
 ```
 
 ### Build
@@ -143,37 +155,48 @@ npm run build
 
 ## Infrastructure Setup
 
-### Start DragonflyDB
+Foundry uses DragonflyDB for persistence and optionally Ollama for local tasks.
 
-Foundry uses DragonflyDB (Redis-compatible) for state persistence and task queuing.
-
-1. **Start DragonflyDB container**:
+1. **Start Infrastructure** (if not started via setup):
    ```bash
    docker-compose up -d
    ```
+   *Starts DragonflyDB (port 6499) and Ollama (port 11434).*
 
-2. **Verify DragonflyDB is running**:
+2. **Verify Containers**:
    ```bash
-   docker ps | grep dragonflydb
-   # Should show container running on port 6499
+   docker ps
+   # Should show dragonflydb and ollama running
    ```
 
-3. **Test connection** (optional):
-   ```bash
-   redis-cli -h localhost -p 6499 ping
-   # Should return: PONG
-   ```
-
-### Stop DragonflyDB
+### Stop Infrastructure
 
 ```bash
 docker-compose down
 ```
 
-To remove data volume:
+## Manual Provider Authentication (Alternative)
+
+If you skipped `npm run setup`, you can authenticate manually:
+
+**Gemini:**
 ```bash
-docker-compose down -v
+npx @google/gemini-cli login
+# Or set GOOGLE_API_KEY env var
 ```
+
+**GitHub Copilot:**
+```bash
+npx @github/copilot auth
+```
+
+**Claude:**
+```bash
+npx @anthropic-ai/claude-code login
+```
+
+**Ollama:**
+No auth required. Model `phi4` is pulled automatically on startup.
 
 ## Configuration
 
