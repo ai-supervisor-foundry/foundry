@@ -20,19 +20,21 @@
 
 ## What This Is (High level)
 
-Foundry is an **persistent control plane for autonomous agentic software development**. (Minimized _Human-in-theLoop_).
-It is designed to build **real, multi-component software**.
+Foundry is the **Orchestration Layer for AI Software Engineering**.
 
-Foundry is the **Kubernetes for AI coding agents**.
+Just as Kubernetes orchestrates containers, Foundry orchestrates **Agentic Capabilities**. It treats advanced AI tools (Cursor, Copilot, Gemini) not as assistants, but as **managed resources**.
 
-It orchestrates "headless" AI worker nodes (Cursor, Copilot, Gemini) to execute complex, long-running engineering plans reliably.
+**The Orchestration Lifecycle:**
+1.  **Provision:** Foundry spins up a clean, isolated context (Sandbox) for a specific task.
+2.  **Dispatch:** It routes the task to the most suitable "Worker Node" (e.g., Gemini for reasoning, Cursor for editing).
+3.  **Monitor:** It watches the execution in real-time, enforcing constraints (time, scope, file access).
+4.  **Validate & Persist:** It runs deterministic checks (tests, AST) and commits the state only when criteria are met.
+
+This moves AI coding from "Chatting with a Bot" to "Managing a Factory."
+
+Foundry ensures goals & tasks are achieved, validated, and persisted, step by atomic step. Its crash-resilient design allows you to resume exactly where a network/provider halt occurred. No more manual babysitting.
+
 > <small>We will incorporate other providers that are model-only approaches, shortly.</small>
-
-It runs continously, persist state, retain context, and avoid drifts.
-
-Foundry ensures the goal & tasks are achieved, validated, and persisted, step by atomic step.
-
-Foundry uses a number of providers providers. Its crash resilient design allows you to resume where a network/provider halt occured. No more manual babysitting.
 
 
 **Built for multi-day agentic coding workflows. Built for determinism. Built for autonomous workflows for lower costs.**
