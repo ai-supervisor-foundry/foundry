@@ -1,3 +1,4 @@
+
 import inquirer from 'inquirer';
 import { execSync, spawnSync } from 'child_process';
 import * as fs from 'fs';
@@ -99,7 +100,7 @@ async function checkStatus() {
   let isRunning = false;
   if (checkCommand('pm2')) {
     try {
-      const output = execSync('pm2 list', { encoding: 'utf-8' });
+      const output = execSync('pm2 list', { encoding: 'utf-8', stdio: 'pipe' });
       if (output.includes('supervisor') && output.includes('online')) {
         isRunning = true;
       }
@@ -132,7 +133,17 @@ async function stepInfrastructure() {
   log("--- Infrastructure ---", colors.blue);
   spacer(1);
   log("Starting DragonflyDB (Mandatory)...", colors.cyan);
-  spawnSync('docker compose up -d dragonflydb', { shell: true, stdio: 'inherit' });
+  
+  try {
+    // Smart Silence: Capture output, only show on error
+    execSync('docker compose up -d dragonflydb', { stdio: 'pipe' });
+  } catch (e: any) {
+    log("❌ Failed to start DragonflyDB.", colors.red);
+    if (e.stderr) {
+        console.error(colors.red + e.stderr.toString() + colors.reset);
+    }
+    process.exit(1);
+  }
   
   spacer(1);
   const { useOllama } = await inquirer.prompt([{
@@ -145,7 +156,14 @@ async function stepInfrastructure() {
   if (useOllama) {
     spacer(1);
     log("Starting Ollama (background pull for phi4-mini)...", colors.cyan);
-    spawnSync('docker compose up -d ollama', { shell: true, stdio: 'inherit' });
+    try {
+      execSync('docker compose up -d ollama', { stdio: 'pipe' });
+    } catch (e: any) {
+      log("❌ Failed to start Ollama.", colors.yellow);
+      if (e.stderr) {
+          console.error(colors.red + e.stderr.toString() + colors.reset);
+      }
+    }
   }
   
   spacer(1);
@@ -161,14 +179,20 @@ async function stepBuild() {
   spacer(1);
 
   try {
-    execSync('npm install', { stdio: 'inherit' });
-    execSync('cd UI/frontend && npm install && npm run build', { stdio: 'inherit' });
-    execSync('cd UI/backend && npm install && npm run build', { stdio: 'inherit' });
+    log("Processing Root...", colors.reset);
+    execSync('npm install', { stdio: 'ignore' });
+    
+    log("Processing Frontend...", colors.reset);
+    execSync('cd UI/frontend && npm install && npm run build', { stdio: 'ignore' });
+    
+    log("Processing Backend...", colors.reset);
+    execSync('cd UI/backend && npm install && npm run build', { stdio: 'ignore' });
+    
     spacer(1);
     log("Build complete.", colors.green);
   } catch (e) {
     spacer(1);
-    log("Build failed: " + e, colors.red);
+    log("Build failed. Run 'npm run build' manually to check errors.", colors.red);
     process.exit(1);
   }
 }
@@ -265,7 +289,7 @@ async function stepInitState() {
       log("State initialized.", colors.green);
   } catch (e) {
       spacer(1);
-      log("State already exists (Skipping).", colors.yellow);
+      log("ℹ️  State likely already exists (Skipping).", colors.yellow);
   }
 }
 
@@ -287,7 +311,7 @@ async function stepLaunch() {
   spacer(1);
   log("Starting Supervisor System and Dashboard (Backend + Frontend)...", colors.cyan);
   try {
-      execSync('pm2 start ecosystem.config.js', { stdio: 'inherit' });
+      execSync('pm2 start ecosystem.config.js', { stdio: 'ignore' });
       
       spacer(1);
       await waitForPort(3001, "Backend API");
@@ -300,9 +324,12 @@ async function stepLaunch() {
       
       if (process.platform === 'linux') try { execSync('xdg-open http://localhost:5173'); } catch {}
       if (process.platform === 'darwin') try { execSync('open http://localhost:5173'); } catch {}
-  } catch (e) {
+  } catch (e: any) {
       spacer(1);
-      log("Start failed: " + e, colors.red);
+      log("❌ Start failed.", colors.red);
+      if (e.stderr) {
+          console.error(colors.red + e.stderr.toString() + colors.reset);
+      }
   }
 }
 
