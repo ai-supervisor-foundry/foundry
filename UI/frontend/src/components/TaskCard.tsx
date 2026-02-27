@@ -8,7 +8,7 @@ interface TaskCardProps {
     task_id: string;
     intent?: string;
     status?: string;
-    task_type?: string;
+    task_type?: string | { type?: string };
     tool?: string;
     instructions?: string;
     acceptance_criteria?: string[];
@@ -40,6 +40,14 @@ interface TaskCardProps {
 
 export default function TaskCard({ task, className = '', isCurrent = false, onEdit }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false);
+
+  // Helper to extract task_type value (handles both string and object formats)
+  const getTaskType = () => {
+    if (!task.task_type) return null;
+    if (typeof task.task_type === 'string') return task.task_type;
+    if (typeof task.task_type === 'object' && task.task_type.type) return task.task_type.type;
+    return String(task.task_type);
+  };
 
   const hasDetails = task.instructions || 
     (task.acceptance_criteria && task.acceptance_criteria.length > 0) ||
@@ -107,10 +115,10 @@ export default function TaskCard({ task, className = '', isCurrent = false, onEd
             <p className="text-sm text-gray-700 font-medium mb-1">{task.intent}</p>
           )}
           
-          {task.task_type && (
+          {getTaskType() && (
             <div className="mb-2">
               <span className="inline-block px-2 py-0.5 bg-purple-100 text-purple-800 text-xs font-medium rounded">
-                {task.task_type}
+                {getTaskType()}
               </span>
               {task.tool && (
                 <span className="ml-2 inline-block px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-medium rounded">
@@ -316,15 +324,15 @@ export default function TaskCard({ task, className = '', isCurrent = false, onEd
             </div>
           )}
           
-          {(task.working_directory || task.agent_mode || task.required_artifacts || task.test_command || task.task_type) && (
+          {(task.working_directory || task.agent_mode || task.required_artifacts || task.test_command || getTaskType()) && (
             <div>
               <h4 className="font-semibold text-sm mb-2">Configuration</h4>
               <div className="bg-gray-50 rounded p-3 space-y-2 text-sm">
-                {task.task_type && (
+                {getTaskType() && (
                   <div>
                     <span className="font-medium text-gray-700">Task Type:</span>
                     <span className="ml-2 inline-block px-2 py-0.5 bg-purple-100 text-purple-800 font-mono text-xs rounded">
-                      {task.task_type}
+                      {getTaskType()}
                     </span>
                   </div>
                 )}

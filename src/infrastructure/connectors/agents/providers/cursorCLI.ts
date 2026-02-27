@@ -57,95 +57,93 @@ export async function dispatchToCursor(
     finalPrompt = `[Feature: ${featureId}] ${prompt}`;
   }
 
-  // Spawn Cursor CLI process
   const cursorCommand = cursorExecutable || process.env.CURSOR_CLI_PATH || 'cursor';
-  const args = [
-    'agent', // Subcommand
-    '--print', // Print responses to console
-    '--force', // Force allow commands
-    '--output-format', 'json', // Use JSON for metadata extraction
-  ];
-  
-  // Handle resume
-  if (sessionId) {
-    args.push('--resume', sessionId);
-  }
-
-  // Set model
   const modelToUse = agentMode || 'auto';
-  args.push('--model', modelToUse);
-  
-  args.push(finalPrompt);
 
-  log(`Spawning: ${cursorCommand} ${args.slice(0, -1).join(' ')} [prompt]`);
+  const buildArgs = (approveMcps: boolean): string[] => {
+    const a = [
+      'agent',
+      '--print',
+      '--force',
+      '--output-format', 'json',
+      ...(approveMcps ? ['--approve-mcps'] : []),
+    ];
+    if (sessionId) a.push('--resume', sessionId);
+    a.push('--model', modelToUse);
+    a.push(finalPrompt);
+    return a;
+  };
 
-  return new Promise<ProviderResult>((resolve, reject) => {
-    const childProcess = spawn(cursorCommand, args, {
-      cwd: cwd,
-      env: process.env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+  const runAttempt = (args: string[]): Promise<ProviderResult> =>
+    new Promise((resolve, reject) => {
+      const childProcess = spawn(cursorCommand, args, {
+        cwd: cwd,
+        env: process.env,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
 
-    log(`Cursor CLI process started, PID: ${childProcess.pid}`);
+      log(`Cursor CLI process started, PID: ${childProcess.pid}`);
+      childProcess.stdin?.end();
 
-    childProcess.stdin?.end();
+      let stdout = '';
+      let stderr = '';
 
-    let stdout = '';
-    let stderr = '';
+      const timeout = setTimeout(() => {
+        childProcess.kill('SIGTERM');
+        reject(new Error('Cursor CLI process timed out after 30 minutes'));
+      }, 30 * 60 * 1000);
 
-    const timeout = setTimeout(() => {
-      childProcess.kill('SIGTERM');
-      reject(new Error('Cursor CLI process timed out after 30 minutes'));
-    }, 30 * 60 * 1000);
+      childProcess.stdout?.on('data', (data: Buffer) => { stdout += data.toString('utf8'); });
+      childProcess.stderr?.on('data', (data: Buffer) => { stderr += data.toString('utf8'); });
 
-    childProcess.stdout?.on('data', (data: Buffer) => {
-      stdout += data.toString('utf8');
-    });
+      childProcess.on('close', (code) => {
+        clearTimeout(timeout);
+        const exitCode = code ?? 1;
+        const rawOutput = stdout + stderr;
+        log(`Cursor CLI process closed, exit code: ${exitCode}`);
 
-    childProcess.stderr?.on('data', (data: Buffer) => {
-      stderr += data.toString('utf8');
-    });
+        const jsonOutput = extractJSON(stdout);
+        let status: string | undefined;
+        if (exitCode !== 0) status = 'FAILED';
+        else if (stderr.length > 0 && stderr.toLowerCase().includes('blocked')) status = 'BLOCKED';
 
-    childProcess.on('close', async (code) => {
-      clearTimeout(timeout);
-      const exitCode = code ?? 1;
-      const rawOutput = stdout + stderr;
+        const newSessionId = jsonOutput?.session_id || jsonOutput?.sessionId || jsonOutput?.chatId || jsonOutput?.id || sessionId;
+        const tokens = jsonOutput?.usage?.totalTokens || jsonOutput?.stats?.tokens?.total;
 
-      log(`Cursor CLI process closed, exit code: ${exitCode}`);
+        resolve({
+          stdout: jsonOutput?.result || jsonOutput?.response || stdout,
+          stderr,
+          exitCode,
+          rawOutput,
+          status,
+          output: rawOutput,
+          sessionId: newSessionId,
+          usage: tokens ? { tokens } : undefined,
+        });
+      });
 
-      // Parse JSON output if possible
-      const jsonOutput = extractJSON(stdout);
-      
-      // Determine status
-      let status: string | undefined;
-      if (exitCode !== 0) {
-        status = 'FAILED';
-      } else if (stderr.length > 0 && stderr.toLowerCase().includes('blocked')) {
-        status = 'BLOCKED';
-      }
-
-      // Extract metadata
-      const newSessionId = jsonOutput?.session_id || jsonOutput?.sessionId || jsonOutput?.chatId || jsonOutput?.id || sessionId;
-      const tokens = jsonOutput?.usage?.totalTokens || jsonOutput?.stats?.tokens?.total;
-
-      resolve({
-        stdout: jsonOutput?.response || stdout,
-        stderr: stderr,
-        exitCode: exitCode,
-        rawOutput: rawOutput,
-        status: status,
-        output: rawOutput,
-        sessionId: newSessionId,
-        usage: tokens ? { tokens } : undefined
+      childProcess.on('error', (error) => {
+        clearTimeout(timeout);
+        log(`ERROR: Cursor CLI process error: ${error.message}`);
+        reject(new Error(`Cursor CLI process error: ${error.message}`));
       });
     });
 
-    childProcess.on('error', async (error) => {
-      clearTimeout(timeout);
-      log(`ERROR: Cursor CLI process error: ${error.message}`);
-      reject(new Error(`Cursor CLI process error: ${error.message}`));
-    });
-  });
+  try {
+    const argsWithApprove = buildArgs(true);
+    log(`Spawning: ${cursorCommand} ${argsWithApprove.slice(0, -1).join(' ')} [prompt]`);
+    return await runAttempt(argsWithApprove);
+  } catch (e) {
+    log(`Attempt with --approve-mcps failed, retrying without: ${e instanceof Error ? e.message : String(e)}`);
+    try {
+      const argsWithoutApprove = buildArgs(false);
+      log(`Spawning: ${cursorCommand} ${argsWithoutApprove.slice(0, -1).join(' ')} [prompt]`);
+      return await runAttempt(argsWithoutApprove);
+    } catch (e2) {
+      log(`Both attempts failed. Final error: ${e2 instanceof Error ? e2.message : String(e2)}`);
+      throw e2;
+    }
+  }
 }
 
 // Legacy CursorCLI class for backward compatibility
