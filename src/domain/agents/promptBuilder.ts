@@ -84,7 +84,7 @@ export function validateFilePaths(
 export function buildMinimalState(task: Task, state: SupervisorState, sandboxCwd: string): MinimalState {
   const context: MinimalState = {
     project: {
-      id: state.goal.project_id || 'default',
+      id: task.project_id || state.goal.project_id || 'default',
       sandbox_root: sandboxCwd,
     },
   };
@@ -125,7 +125,7 @@ export function buildMinimalState(task: Task, state: SupervisorState, sandboxCwd
     task.task_id.startsWith('goal-')
   ) {
     context.goal = {
-      id: state.goal.project_id || 'default',
+      id: task.project_id || state.goal.project_id || 'default',
       description: state.goal.description,
     };
     included.push('goal');
@@ -783,7 +783,11 @@ export function parseGoalCompletionResponse(response: string): boolean {
 // Legacy PromptBuilder class for backward compatibility
 export class PromptBuilder {
   buildMinimalSnapshot(state: SupervisorState, task: Task, sandboxCwd?: string): MinimalState {
-    const defaultCwd = state.goal.project_id ? `sandbox/${state.goal.project_id}` : 'sandbox/default';
+    const defaultCwd = task.project_id
+      ? `sandbox/${task.project_id}`
+      : state.goal.project_id
+        ? `sandbox/${state.goal.project_id}`
+        : 'sandbox/default';
     return buildMinimalState(task, state, sandboxCwd || defaultCwd);
   }
 

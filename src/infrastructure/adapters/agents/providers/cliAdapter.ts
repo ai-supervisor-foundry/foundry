@@ -36,10 +36,11 @@ export class CLIAdapter implements LLMProviderPort {
   constructor(
     redisClient: Redis,
     entries?: ProviderEntry[],
-    ttlSeconds?: number
+    ttlSeconds?: number,
+    useEnvOverride: boolean = false
   ) {
     this.circuitBreaker = new CircuitBreakerManager(redisClient, ttlSeconds);
-    this.entries = this.parseEntriesFromEnv() || entries || getActiveStrategy().primary;
+    this.entries = (useEnvOverride ? this.parseEntriesFromEnv() : null) || entries || getActiveStrategy().primary;
     log(`CLIAdapter initialized with priority: ${this.entries.map(e => e.provider).join(' → ')}, TTL: ${ttlSeconds || 86400}s`);
   }
 

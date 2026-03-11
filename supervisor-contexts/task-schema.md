@@ -5,6 +5,7 @@ Tasks are defined as JSON objects with the following structure:
 ```json
 {
   "task_id": "string (unique identifier)",
+  "project_id": "string (required — sandbox working directory)",
   "intent": "string (brief description)",
   "tool": "cursor | gemini | gemini_stub | copilot | codex | claude",
   "instructions": "string (detailed instructions for agent)",
@@ -21,6 +22,10 @@ Tasks are defined as JSON objects with the following structure:
   "tests_required": boolean (optional)
 }
 ```
+
+## Project Assignment
+
+Each task must specify its `project_id`. This determines the agent's working directory as `sandbox/{project_id}/`. The `working_directory` field can still override this default if a task needs a different CWD.
 
 ## Task Lifecycle
 

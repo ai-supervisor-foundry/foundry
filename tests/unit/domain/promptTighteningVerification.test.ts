@@ -26,6 +26,7 @@ describe('Prompt Tightening Verification', () => {
 
   const mockTask: Task = {
     task_id: 'test-task',
+    project_id: 'test-project',
     intent: 'fix the bug',
     instructions: 'Fix the export in broken.ts',
     acceptance_criteria: ['x should be 2'],

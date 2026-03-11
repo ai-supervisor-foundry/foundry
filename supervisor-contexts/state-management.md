@@ -19,7 +19,7 @@ The supervisor state is stored as a single JSON blob in DragonflyDB with the fol
   "goal": {
     "description": "string",
     "completed": boolean,
-    "project_id": "string"
+    "project_id": "string (optional — goal-level default for tasks)"
   },
   "supervisor": {
     "status": "RUNNING" | "HALTED" | "COMPLETED" | "BLOCKED",
@@ -58,6 +58,11 @@ The supervisor state is stored as a single JSON blob in DragonflyDB with the fol
   } | null
 }
 ```
+
+## Project ID Resolution
+
+- `goal.project_id` is optional and serves as a default for tasks that omit their own.
+- Each task carries a required `project_id` field. Resolution order: `task.project_id || state.goal.project_id || 'default'`.
 
 ## State Access Rules
 

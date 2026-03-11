@@ -220,14 +220,15 @@ async function enqueue(
   // Validate each task structure
   const validationStartTime = Date.now();
   for (const task of tasks) {
-    if (!task.task_id || !task.instructions || !task.acceptance_criteria) {
+    if (!task.task_id || !task.instructions || !task.acceptance_criteria || !task.project_id) {
       logVerbose('Enqueue', 'Task validation failed', {
         task_id: task.task_id || 'unknown',
         has_task_id: !!task.task_id,
         has_instructions: !!task.instructions,
         has_acceptance_criteria: !!task.acceptance_criteria,
+        has_project_id: !!task.project_id,
       });
-      throw new Error(`Task ${task.task_id || 'unknown'} must have task_id, instructions, and acceptance_criteria`);
+      throw new Error(`Task ${task.task_id || 'unknown'} must have task_id, project_id, instructions, and acceptance_criteria`);
     }
   }
   const validationDuration = Date.now() - validationStartTime;
@@ -673,7 +674,7 @@ async function start(
     const { getActiveStrategy } = await import('../../config/agents/providers/strategies');
     const activeStrategy = getActiveStrategy();
     logVerbose('Start', `Active provider strategy: ${activeStrategy.name}`, { strategy: process.env.PROVIDER_STRATEGY || '1' });
-    const primaryAdapter = new CLIAdapter(stateClient, activeStrategy.primary, ttlSeconds);
+    const primaryAdapter = new CLIAdapter(stateClient, activeStrategy.primary, ttlSeconds, true);
     const secondaryAdapter = new CLIAdapter(stateClient, activeStrategy.secondary, ttlSeconds);
     const validator = new Validator();
     

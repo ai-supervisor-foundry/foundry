@@ -217,7 +217,7 @@ export async function controlLoop(
       {
         state,
         sandboxCwd: executionResult.sandboxCwd,
-        projectId: state.goal.project_id || 'default',
+        projectId: task.project_id,
         iteration,
       }
     );
@@ -232,7 +232,7 @@ export async function controlLoop(
             {
                 cliAdapter: primaryAdapter,
                 sessionId: executionResult.sessionId,
-                projectId: state.goal.project_id || 'default',
+                projectId: task.project_id,
                 iteration,
             },
             haltReason
@@ -260,7 +260,7 @@ export async function controlLoop(
             task,
             validationReport: validationResult.report,
             sandboxRoot,
-            projectId: state.goal.project_id || 'default',
+            projectId: task.project_id,
             iteration,
             finalPrompt: executionResult.prompt,
             finalResponse: executionResult.response

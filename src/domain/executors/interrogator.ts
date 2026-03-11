@@ -8,6 +8,7 @@ import { log as logShared, logVerbose } from '../../infrastructure/adapters/logg
 import { appendPromptLog } from '../../infrastructure/adapters/logging/promptLogger';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { getDiscoveredFiles } from '../../application/services/fileDiscoveryCache';
 
 function log(message: string, ...args: unknown[]): void {
   logShared('Interrogator', message, ...args);
@@ -232,7 +233,11 @@ async function preAnalyzeForInterrogation(
   const context: InterrogationContext = { potentialLocations: {} };
   
   try {
-    const allFiles = await getFileList(sandboxCwd, 200); // Check up to 200 files
+    const cachedFiles = getDiscoveredFiles(sandboxCwd);
+    const allFiles = cachedFiles || await getFileList(sandboxCwd, 200);
+    if (cachedFiles) {
+      log(`Using cached file list (${cachedFiles.length} files) from validator`);
+    }
     const relativeFiles = allFiles.map(f => path.relative(sandboxCwd, f));
 
     for (const criterion of criteria) {
@@ -351,7 +356,7 @@ export async function interrogateAgent(
   minimalState: MinimalState,
   sandboxCwd: string,
   cliAdapter: CLIAdapter,
-  maxQuestionsPerCriterion: number = 2, // Default reduced to 2 per Enhanced Strategy
+  maxQuestionsPerCriterion: number = 1, // Default: single round (Phase 1 optimization)
   sandboxRoot?: string,
   projectId?: string
 ): Promise<InterrogationSession> {

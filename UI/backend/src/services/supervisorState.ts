@@ -17,7 +17,7 @@ export interface SupervisorState {
   goal: {
     description: string;
     completed: boolean;
-    project_id?: string;
+    project_id?: string; // Default project for goal-level operations
   };
   constraints?: Record<string, unknown>;
   current_task?: unknown;

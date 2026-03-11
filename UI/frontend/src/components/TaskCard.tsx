@@ -6,6 +6,7 @@ import StatusBadge from './StatusBadge';
 interface TaskCardProps {
   task: {
     task_id: string;
+    project_id?: string;
     intent?: string;
     status?: string;
     task_type?: string | { type?: string };
@@ -324,10 +325,18 @@ export default function TaskCard({ task, className = '', isCurrent = false, onEd
             </div>
           )}
           
-          {(task.working_directory || task.agent_mode || task.required_artifacts || task.test_command || getTaskType()) && (
+          {(task.project_id || task.working_directory || task.agent_mode || task.required_artifacts || task.test_command || getTaskType()) && (
             <div>
               <h4 className="font-semibold text-sm mb-2">Configuration</h4>
               <div className="bg-gray-50 rounded p-3 space-y-2 text-sm">
+                {task.project_id && (
+                  <div>
+                    <span className="font-medium text-gray-700">Project:</span>
+                    <span className="ml-2 inline-block px-2 py-0.5 bg-blue-100 text-blue-800 font-mono text-xs rounded">
+                      {task.project_id}
+                    </span>
+                  </div>
+                )}
                 {getTaskType() && (
                   <div>
                     <span className="font-medium text-gray-700">Task Type:</span>

@@ -33,6 +33,7 @@ describe('TaskFinalizer', () => {
   it('should capture intent and summary', async () => {
     const task: Task = {
       task_id: 'task-1',
+      project_id: 'test-project',
       intent: 'Fix the bug. Make it work.',
       tool: Provider.GEMINI,
       instructions: 'Fix it',
@@ -83,6 +84,7 @@ describe('TaskFinalizer', () => {
 
     const task: Task = {
         task_id: 'new-task',
+        project_id: 'test-project',
         intent: 'New Task',
         tool: Provider.GEMINI,
         instructions: 'Do it',

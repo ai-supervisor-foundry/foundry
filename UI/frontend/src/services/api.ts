@@ -77,7 +77,7 @@ export const apiClient = {
   dumpTasks: () => api.get('/api/tasks/dump'),
   
   // Logs endpoints
-  getProjects: () => api.get('/api/logs/projects'),
+  getLogProjects: () => api.get('/api/logs/projects'),
   getAuditLogs: (projectId: string, limit?: number) =>
     api.get('/api/logs/audit', { params: { projectId, limit } }),
   getPromptLogs: (projectId: string, limit?: number, type?: string, provider?: string, offset?: number) =>
@@ -103,6 +103,13 @@ export const apiClient = {
   getOllamaVersion: () => api.get('/api/ollama/version'),
   getOllamaModels: () => api.get('/api/ollama/tags'),
   stopOllama: () => api.post('/api/ollama/stop'),
+
+  // Projects endpoints
+  getProjects: () => api.get('/api/projects'),
+  getDiscoveredProjects: () => api.get('/api/projects/discovered'),
+  registerProject: (id: string, name: string, projectPath?: string) =>
+    api.post('/api/projects', { id, name, path: projectPath || id }),
+  unregisterProject: (id: string) => api.delete(`/api/projects/${id}`),
 
   // Supervisor control
   haltSupervisor: (reason: string = 'User requested halt via UI') => 

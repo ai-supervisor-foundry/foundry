@@ -5,6 +5,7 @@ import Logs from './pages/Logs';
 import CommandExecutor from './pages/CommandExecutor';
 import StateInspector from './pages/StateInspector';
 import LocalProvider from './pages/LocalProvider';
+import Projects from './pages/Projects';
 import Layout from './components/Layout';
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/projects" element={<Projects />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/logs" element={<Logs />} />
           <Route path="/commands" element={<CommandExecutor />} />
