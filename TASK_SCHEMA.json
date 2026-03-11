@@ -1,5 +1,6 @@
 {
   "task_id": "string (unique identifier)",
+  "project_id": "string (required, determines sandbox/{project_id}/ working directory)",
   "intent": "string (brief purpose of the task)",
   "tool": "cursor | gemini | gemini_stub | copilot | codex | claude",
   "task_type": {

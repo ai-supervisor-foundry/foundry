@@ -18,8 +18,11 @@ export default function Tasks() {
   const [editingTask, setEditingTask] = useState<any>(null);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [addTaskMode, setAddTaskMode] = useState<'form' | 'json'>('form');
+  const [registeredProjects, setRegisteredProjects] = useState<{id: string; name: string}[]>([]);
+  const [projectFilter, setProjectFilter] = useState<string>('');
   const [newTaskJson, setNewTaskJson] = useState(`{
   "task_id": "task-${Date.now()}",
+  "project_id": "",
   "intent": "Example task",
   "tool": "gemini",
   "instructions": "Describe what needs to be done...",
@@ -31,6 +34,7 @@ export default function Tasks() {
 }`);
   const [taskForm, setTaskForm] = useState({
     task_id: `task-${Date.now()}`,
+    project_id: '',
     intent: '',
     tool: 'gemini',
     task_type: '',
@@ -60,17 +64,18 @@ export default function Tasks() {
 
   const fetchData = useCallback(async () => {
     try {
-      // Fetch all tasks (we'll paginate client-side)
-      const [currentRes, queueRes, completedRes, blockedRes] = await Promise.all([
+      const [currentRes, queueRes, completedRes, blockedRes, projRes] = await Promise.all([
         apiClient.getCurrentTask().catch(() => ({ data: null })),
-        apiClient.getQueue(1000), // Fetch all for pagination
+        apiClient.getQueue(1000),
         apiClient.getCompletedTasks(),
         apiClient.getBlockedTasks(),
+        apiClient.getProjects().catch(() => ({ data: { projects: [] } })),
       ]);
       setCurrentTask(currentRes.data);
       setQueue(queueRes.data);
       setCompletedTasks(completedRes.data.tasks || []);
       setBlockedTasks(blockedRes.data.tasks || []);
+      setRegisteredProjects((projRes.data.projects || []).map((p: any) => ({ id: p.id, name: p.name })));
     } catch (error) {
       console.error('Error fetching tasks data:', error);
     } finally {
@@ -143,6 +148,7 @@ export default function Tasks() {
   const formToJson = () => {
     const task: any = {
       task_id: taskForm.task_id,
+      project_id: taskForm.project_id,
       intent: taskForm.intent,
       tool: taskForm.tool,
       instructions: taskForm.instructions,
@@ -163,6 +169,7 @@ export default function Tasks() {
       const parsed = JSON.parse(jsonString);
       setTaskForm({
         task_id: parsed.task_id || `task-${Date.now()}`,
+        project_id: parsed.project_id || '',
         intent: parsed.intent || '',
         tool: parsed.tool || 'gemini',
         task_type: parsed.task_type || '',
@@ -194,6 +201,7 @@ export default function Tasks() {
     const newId = `task-${Date.now()}`;
     setTaskForm({
       task_id: newId,
+      project_id: '',
       intent: '',
       tool: 'gemini',
       task_type: '',
@@ -206,6 +214,7 @@ export default function Tasks() {
     });
     setNewTaskJson(`{
   "task_id": "${newId}",
+  "project_id": "",
   "intent": "Example task",
   "tool": "gemini",
   "instructions": "Describe what needs to be done...",
@@ -229,8 +238,8 @@ export default function Tasks() {
         }
       } else {
         // Validate form
-        if (!taskForm.task_id || !taskForm.intent || !taskForm.tool || !taskForm.instructions) {
-          alert('Please fill in required fields: Task ID, Intent, Tool, and Instructions');
+        if (!taskForm.task_id || !taskForm.project_id || !taskForm.intent || !taskForm.tool || !taskForm.instructions) {
+          alert('Please fill in required fields: Task ID, Project, Intent, Tool, and Instructions');
           return;
         }
         const validCriteria = taskForm.acceptance_criteria.filter(c => c.trim());
@@ -242,6 +251,7 @@ export default function Tasks() {
         // Convert form to task object
         task = {
           task_id: taskForm.task_id,
+          project_id: taskForm.project_id,
           intent: taskForm.intent,
           tool: taskForm.tool,
           instructions: taskForm.instructions,
@@ -281,7 +291,7 @@ export default function Tasks() {
       
       // Validate
       const invalidTasks = tasks.filter(
-        task => !task || !task.task_id || !task.instructions || !task.acceptance_criteria
+        task => !task || !task.task_id || !task.project_id || !task.instructions || !task.acceptance_criteria
       );
       
       if (invalidTasks.length > 0) {
@@ -425,6 +435,18 @@ export default function Tasks() {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">Tasks</h2>
           <div className="flex items-center gap-4">
+            {registeredProjects.length > 0 && (
+              <select
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="px-3 py-2 border rounded text-sm"
+              >
+                <option value="">All Projects</option>
+                {registeredProjects.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            )}
             <button
               onClick={() => setIsAddingTask(true)}
               className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm font-medium"
@@ -804,6 +826,32 @@ export default function Tasks() {
                         className="w-full border rounded px-3 py-2"
                         placeholder="task-001"
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Project <span className="text-red-500">*</span>
+                      </label>
+                      {registeredProjects.length > 0 ? (
+                        <select
+                          value={taskForm.project_id}
+                          onChange={(e) => setTaskForm({ ...taskForm, project_id: e.target.value })}
+                          className="w-full border rounded px-3 py-2"
+                        >
+                          <option value="">Select a project...</option>
+                          {registeredProjects.map(p => (
+                            <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={taskForm.project_id}
+                          onChange={(e) => setTaskForm({ ...taskForm, project_id: e.target.value })}
+                          className="w-full border rounded px-3 py-2"
+                          placeholder="project-id (register projects first)"
+                        />
+                      )}
                     </div>
 
                     <div>

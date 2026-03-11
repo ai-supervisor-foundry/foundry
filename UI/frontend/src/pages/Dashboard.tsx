@@ -210,8 +210,14 @@ export default function Dashboard() {
                   )}
                 </div>
                 {state.goal.project_id && (
-                  <p className="text-sm text-gray-500 mt-2">Project: {state.goal.project_id}</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-sm text-gray-500">Default Project:</span>
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 font-mono text-xs rounded">
+                      {state.goal.project_id}
+                    </span>
+                  </div>
                 )}
+                <p className="text-xs text-gray-400 mt-1">Tasks specify their own project_id</p>
               </>
             )}
           </div>

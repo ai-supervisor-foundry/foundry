@@ -10,6 +10,7 @@ import { promisify } from 'util';
 import { logVerbose } from '../../infrastructure/adapters/logging/logger';
 import { astService } from './ASTService';
 import { validationCache } from './validationCache';
+import { setDiscoveredFiles } from './fileDiscoveryCache';
 import { validateFilePaths, detectTaskType } from '../../domain/agents/promptBuilder';
 
 const execAsync = promisify(exec);
@@ -406,6 +407,9 @@ async function validateCoding(
         await findCodeFiles(path.join(sandboxRoot, dir));
       }
     }
+
+    // Populate file discovery cache for downstream interrogator
+    setDiscoveredFiles(sandboxRoot, codeFilesToCheck);
 
     let allCodeContent = '';
     for (const filePath of codeFilesToCheck) {

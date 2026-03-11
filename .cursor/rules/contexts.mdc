@@ -13,8 +13,8 @@ alwaysApply: false
 
 ## Supervisor Context Files (`supervisor-contexts/`)
 
-1. **Main Context**: Read `supervisor-contexts/CONTEXT.md` first for complete supervisor system documentation (architecture, state management, validation, tool contracts, etc.).
-2. **Sliding Window**: Check `supervisor-contexts/windows/` for the 10 latest context files with recent changes, updates, and critical information.
-3. **File Size**: Each window file targets 50K-100K tokens (30K-60K words) for very large context models.
-4. **Usage**: Use supervisor context files when working on the supervisor system itself (not project tasks).
-5. **Updates**: Window files are manually maintained by the operator—do not auto-generate them.
+1. **Index**: Read `supervisor-contexts/CONTEXT.md` first (<100 lines). It links to section files (overview, architecture, validation, usage, etc.).
+2. **Section files**: Read specific files as needed (e.g., `validation.md`, `tool-contracts.md`).
+3. **Sliding Window**: Check `supervisor-contexts/windows/` for recent changes.
+4. **Usage**: Use when working on the supervisor system itself (not project tasks).
+5. **Updates**: Window files are manually maintained—do not auto-generate.

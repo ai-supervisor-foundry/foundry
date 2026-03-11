@@ -1,3 +1,11 @@
+# STATUS
+
+**COMPLETED** — 2026-03-12
+
+Implemented Option B: added required `project_id` field to Task interface. Resolution uses `task.project_id || state.goal.project_id || 'default'`. Goal-level `project_id` is now optional (serves as default). UI supports project selection on task creation.
+
+---
+
 # Issue
  For some reason while testing, some new tasks were creatinga  default dir in sandbox.
 

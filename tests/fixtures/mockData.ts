@@ -5,6 +5,7 @@ import { Provider } from '../../src/domain/agents/enums/provider';
 
 export const createMockTask = (overrides?: Partial<Task>): Task => ({
   task_id: 'test-task-001',
+  project_id: 'test-project',
   intent: 'Test implementation',
   tool: Provider.CURSOR,
   task_type: 'coding',

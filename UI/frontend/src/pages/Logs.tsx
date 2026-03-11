@@ -18,7 +18,7 @@ export default function Logs() {
 
   const fetchProjects = useCallback(async () => {
     try {
-      const res = await apiClient.getProjects();
+      const res = await apiClient.getLogProjects();
       const projectList = res.data.projects || [];
       setProjects(projectList);
       if (projectList.length > 0 && !selectedProject) {

@@ -7,6 +7,7 @@ export class TaskBuilder {
   constructor(id: string, intent: string) {
     this.task = {
       task_id: id,
+      project_id: 'test-project',
       intent: intent,
       tool: Provider.GEMINI,
       task_type: 'coding',
@@ -50,6 +51,11 @@ export class TaskBuilder {
 
   withTool(tool: Provider): this {
     this.task.tool = tool;
+    return this;
+  }
+
+  withProjectId(projectId: string): this {
+    this.task.project_id = projectId;
     return this;
   }
 

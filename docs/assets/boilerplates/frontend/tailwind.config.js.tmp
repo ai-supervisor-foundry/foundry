@@ -1,0 +1,19 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    './index.html',
+    './pages/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    './services/**/*.{ts,tsx}',
+    './utils/**/*.{ts,tsx}',
+    './*.{ts,tsx}',
+  ],
+  theme: {
+    extend: {
+      overflow: {
+        'x-visible': 'visible',
+      },
+    },
+  },
+  plugins: [],
+};

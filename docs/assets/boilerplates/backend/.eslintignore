@@ -1,0 +1,3 @@
+**/src/etls/**
+src/etls/*
+postgres/

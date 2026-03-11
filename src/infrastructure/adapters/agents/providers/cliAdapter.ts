@@ -13,7 +13,7 @@ import { dispatchToCopilot } from '../../../connectors/agents/providers/copilotC
 import { dispatchToOllama } from '../../../connectors/agents/providers/ollamaProvider';
 import Redis from 'ioredis';
 import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared, log as logShared } from '../../logging/logger';
-import { DEFAULT_PRIORITY } from '../../../../config/agents/providers/common';
+import { getActiveStrategy, ProviderEntry } from '../../../../config/agents/providers/strategies';
 import { LLMProviderPort } from '../../../../domain/ports/llmProvider';
 
 function log(message: string, ...args: unknown[]): void {
@@ -30,38 +30,39 @@ function logPerformance(operation: string, duration: number, metadata?: Record<s
 
 export class CLIAdapter implements LLMProviderPort {
   private circuitBreaker: CircuitBreakerManager;
-  private readonly priority: Provider[];
+  private readonly entries: ProviderEntry[];
   private providerInUse: Provider | null = null;
 
   constructor(
     redisClient: Redis,
-    priority?: Provider[],
-    ttlSeconds?: number
+    entries?: ProviderEntry[],
+    ttlSeconds?: number,
+    useEnvOverride: boolean = false
   ) {
     this.circuitBreaker = new CircuitBreakerManager(redisClient, ttlSeconds);
-    this.priority = priority || this.parsePriorityFromEnv() || DEFAULT_PRIORITY;
-    log(`CLIAdapter initialized with priority: ${this.priority.join(' → ')}, TTL: ${ttlSeconds || 86400}s`);
+    this.entries = (useEnvOverride ? this.parseEntriesFromEnv() : null) || entries || getActiveStrategy().primary;
+    log(`CLIAdapter initialized with priority: ${this.entries.map(e => e.provider).join(' → ')}, TTL: ${ttlSeconds || 86400}s`);
   }
 
-  private parsePriorityFromEnv(): Provider[] | null {
+  private parseEntriesFromEnv(): ProviderEntry[] | null {
     const envPriority = process.env.CLI_PROVIDER_PRIORITY;
-    if (!envPriority) {
-      return null;
-    }
+    if (!envPriority) return null;
 
     try {
+      const strategy = getActiveStrategy();
+      const strategyModes = new Map(strategy.primary.map(e => [e.provider, e.agentMode]));
       const providers = envPriority.split(',').map(p => p.trim().toLowerCase());
-      const validProviders: Provider[] = [];
-      
+      const validEntries: ProviderEntry[] = [];
+
       for (const p of providers) {
         if (Object.values(Provider).includes(p as Provider)) {
-          validProviders.push(p as Provider);
+          validEntries.push({ provider: p as Provider, agentMode: strategyModes.get(p as Provider) || 'auto' });
         } else {
           log(`Warning: Invalid provider in CLI_PROVIDER_PRIORITY: ${p}`);
         }
       }
-      
-      return validProviders.length > 0 ? validProviders : null;
+
+      return validEntries.length > 0 ? validEntries : null;
     } catch (error) {
       log(`Error parsing CLI_PROVIDER_PRIORITY: ${error instanceof Error ? error.message : String(error)}`);
       return null;
@@ -75,26 +76,21 @@ export class CLIAdapter implements LLMProviderPort {
   private async selectProvider(): Promise<Provider | null> {
     const startTime = Date.now();
     logVerbose('SelectProvider', 'Selecting provider from priority list', {
-      priority: this.priority,
+      priority: this.entries.map(e => e.provider),
     });
 
-    for (const provider of this.priority) {
-      const isOpen = await this.circuitBreaker.isOpen(provider);
+    for (const entry of this.entries) {
+      const isOpen = await this.circuitBreaker.isOpen(entry.provider);
+      const idx = this.entries.indexOf(entry);
       if (!isOpen) {
         const duration = Date.now() - startTime;
-        logPerformance('ProviderSelection', duration, { selected_provider: provider });
-        log(`Selected provider: ${provider} (priority ${this.priority.indexOf(provider) + 1})`);
-        logVerbose('SelectProvider', 'Provider selected', {
-          provider,
-          priority_index: this.priority.indexOf(provider),
-        });
-        this.providerInUse = provider;
-        return provider;
+        logPerformance('ProviderSelection', duration, { selected_provider: entry.provider });
+        log(`Selected provider: ${entry.provider} (priority ${idx + 1})`);
+        logVerbose('SelectProvider', 'Provider selected', { provider: entry.provider, priority_index: idx });
+        this.providerInUse = entry.provider;
+        return entry.provider;
       } else {
-        logVerbose('SelectProvider', 'Provider is circuit-broken, trying next', {
-          provider,
-          priority_index: this.priority.indexOf(provider),
-        });
+        logVerbose('SelectProvider', 'Provider is circuit-broken, trying next', { provider: entry.provider, priority_index: idx });
       }
     }
 
@@ -102,7 +98,7 @@ export class CLIAdapter implements LLMProviderPort {
     logPerformance('ProviderSelection', duration, { selected_provider: null, all_circuit_broken: true });
     log('All providers are circuit-broken');
     logVerbose('SelectProvider', 'All providers are circuit-broken', {
-      priority: this.priority,
+      priority: this.entries.map(e => e.provider),
     });
     return null;
   }
@@ -259,7 +255,7 @@ export class CLIAdapter implements LLMProviderPort {
       const error = 'All CLI providers are circuit-broken';
       log(error);
       logVerbose('Execute', 'All providers circuit-broken', {
-        priority: this.priority,
+        priority: this.entries.map(e => e.provider),
       });
       
       // Return error result
@@ -278,77 +274,55 @@ export class CLIAdapter implements LLMProviderPort {
     logVerbose('Execute', 'Last error', {
       last_error: lastError,
     });
-    
-    for (let i = this.priority.indexOf(selectedProvider); i < this.priority.length; i++) {
-      const provider = this.priority[i];
-      logVerbose('Execute', 'Provider', {
-        provider,
-        priority_index: i,
-      });
-      
+
+    const startIndex = this.entries.findIndex(e => e.provider === selectedProvider);
+    for (let i = startIndex; i < this.entries.length; i++) {
+      const entry = this.entries[i];
+      const provider = entry.provider;
+      // Caller-supplied agentMode takes precedence; fall back to per-entry default
+      const resolvedAgentMode = agentMode || entry.agentMode;
+
+      logVerbose('Execute', 'Provider', { provider, priority_index: i });
+
       // Check if this provider is available
       const isOpen = await this.circuitBreaker.isOpen(provider);
       if (isOpen) {
         log(`Provider ${provider} is circuit-broken (circuit open), trying next provider`);
-        logVerbose('Execute', 'Provider circuit-broken, trying next', {
-          provider,
-          priority_index: i,
-        });
+        logVerbose('Execute', 'Provider circuit-broken, trying next', { provider, priority_index: i });
         continue;
       }
 
       try {
-        log(`Attempting provider: ${provider}`);
-        logVerbose('Execute', 'Attempting provider execution', {
-          provider,
-          priority_index: i,
-        });
+        log(`Attempting provider: ${provider} (agentMode: ${resolvedAgentMode})`);
+        logVerbose('Execute', 'Attempting provider execution', { provider, priority_index: i });
 
-        const result = await this.executeProvider(provider, prompt, workingDirectory, agentMode, sessionId, featureId);
+        const result = await this.executeProvider(provider, prompt, workingDirectory, resolvedAgentMode, sessionId, featureId);
         const duration = Date.now() - startTime;
-        logPerformance('CLIAdapterExecution', duration, {
-          provider,
-          success: true,
-          exit_code: result.exitCode,
-        });
+        logPerformance('CLIAdapterExecution', duration, { provider, success: true, exit_code: result.exitCode });
 
         // Check if result should trigger circuit breaker
         if (this.shouldTriggerCircuitBreaker(provider, result)) {
           const errorType = this.extractErrorType(provider, result);
           log(`Circuit breaker triggered for ${provider}: ${errorType}`);
-          logVerbose('Execute', 'Circuit breaker triggered', {
-            provider,
-            error_type: errorType,
-          });
+          logVerbose('Execute', 'Circuit breaker triggered', { provider, error_type: errorType });
           await this.circuitBreaker.close(provider, errorType);
-          
-          // If this was the last provider, return the result anyway
-          if (i === this.priority.length - 1) {
+
+          if (i === this.entries.length - 1) {
             log(`Last provider ${provider} circuit-broken, returning result`);
             return result;
           }
-          
-          // Otherwise, try next provider
           log(`Provider ${provider} circuit-broken, falling back to next provider`);
           continue;
         }
 
-        // Success - return result
         log(`Provider ${provider} executed successfully`);
-        logVerbose('Execute', 'Provider execution successful', {
-          provider,
-          exit_code: result.exitCode,
-        });
+        logVerbose('Execute', 'Provider execution successful', { provider, exit_code: result.exitCode });
         return result;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         log(`Provider ${provider} failed: ${lastError.message}`);
-        logVerbose('Execute', 'Provider execution failed', {
-          provider,
-          error: lastError.message,
-        });
+        logVerbose('Execute', 'Provider execution failed', { provider, error: lastError.message });
 
-        // Check if error should trigger circuit breaker
         const errorText = lastError.message.toLowerCase();
         if (
           (errorText.includes('resource_exhausted') || errorText.includes('exhausted')) ||
@@ -358,8 +332,7 @@ export class CLIAdapter implements LLMProviderPort {
           await this.circuitBreaker.close(provider, lastError.message);
         }
 
-        // Try next provider
-        if (i < this.priority.length - 1) {
+        if (i < this.entries.length - 1) {
           log(`Falling back to next provider`);
           continue;
         }
@@ -379,7 +352,7 @@ export class CLIAdapter implements LLMProviderPort {
     
     log(errorMessage);
     logVerbose('Execute', 'All providers failed', {
-      priority: this.priority,
+      priority: this.entries.map(e => e.provider),
       last_error: lastError?.message,
     });
 

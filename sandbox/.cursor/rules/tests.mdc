@@ -1,0 +1,6 @@
+---
+description: When executing unit e2e or functional tests
+alwaysApply: false
+---
+1. Always use stubbed version of tests if available.
+2. Do not use real db in tests.

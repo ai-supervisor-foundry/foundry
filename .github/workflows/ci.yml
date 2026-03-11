@@ -137,6 +137,11 @@ jobs:
             **/*.tsbuildinfo
           key: ${{ runner.os }}-tsc-${{ matrix.node-version }}-${{ hashFiles('src/**/*.ts', 'tsconfig.json') }}
           restore-keys: |
+            ${{ runner.os }}-tsc-${{ matrix.node-version }}-
+            ${{ runner.os }}-tsc-
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Run Functional Tests
         run: npm run test:functional

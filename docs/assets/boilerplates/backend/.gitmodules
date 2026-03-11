@@ -1,0 +1,3 @@
+[submodule "src/etls"]
+	path = src/etls
+	url = git@github.com:syedahmedhaidershah/traders-applet-etls.git

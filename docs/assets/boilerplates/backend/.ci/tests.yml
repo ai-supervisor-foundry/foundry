@@ -1,0 +1,16 @@
+# Backend CI test configuration
+#
+# Usage in CI:
+#   - Run: backend/.ci/run-tests.sh (from repo root) or ./.ci/run-tests.sh (from backend)
+#   - Add a step before build that executes the runner
+#
+# Customization for other projects:
+#   - Add/remove entries under tests. Each entry: name (display) + command (npm/script to run)
+#   - Order matters: tests run sequentially; first failure stops the run
+#   - Projects with different UT/FT scripts: change commands only, structure stays the same
+#
+tests:
+  unit:
+    command: npm test
+  functional:
+    command: npm run test:functional

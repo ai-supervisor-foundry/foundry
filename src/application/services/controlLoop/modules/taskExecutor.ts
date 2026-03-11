@@ -36,7 +36,7 @@ export class TaskExecutor {
     const cwdDeterminationStartTime = Date.now();
     const sandboxCwd = task.working_directory
       ? path.join(this.sandboxRoot, task.working_directory)
-      : `${this.sandboxRoot}/${state.goal.project_id || 'default'}`;
+      : path.join(this.sandboxRoot, task.project_id);
     const cwdDeterminationDuration = Date.now() - cwdDeterminationStartTime;
     this.logger.logPerformance('CwdDetermination', cwdDeterminationDuration, { iteration, task_id: task.task_id });
     
@@ -47,7 +47,7 @@ export class TaskExecutor {
       task_id: task.task_id,
       working_directory: sandboxCwd,
       has_task_override: !!task.working_directory,
-      project_id: state.goal.project_id || 'default',
+      project_id: task.project_id,
     });
 
     // 2. Build Prompt
@@ -72,7 +72,7 @@ export class TaskExecutor {
                            : taskType === 'verification' ? 'reasoning' 
                            : 'auto';
     const agentMode = task.agent_mode || defaultAgentMode;
-    const projectId = state.goal.project_id || 'default';
+    const projectId = task.project_id;
 
     // 5. Log Prompt
     // Using Port

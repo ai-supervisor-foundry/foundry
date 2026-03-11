@@ -1,5 +1,5 @@
 ---
-applyTo: "sandbox/*.js,sandbox/*.jsx,sandbox/*.ts,sandbox/*.tsx,sandbox/*.java,sandbox/*.md"
+applyTo: "sandbox/*.js,sandbox/*.ts,sandbox/*.jsx,sandbox/*.ts,sandbox/*.tsx,sandbox/*.java,sandbox/*.md"
 ---
 
 ## Always-Apply Behavioral Rules
@@ -32,5 +32,9 @@ applyTo: "sandbox/*.js,sandbox/*.jsx,sandbox/*.ts,sandbox/*.tsx,sandbox/*.java,s
 
 1. NEVER print any secret or credentials.
 2. Always if you have to check, do a shell based length check.
+
+# Project CONTEXT
+1. More about the current project (Timesheet App) here at PROJECT_CONTEXT.md, [PROJECT_CONTEXT.md](/PROJECT_CONTEXT.md).
+2. Sub contexts as mentioned in PROJECT_CONTEXT file, are available at [contexts](/contexts/).
 
 ---

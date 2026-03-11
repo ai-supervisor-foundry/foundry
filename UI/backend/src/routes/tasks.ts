@@ -10,8 +10,8 @@ router.post('/enqueue', async (req, res, next) => {
   try {
     const task = req.body;
     
-    if (!task || !task.task_id || !task.instructions || !task.acceptance_criteria) {
-      return res.status(400).json({ error: 'Invalid task: must have task_id, instructions, and acceptance_criteria' });
+    if (!task || !task.task_id || !task.project_id || !task.instructions || !task.acceptance_criteria) {
+      return res.status(400).json({ error: 'Invalid task: must have task_id, project_id, instructions, and acceptance_criteria' });
     }
     
     await enqueueTask(task);
@@ -40,13 +40,13 @@ router.post('/enqueue-bulk', async (req, res, next) => {
     
     // Validate all tasks
     const invalidTasks = tasks.filter(
-      task => !task || !task.task_id || !task.instructions || !task.acceptance_criteria
+      task => !task || !task.task_id || !task.project_id || !task.instructions || !task.acceptance_criteria
     );
-    
+
     if (invalidTasks.length > 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Invalid tasks detected',
-        details: 'All tasks must have task_id, instructions, and acceptance_criteria',
+        details: 'All tasks must have task_id, project_id, instructions, and acceptance_criteria',
         invalidCount: invalidTasks.length
       });
     }

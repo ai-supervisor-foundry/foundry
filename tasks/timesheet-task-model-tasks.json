@@ -1,0 +1,288 @@
+[
+  {
+    "task_id": "project-code-limit-16-backend",
+    "intent": "Extend Project code column and migration from 10 to 16 characters (backend only)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Per new.xlsx: Project code character limit 16 (change from 10), stored as string. Backend only. 1) In project.entity.ts change code column length from 10 to 16. 2) Add or update migration for the column length change. 3) Run migration. Code remains string type; no integer coercion.",
+    "acceptance_criteria": [
+      "Project entity code column is length 16 (VARCHAR(16) or equivalent)",
+      "Migration runs without error",
+      "Existing projects with code length <= 10 remain valid",
+      "PostgreSQL database schema is updated"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "project-code-limit-16-frontend",
+    "intent": "Project code max length 16 in frontend types and Project form (requires project-code-limit-16-backend) and is string not integer",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Requires task project-code-limit-16-backend completed. Backend already accepts code up to 16 chars. Frontend only. 1) In frontend types.ts set Project code max length to 16 in comment/const if any. 2) In Projects create/edit form update validation so code input accepts max 16 characters (e.g. maxLength, validation message). 3) Ensure no integer coercion; code is string everywhere.",
+    "acceptance_criteria": [
+      "Frontend validates project code max length 16",
+      "Create/edit project form accepts and submits codes up to 16 characters",
+      "Code handled as string (no number conversion)"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "user-position-field-backend",
+    "intent": "Add User position column, migration, DTOs and API (backend only)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Per new.xlsx User form: Position (String 200, Mandatory). Backend only. 1) Add position column to User entity (VARCHAR 200, nullable for existing users). 2) Create migration; run it (npm run migration:run or equivalent). 3) Expose position in user create/update DTOs and in API responses (exclude password). 4) User list and get-by-id must return position.",
+    "acceptance_criteria": [
+      "User entity has position field (string, max 200, nullable)",
+      "Migration runs successfully",
+      "User create/update API accepts position",
+      "User list and detail responses include position"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "user-position-field-frontend",
+    "intent": "Add Position field to Users page create/edit and list (requires user-position-field-backend)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Requires task user-position-field-backend completed. Frontend only. 1) Add Position input to Users create/edit form (string, max 200; optional to restrict to list e.g. Functional Consultant, Technical Consultant). 2) Display Position in Users list. 3) Ensure existing users with null/empty position can be displayed and updated.",
+    "acceptance_criteria": [
+      "Users list shows Position column",
+      "User create/edit form has Position field (max 200)",
+      "Form submit sends position to API; list reflects saved value",
+      "Existing users with null/empty position can be displayed and updated"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "project-estimate-hours-backend",
+    "intent": "Add optional estimateHours to Project entity, migration and API (backend only)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Per new.xlsx: Estimate Hours (String 10, optional). Backend only. 1) Add estimateHours column to Project entity (VARCHAR(10), nullable). 2) Migration and run. 3) Include in project create/update DTOs and list/detail responses.",
+    "acceptance_criteria": [
+      "Project entity has estimateHours (string, max 10, nullable)",
+      "Project create/update/list API supports estimateHours"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "project-estimate-hours-frontend",
+    "intent": "Add optional Estimate Hours field to Project form and list/detail (requires project-estimate-hours-backend)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Requires task project-estimate-hours-backend completed. Frontend only. 1) Add optional Estimate Hours input to Project create/edit form (max 10 chars). 2) Show estimate hours in projects list or detail where appropriate.",
+    "acceptance_criteria": [
+      "Project form has optional Estimate Hours input (max 10)",
+      "Projects list or detail displays estimate hours when present"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "project-weekly-hours-cap-backend",
+    "intent": "Add projectWeeklyHours to Project and enforce per-user per-week validation (backend only)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Per new.xlsx: Project Weekly hours (integer, max 999, optional). One timesheet = one user, one project, one week. When SET: enforce week total <= projectWeeklyHours. When NOT SET (null): use default 40. Backend only. 1) Add projectWeeklyHours to Project entity (integer, nullable, <= 999). Migration and run. 2) In timesheet entry validation: if project.projectWeeklyHours is set, sum hours for that project in that week for that user and reject if sum would exceed projectWeeklyHours. 3) Return clear 400 error when cap exceeded.",
+    "acceptance_criteria": [
+      "Project has projectWeeklyHours (integer, nullable, max 999)",
+      "Timesheet entry validation enforces project weekly cap when set",
+      "API returns clear error when weekly project hours exceeded",
+      "When not set (null): weekly limit is 40"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "project-weekly-hours-cap-frontend",
+    "intent": "Project Weekly hours field + use project limit in TimesheetEditor validation/display (requires project-weekly-hours-cap-backend)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Requires task project-weekly-hours-cap-backend completed. Frontend must adhere to project limits so validation and UI match backend. 1) Add optional Project Weekly hours input to Project create/edit form (number, max 999). 2) TimesheetEditor: when loading a timesheet, ensure project is available (timesheet.project or fetch by timesheet.projectId). API must return project.projectWeeklyHours. 3) In TimesheetEditor use weeklyLimit = project?.projectWeeklyHours ?? 40 (project takes precedence). Use it for: validation (highlight/weekOver when grandTotal > weeklyLimit), display (e.g. grandTotal/weeklyLimit not hardcoded 40), submit disable. 4) When save fails with backend weekly-cap error, show that error. No hardcoded 40 for this timesheet's project when project has projectWeeklyHours set.",
+    "acceptance_criteria": [
+      "Project form has optional Project Weekly hours (max 999)",
+      "TimesheetEditor uses project.projectWeeklyHours ?? 40 for weekly validation and display",
+      "Weekly cap display and validation match backend (project limit when set, else 40)",
+      "Backend error on weekly cap exceeded is shown to user"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "project-max-hours-per-day-backend",
+    "intent": "Add maxHoursPerDay to Project and use in daily validation (backend only)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Per new.xlsx: Max number of hour in one day configurable per project (replace hardcoded 8). Backend only. 1) Add maxHoursPerDay to Project entity (integer, default 8, e.g. 1–24). Migration and run. 2) One timesheet = one project. When project.maxHoursPerDay SET: day total <= it. When NOT SET (null): use 8. In createEntry, updateEntry, validateEntriesForSubmit load project and use dailyLimit = project.maxHoursPerDay ?? 8.",
+    "acceptance_criteria": [
+      "Project has maxHoursPerDay (integer, default 8)",
+      "Timesheet daily limit uses project maxHoursPerDay when set",
+      "When not set (null): daily limit is 8"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "project-max-hours-per-day-frontend",
+    "intent": "Max hours per day on Project form + use project limit in TimesheetEditor and Dashboard (requires project-max-hours-per-day-backend)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Requires task project-max-hours-per-day-backend completed. Frontend must adhere to project limits so validation and UI match backend. 1) Add Max hours per day to Project create/edit form (default 8, integer). 2) TimesheetEditor: ensure project is available when loading timesheet (timesheet.project or fetch). Use dailyLimit = project?.maxHoursPerDay ?? 8 (project takes precedence). Use it for: day validation (highlight days over dailyLimit, not hardcoded 8), labels (e.g. Max X per day), submit disable. 3) Dashboard quick entry: when project is selected, use that project's maxHoursPerDay ?? 8 for 'max X h today' and input max so user cannot enter more than project allows. 4) When save fails with backend daily-cap error, show it. No hardcoded 8 for this project when project has maxHoursPerDay set.",
+    "acceptance_criteria": [
+      "Project form has Max hours per day (default 8)",
+      "TimesheetEditor uses project.maxHoursPerDay ?? 8 for daily validation and display",
+      "Dashboard quick entry uses selected project's maxHoursPerDay ?? 8",
+      "Daily cap display and validation match backend (project limit when set, else 8)",
+      "Backend error on daily cap exceeded is shown to user"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "timesheet-overview-project-manager-backend",
+    "intent": "Include project manager (or creator) name in timesheet list/overview API (backend only)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Per new.xlsx: Timesheet overview shows Project Manager (read-only). Backend only. Use project.createdBy as project manager for now. 1) Ensure list timesheets (and any overview endpoint) response includes project manager name: e.g. project.createdBy.name or project.creatorName. 2) Load project relation with createdBy so name is available; expose in response (e.g. projectManagerName or project: { ..., createdByName }).",
+    "acceptance_criteria": [
+      "Timesheet list/overview API returns project manager name (creator name)",
+      "Response shape is stable and documented or matches frontend expectation"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "timesheet-overview-project-manager-frontend",
+    "intent": "Show Project Manager column on timesheet list/overview (requires timesheet-overview-project-manager-backend)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Requires task timesheet-overview-project-manager-backend completed. Frontend only. 1) Add Project Manager column to timesheet list/overview. 2) Display the value from API (read-only; no edit control).",
+    "acceptance_criteria": [
+      "Timesheet list shows Project Manager column (read-only)",
+      "Value comes from API; no edit for this column"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "project-tasks-billable-nonbillable-backend",
+    "intent": "Add taskType (billable/nonbillable) to TimesheetEntry, migration and API (backend only)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Per new.xlsx Project Tasks: Task type Billable or Nonbillable. Backend only. 1) Add taskType to TimesheetEntry entity (enum or string: billable | nonbillable, default billable). Migration and run. 2) Include in entry create/update DTOs and list responses.",
+    "acceptance_criteria": [
+      "TimesheetEntry has taskType (billable | nonbillable, default billable)",
+      "Entry create/update/list API exposes taskType"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "project-tasks-billable-nonbillable-frontend",
+    "intent": "Task type dropdown (Billable/Nonbillable) on timesheet entry and overview (requires project-tasks-billable-nonbillable-backend)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Requires task project-tasks-billable-nonbillable-backend completed. Frontend only. 1) Add Task type dropdown (Billable / Nonbillable) to timesheet entry row or task form; send taskType in create/update. 2) Show task type in timesheet overview where entries are displayed.",
+    "acceptance_criteria": [
+      "Timesheet entry form has Task type (Billable/Nonbillable)",
+      "Timesheet overview shows task type for entries"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  }
+  ,
+  {
+    "task_id": "project-task-entity-backend",
+    "intent": "Add ProjectTask entity, table, repository, service and API (backend only)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "1) Create ProjectTask entity with fields: id(uuid), projectId(uuid), name(string max 400), assigneeId(uuid, nullable), createdBy, createdAt, updatedAt. 2) Add migration to create project_tasks table with FK to projects(id) and assignee FK to users(id). 3) Add repository and service methods: listByProject(projectId), create(dto,userId), update(id,dto,userId). 4) Add controller endpoints: GET /api/v1/projects/:projectId/tasks, POST /api/v1/projects/:projectId/tasks, PATCH /api/v1/tasks/:taskId. 5) Add indexes on project_id and assignee_id.",
+    "acceptance_criteria": [
+      "ProjectTask entity and table exist",
+      "API endpoints return and accept ProjectTaskDto shapes",
+      "Indexes on project_id and assignee_id exist",
+      "Basic create/list/update flows work via API"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "project-tasks-frontend",
+    "intent": "Add Project Tasks UI: list/create/assign tasks and allow selection in TimesheetEditor (frontend only)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Requires task project-task-entity-backend completed. Frontend only. 1) Add tasks list to Project page showing tasks for the project. 2) Add create/edit UI for ProjectTask (name, assignee). 3) In TimesheetEditor add a Task dropdown populated from API /projects/:projectId/tasks; require selection when creating/editing timesheet. 4) Handle nullable existing timesheets (no task) gracefully.",
+    "acceptance_criteria": [
+      "Project page shows task list and allows create/edit",
+      "TimesheetEditor task dropdown loads tasks for selected project",
+      "Creating timesheet sends taskId to API when selected",
+      "Existing timesheets without taskId are displayed and can be updated"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "timesheet-per-task-backend",
+    "intent": "Add task_id to Timesheets, backfill, migration and enforce relations (backend only)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "1) Add nullable task_id (uuid) to timesheets table with FK to project_tasks(id). 2) Add migration to create column and FK. 3) Backfill existing timesheets: create a default ProjectTask named 'General' per project and set task_id for existing rows. 4) After backfill, alter column to NOT NULL and add unique index (user_id, project_id, task_id, week_start_date). 5) Update Timesheet create/update DTOs and validation to require taskId and ensure task belongs to projectId.",
+    "acceptance_criteria": [
+      "timesheets table has task_id FK",
+      "Existing timesheets are backfilled and migration completes",
+      "Timesheet create/update validates task belongs to project",
+      "Unique constraint prevents duplicate user/project/task/week rows"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "timesheet-per-task-frontend",
+    "intent": "Make timesheets per-task aware in the UI: select task when creating/editing timesheets (frontend only)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Requires timesheet-per-task-backend completed. Frontend only. 1) Update Timesheet create/edit flows to require selecting a Task for the chosen Project. 2) Load tasks via GET /api/v1/projects/:projectId/tasks and populate dropdown. 3) Update timesheet list and detail to display task name/column. 4) When saving, send taskId in payload.",
+    "acceptance_criteria": [
+      "TimesheetEditor requires a task selection for a project",
+      "Timesheet list and detail show task name",
+      "Save payload includes taskId and API accepts it"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "timesheet-edit-re-request-backend",
+    "intent": "Enforce re-request policy: editing a PENDING timesheet sets status back to DRAFT; APPROVED timesheets are immutable (backend only)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "1) Implement server-side rule: when an owner edits a timesheet with status = 'pending', allow changes but set status = 'draft', clear approved_by/approved_at, record audit event timesheet_re_requested, and notify approvers. 2) When attempting to edit a timesheet with status = 'approved', return 403 with clear message. 3) Add tests covering pending->edit->draft transition and approved edit rejection. 4) Ensure operations are transactional and use optimistic locking to prevent lost updates.",
+    "acceptance_criteria": [
+      "Editing a pending timesheet succeeds and status becomes draft",
+      "Approved timesheet edit attempts return 403",
+      "Audit event recorded for re-request and approver notified",
+      "Tests cover the behavior"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "timesheet-edit-re-request-frontend",
+    "intent": "Make frontend UX match re-request policy: warn user when editing PENDING timesheet and block edits for APPROVED (frontend only)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Requires timesheet-edit-re-request-backend completed. Frontend only. 1) When loading a timesheet in editor, if status == 'pending' show banner: 'Saving will set this timesheet to Draft and you will need to re-submit for approval.' 2) If status == 'approved' disable editing controls and show CTA 'Request manager to reject to edit'. 3) Handle backend 403 responses gracefully with explanatory UI.",
+    "acceptance_criteria": [
+      "Pending-timesheet edit shows re-request warning",
+      "Approved-timesheet edit UI is disabled with clear CTA",
+      "Backend 403 is handled and message shown"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  }
+]

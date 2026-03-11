@@ -201,6 +201,7 @@ describe('Types', () => {
       taskTypes.forEach((type) => {
         const task: Task = {
           task_id: 'test-task',
+          project_id: 'test-project',
           intent: 'Test intent',
           tool: Provider.CURSOR,
           task_type: type,
@@ -216,6 +217,7 @@ describe('Types', () => {
     it('should support retry policy', () => {
       const task: Task = {
         task_id: 'test-task',
+        project_id: 'test-project',
         intent: 'Test intent',
         tool: Provider.CURSOR,
         instructions: 'Test instructions',
@@ -234,6 +236,7 @@ describe('Types', () => {
     it('should support metadata tracking', () => {
       const task: Task = {
         task_id: 'test-task',
+        project_id: 'test-project',
         intent: 'Test intent',
         tool: Provider.CURSOR,
         instructions: 'Test instructions',
@@ -254,6 +257,7 @@ describe('Types', () => {
       statuses.forEach((status) => {
         const task: Task = {
           task_id: 'test-task',
+          project_id: 'test-project',
           intent: 'Test intent',
           tool: Provider.CURSOR,
           instructions: 'Test instructions',
@@ -268,6 +272,7 @@ describe('Types', () => {
     it('should support working directory override', () => {
       const task: Task = {
         task_id: 'test-task',
+        project_id: 'test-project',
         intent: 'Test intent',
         tool: Provider.CURSOR,
         instructions: 'Test instructions',
@@ -282,6 +287,7 @@ describe('Types', () => {
     it('should support agent mode override', () => {
       const task: Task = {
         task_id: 'test-task',
+        project_id: 'test-project',
         intent: 'Test intent',
         tool: Provider.CURSOR,
         instructions: 'Test instructions',

@@ -83,8 +83,16 @@ export interface SessionInfo {
   task_id?: string;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  path: string; // Relative to sandboxRoot
+  registered_at: string; // ISO timestamp
+  status: 'active' | 'archived';
+}
+
 export interface Task {
-  project_id?: string; // Optional per-task project/sandbox
+  project_id: string; // Required — determines sandbox/{project_id}/ CWD
   task_id: string;
   intent: string;
   tool: Provider;

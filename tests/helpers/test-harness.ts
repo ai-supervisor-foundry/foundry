@@ -89,7 +89,8 @@ export class TestHarness {
       this.persistence,
       this.queue,
       this.promptBuilder,
-      this.cliAdapter,
+      this.cliAdapter,    // primaryAdapter
+      this.cliAdapter,    // secondaryAdapter (same mock in tests)
       this.validator,
       this.auditLogger,
       this.sandboxRoot,
