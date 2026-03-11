@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius-card: 16px;
+    --radius-modal: 20px;
+    --radius-btn: 12px;
+    --radius-input: 12px;
+    --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
+    --shadow-card-desktop: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  html, body { 
+    overflow-x: hidden; 
+  }
+  @media (max-width: 767px) {
+    html, body {
+      overflow-x: visible;
+    }
+  }
+  body { min-height: 100vh; }
+}
+
+@layer utilities {
+  /* Allow overflow on mobile for select dropdowns */
+  @media (max-width: 767px) {
+    .mobile-overflow-visible {
+      overflow-x: visible !important;
+    }
+  }
+}

@@ -667,10 +667,14 @@ async function start(
     const persistence = new PersistenceLayer(stateClient, stateKey);
     const queue = new QueueAdapter(queueClient, queueName);
     const promptBuilder = new PromptBuilder();
-    // Initialize CLIAdapter with Redis client for circuit breaker
+    // Initialize CLIAdapters with Redis client for circuit breaker
     // Use stateClient for circuit breaker storage (same DB as state)
     const ttlSeconds = parseInt(process.env.CIRCUIT_BREAKER_TTL_SECONDS || '86400', 10);
-    const cliAdapter = new CLIAdapter(stateClient, undefined, ttlSeconds);
+    const { getActiveStrategy } = await import('../../config/agents/providers/strategies');
+    const activeStrategy = getActiveStrategy();
+    logVerbose('Start', `Active provider strategy: ${activeStrategy.name}`, { strategy: process.env.PROVIDER_STRATEGY || '1' });
+    const primaryAdapter = new CLIAdapter(stateClient, activeStrategy.primary, ttlSeconds);
+    const secondaryAdapter = new CLIAdapter(stateClient, activeStrategy.secondary, ttlSeconds);
     const validator = new Validator();
     
     // Initialize validation cache with Redis
@@ -724,7 +728,8 @@ async function start(
       persistence,
       queue,
       promptBuilder,
-      cliAdapter,
+      primaryAdapter,
+      secondaryAdapter,
       validator,
       auditLogger,
       sandboxRoot

@@ -101,3 +101,9 @@ PERFORMANCE_ANALYSIS.md
 
 *\.log\.*
 dist
+docs/reports
+**/docs/reports
+**/docs/reports/**
+
+**/src/*.js
+**/src/**/*.js

@@ -1,0 +1,6 @@
+---
+globs: *.ts*,*/*.ts*
+alwaysApply: false
+---
+- After each code change, see if we need to update test files, functional tests and contexts.
+- run linter after every change and lint:fix if required - report and halt if failing.

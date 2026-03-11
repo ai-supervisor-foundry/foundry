@@ -1,0 +1,194 @@
+import {
+  BadRequestException,
+  ClassSerializerInterceptor,
+  INestApplication,
+  Logger,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
+import { NestFactory, Reflector } from '@nestjs/core';
+import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
+import { json } from 'express';
+import { NestjsRedoxModule, RedocOptions } from 'nestjs-redox';
+import { AppModule } from './app.module';
+import { QueryExceptionFilter } from './exception-filters/query.exception';
+import { TestModeMiddleware } from './middlewares/test-internal-server-error.middleware';
+import { promises as fsPromises } from 'fs';
+import { GlobalExceptionFilter } from './exception-filters/global.exception';
+import { RedisIoAdapter } from './adapters/redis-io.adapter';
+import { WebSocketAdapter } from '@nestjs/common';
+
+function addSwagger(app) {
+  const config = new DocumentBuilder()
+    .setTitle('APIs')
+    .setDescription('The API description')
+    .addBearerAuth()
+    .setVersion('1.0')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config, {
+    ignoreGlobalPrefix: false,
+    operationIdFactory: (_controllerKey: string, methodKey: string) =>
+      methodKey,
+  });
+  SwaggerModule.setup('api', app, document);
+  return document;
+}
+
+async function addRedoc(
+  app: INestApplication,
+  swaggerDocument: OpenAPIObject,
+  username: string,
+  password: string,
+) {
+  const redocOptions: RedocOptions = {
+    requiredPropsFirst: true,
+  };
+  NestjsRedoxModule.setup(
+    'docs',
+    app,
+    swaggerDocument,
+    {
+      useGlobalPrefix: true,
+      disableGoogleFont: true,
+      standalone: false,
+      auth: {
+        enabled: true,
+        users: {
+          [username]: password,
+        },
+      },
+    },
+    redocOptions,
+  );
+}
+
+async function bootstrap() {
+  const directoriesToBootstrap = ['dist/temp-fs/assets/html'];
+  for await (const directory of directoriesToBootstrap) {
+    try {
+      await fsPromises.mkdir(directory, { recursive: true });
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  // Initialize OpenTelemetry BEFORE creating the app (reads from process.env directly)
+  if (process.env.ENABLE_METRICS === 'true') {
+    const { initializeOpenTelemetry } = await import(
+      './instrumentation/tracing'
+    );
+    await initializeOpenTelemetry();
+  }
+
+  const app = await NestFactory.create(AppModule);
+
+  app.setGlobalPrefix('api');
+
+  app.enableVersioning({
+    type: VersioningType.URI,
+  });
+
+  app.use(json({ limit: '100mb' }));
+
+  const logger = new Logger('ValidationPipe');
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      exceptionFactory: (errors) => {
+        const messages = errors
+          .map((error) => Object.values(error.constraints || {}).join(', '))
+          .filter(Boolean);
+        logger.error('Validation failed:', {
+          errors: errors.map((error) => ({
+            property: error.property,
+            constraints: error.constraints,
+            value: error.value,
+          })),
+          messages,
+        });
+        return new BadRequestException(messages);
+      },
+    }),
+  );
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+  app.useGlobalFilters(new QueryExceptionFilter());
+  app.useGlobalFilters(new GlobalExceptionFilter());
+
+  app.use(new TestModeMiddleware().use);
+
+  const redisIoAdapter = new RedisIoAdapter(
+    app,
+    process.env.IO_REDIS_ADAPTER_URL,
+  );
+  await redisIoAdapter.connectToRedis();
+
+  app.useWebSocketAdapter(redisIoAdapter as unknown as WebSocketAdapter);
+
+  app.enableShutdownHooks();
+
+  const corsAllowedOrigins = process.env.CORS_ORIGINS?.split(',');
+
+  if (corsAllowedOrigins?.length) {
+    app.enableCors({
+      origin: corsAllowedOrigins,
+      credentials: true,
+      preflightContinue: false,
+      optionsSuccessStatus: 204,
+    });
+  }
+
+  const document = addSwagger(app);
+
+  addRedoc(app, document, 'admin', '123');
+
+  const port = process.env.APP_PORT || 3000;
+
+  // Retry logic for port binding
+  const maxRetries = 5;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      await app.listen(port, '0.0.0.0');
+      console.log(`Application is running on: http://0.0.0.0:${port}`);
+      break;
+    } catch (error) {
+      if (error.code === 'EADDRINUSE' && i < maxRetries - 1) {
+        const delay = 500 * Math.pow(2, i);
+        console.log(
+          `Port ${port} in use, retrying in ${delay}ms... (attempt ${i + 1}/${maxRetries})`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  // Graceful shutdown handlers
+  const shutdown = async (signal: string) => {
+    console.log(`\n${signal} received, closing application gracefully...`);
+    try {
+      await app.close();
+      console.log('Application closed successfully');
+      process.exit(0);
+    } catch (error) {
+      // Ignore TypeORM "Called end on pool more than once" error during watch mode restarts
+      if (
+        error?.message?.includes('Called end on pool more than once') ||
+        error?.message?.includes('pool is draining')
+      ) {
+        console.log('Application closed (pool already closed)');
+        process.exit(0);
+      }
+      console.error('Error during shutdown:', error);
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('beforeExit', () => {
+    console.log('Process beforeExit event');
+  });
+}
+bootstrap();

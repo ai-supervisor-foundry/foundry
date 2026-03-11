@@ -1,0 +1,7 @@
+---
+globs: contexts/*
+alwaysApply: false
+---
+1. context files should be max 250 lines.
+2. If exceeding 250 lines, sub contexts should be made in a nested directory with name of the same parent context (Minus extension).
+3. Try and not lose information, if required, prefere new sub contexts.

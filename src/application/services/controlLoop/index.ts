@@ -35,7 +35,8 @@ export async function controlLoop(
   persistence: PersistenceLayer,
   queue: QueueAdapter,
   promptBuilder: PromptBuilder,
-  cliAdapter: LLMProviderPort,
+  primaryAdapter: LLMProviderPort,
+  secondaryAdapter: LLMProviderPort,
   validator: Validator,
   auditLogger: AuditLogger,
   sandboxRoot: string,
@@ -50,28 +51,28 @@ export async function controlLoop(
   const taskRetriever = new TaskRetriever(queue);
   
   const goalChecker = new GoalCompletionChecker(
-      cliAdapter, 
+      primaryAdapter,
       logger,
       promptLogger,
       sandboxRoot
   );
-  
+
   const sessionResolver = new SessionResolver();
-  
+
   const taskExecutor = new TaskExecutor(
-      promptBuilder, 
-      cliAdapter, 
+      promptBuilder,
+      primaryAdapter,
       logger,
       promptLogger,
       sandboxRoot
   );
-  
+
   const validationOrchestrator = new ValidationOrchestrator(
-      cliAdapter, 
+      secondaryAdapter,
       commandExecutor,
-      promptBuilder, 
-      sessionResolver, 
-      stateManager, 
+      promptBuilder,
+      sessionResolver,
+      stateManager,
       logger,
       promptLogger,
       sandboxRoot
@@ -229,7 +230,7 @@ export async function controlLoop(
             validationResult.report,
             state,
             {
-                cliAdapter,
+                cliAdapter: primaryAdapter,
                 sessionId: executionResult.sessionId,
                 projectId: state.goal.project_id || 'default',
                 iteration,

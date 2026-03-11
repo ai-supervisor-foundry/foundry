@@ -1,0 +1,5 @@
+---
+description: When running "pm2" shell commands
+alwaysApply: false
+---
+1. Always use --nostream for logs.

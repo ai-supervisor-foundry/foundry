@@ -1,0 +1,771 @@
+[
+  {
+    "task_id": "backend-restore-and-copy",
+    "intent": "Restore sample backend source from git and copy to sandbox/backend directory",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "sandbox/sample-backend-api has source files only in git history (working tree was cleaned). Steps: 1) Create sandbox/backend directory if it does not exist: mkdir -p the working directory. 2) Restore source files in sample: run 'git checkout -- .' inside sandbox/sample-backend-api. 3) Copy all files from sandbox/sample-backend-api to sandbox/backend, excluding the .git directory. You can use cp -a or rsync. Make sure hidden files like .env, .eslintrc.js, .prettierrc are copied too. 4) Remove .git directory from sandbox/backend if it was copied. 5) Verify sandbox/backend/src/main.ts exists. 6) Verify sandbox/backend/package.json exists.",
+    "acceptance_criteria": [
+      "sandbox/backend directory exists",
+      "sandbox/backend/src/main.ts exists",
+      "sandbox/backend/src/app.module.ts exists",
+      "sandbox/backend/package.json exists",
+      "No .git directory inside sandbox/backend"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-delete-domain-modules",
+    "intent": "Remove all classifieds-specific modules and files, keep only reusable infrastructure",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "The copied backend is a classifieds marketplace API (easeclassifieds). Delete ALL domain-specific directories: src/modules/favorites/, src/modules/feed/, src/modules/listings/, src/modules/search/, src/modules/storage/, src/modules/subscription/, src/modules/subscription-plans/, src/modules/tenants/, src/modules/aggregation/, src/modules/mail/, src/modules/events/, src/modules/cache/, src/modules/shared/. Delete: src/adapters/ (redis-io adapter), src/instrumentation/, src/config/stream/. Delete: src/db/migrations/ directory entirely (classifieds migrations). Delete src/db/1764488847846-migrations.ts. Delete src/common/dto/create-address-sameas.dto.ts, src/common/dto/create-address.dto.ts, src/common/dto/create-contact.dto.ts, src/common/entities/address.entity.ts, src/common/entities/contact.entity.ts. Delete from project root: FAVOURITES_API_ASSESSMENT.md, backend.md, frontend.md, docker-compose*.yml, nginx/, grafana-config/, prometheus-config/, otel-collector-config.yaml, ecosystem.config.js, configure-cors.sh, analysis_result.json, JS_FILES_TO_REMOVE.md, JS_REMOVAL_ANALYSIS.md, PROJECT_OVERVIEW.md, scripts/. Delete .github/workflows/. KEEP: src/modules/auth/, src/modules/users/, src/modules/health/, src/main.ts, src/app.module.ts, src/env.ts, src/common/decorators/, src/common/pipes/, src/common/types/, src/common/utils/, src/common/base.processor.ts, src/common/index.ts, src/exception-filters/, src/middlewares/, src/helpers/, src/libraries/, src/db/config.ts, src/db/custom.base.entity.ts, src/db/test.config.ts, src/test-utils/.",
+    "acceptance_criteria": [
+      "No classifieds module directories remain (favorites, feed, listings, search, storage, subscription, tenants, aggregation, mail, events, cache, shared)",
+      "src/modules/auth/ still exists",
+      "src/modules/users/ still exists",
+      "src/modules/health/ still exists",
+      "src/main.ts still exists",
+      "src/common/ still has decorators, pipes, types, utils subdirectories",
+      "No migration files from classifieds schema remain in src/db/migrations/"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-clean-deps-and-config",
+    "intent": "Clean package.json dependencies and fix app.module.ts imports after module deletion",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "1) Update package.json: Change name to 'timesheet-backend'. Remove these dependencies (they belong to deleted modules): @aws-sdk/client-s3, @aws-sdk/lib-storage, @aws-sdk/s3-request-presigner, twilio, stripe, puppeteer, puppeteer-extra, sharp, handlebars, bullmq, @nestjs/bullmq, redis, cache-manager, cache-manager-redis-store, @nestjs/cache-manager, @nestjs/schedule, @nestjs/serve-static, @nestjs/swagger, @nestjs/terminus, @nestjs/throttler, @nestjs/websockets, @nestjs/platform-socket.io, socket.io, @socket.io/redis-adapter, @nestjs-modules/mailer, nodemailer, nestjs-paginate, nestjs-puppeteer, nestjs-redox, @opentelemetry/exporter-metrics-otlp-http, @opentelemetry/exporter-otlp-grpc, @opentelemetry/resources, @opentelemetry/sdk-metrics, @opentelemetry/semantic-conventions, @helveg/opentelemetry-nestjs, @nestjs/event-emitter, lodash. Remove from devDependencies: @types/lodash, @types/multer, @types/cache-manager, socket.io-client. Keep all other deps. 2) Update src/app.module.ts: Remove ALL import statements and module references for deleted modules. Only keep imports for: ConfigModule, TypeOrmModule/DatabaseModule, AuthModule, UsersModule, HealthModule, and any middleware modules that still exist. Fix any broken import paths. 3) Update .env: Change DB_URI database name from easeclassifieds to timesheet. Set APP_PORT=3001. Remove or comment out: REDIS_URL, CACHE_STORE_*, IO_REDIS_*, AWS_*, TWILIO_*, STRIPE_*, SENDGRID_*, OTEL_*, ENABLE_METRICS, STREAM_PERFORMANCE_MODE. Keep: NODE_ENV, APP_BASE_URL, FE_BASE_URL, APP_PORT, JWT_SECRET, DB_URI, TEST_DB_URI, CORS_ORIGINS, SEED_ENTITIES, IS_DEV_SANDBOX, DISABLE_RATE_LIMITS, JWT_ACCESS_TOKEN_EXPIRY, JWT_REFRESH_TOKEN_EXPIRY.",
+    "acceptance_criteria": [
+      "package.json name is 'timesheet-backend'",
+      "No AWS/Twilio/Stripe/Redis/BullMQ/Socket.io/OpenTelemetry/Puppeteer dependencies in package.json",
+      "src/app.module.ts has no import statements referencing deleted modules",
+      ".env DB_URI points to timesheet database (not easeclassifieds)",
+      ".env APP_PORT is 3001",
+      "No Redis/AWS/Twilio/Stripe/OTEL environment variables in .env"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-install-and-verify",
+    "intent": "Install dependencies and verify backend compiles without errors",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "1) Check if pnpm is available: run 'pnpm --version'. If pnpm is NOT available or not installed, remove the preinstall script from package.json that says 'npx only-allow pnpm', and delete pnpm-lock.yaml if it exists, then use npm instead. 2) Run package manager install (pnpm install or npm install). Fix any dependency errors. 3) Check for TypeScript compilation errors: run the build script or 'npx tsc --noEmit'. If there are import errors referencing deleted modules, fix them in the source files. Common issues: leftover imports in common/index.ts, middlewares referencing redis, base.processor referencing bullmq. Remove or fix those references. 4) Create placeholder module directories and files: mkdir -p src/modules/project src/modules/timesheet src/modules/report. Create src/modules/project/project.module.ts, src/modules/timesheet/timesheet.module.ts, src/modules/report/report.module.ts each exporting a basic @Module({}) decorated class. 5) Verify server attempts to start (npm run start). It may fail on database connection if PostgreSQL is not running, but it must NOT fail on import or compilation errors.",
+    "acceptance_criteria": [
+      "Package install completes without errors",
+      "No TypeScript compilation errors from deleted module references",
+      "src/modules/project/project.module.ts exists with @Module decorator",
+      "src/modules/timesheet/timesheet.module.ts exists with @Module decorator",
+      "src/modules/report/report.module.ts exists with @Module decorator",
+      "Server startup fails only on DB connection (not on import/compile errors)"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-install-deps-and-tailwind",
+    "intent": "Install missing dependencies and configure Tailwind CSS in existing frontend",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "The frontend already exists at sandbox/frontend with React pages, routing, and components using Tailwind CSS classes in JSX, but tailwindcss is NOT actually installed. Steps: 1) Add to package.json dependencies: tailwindcss, postcss, autoprefixer, axios, @headlessui/react. 2) Remove from package.json: @google/genai (not needed for this app). 3) Run npm install. 4) Create postcss.config.js in project root with: module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }. 5) Create tailwind.config.js in project root with content paths matching the existing file structure: content: ['./**/*.{js,jsx,ts,tsx}', './index.html'] (note: source files are in root directory, NOT in src/). 6) Create styles.css (or index.css) with @tailwind base; @tailwind components; @tailwind utilities; at the top. Make sure this CSS file is imported in index.tsx or referenced in index.html. 7) Remove the @google/genai import and the generateAIInsight function from pages/Reports.tsx. Remove or replace the AI insights button with a placeholder.",
+    "acceptance_criteria": [
+      "tailwindcss, postcss, autoprefixer, axios are in package.json dependencies",
+      "@google/genai is NOT in package.json",
+      "postcss.config.js exists with tailwindcss and autoprefixer plugins",
+      "tailwind.config.js exists with content paths matching file structure",
+      "A CSS file with @tailwind directives exists and is imported",
+      "npm install completes without errors",
+      "No @google/genai imports remain in any source file"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-fix-types-and-add-signup",
+    "intent": "Add MANAGER role to types, add password to login, create signup page",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "1) Update types.ts: Add MANAGER to UserRole enum so it has ADMIN, MANAGER, USER (currently only ADMIN and USER). 2) Update pages/Login.tsx: Add a password input field below the email field. The form should collect both email and password. Keep the existing styling approach. 3) Create pages/Signup.tsx: A registration form with fields: name, email, password, confirm password. Add client-side validation: email format, password min 8 chars with 1 uppercase and 1 number, passwords must match. On submit, call the signup API (for now can use mock behavior). Show validation errors inline. Style consistently with Login page. 4) Update App.tsx: Add a /signup route pointing to the new Signup component. Import Signup page. 5) Add navigation links: Login page should have a 'Create account' or 'Sign up' link to /signup. Signup page should have a 'Already have an account? Login' link to /login. 6) Update services/authContext.tsx: Change the login function signature to accept (email: string, password: string) instead of just (email: string). Keep mock behavior for now.",
+    "acceptance_criteria": [
+      "UserRole enum has ADMIN, MANAGER, USER values",
+      "Login page has both email and password input fields",
+      "Signup page exists at pages/Signup.tsx with all required fields",
+      "/signup route exists in App.tsx",
+      "Login and signup pages link to each other",
+      "authContext login function accepts email and password parameters"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "auth-backend-user-model",
+    "intent": "Create User model with email, password hash, role, status in backend database",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create User entity/model in backend with fields: email (unique), password_hash (bcrypt), role (enum: ADMIN, MANAGER, USER), status (enum: active, inactive), created_at, updated_at. Add validation: email format, password strength (min 8 chars, 1 uppercase, 1 number). Add timestamps.",
+    "acceptance_criteria": [
+      "User model created and migration runs",
+      "Email is unique constraint enforced at DB level",
+      "Password hashing works (test: hash 'Test123!' and verify)",
+      "Timestamps auto-update"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "auth-backend-password-service",
+    "intent": "Implement password hashing and verification service",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create a service to hash passwords using bcrypt and verify passwords. Include methods: hashPassword(plaintext) -> hash, verifyPassword(plaintext, hash) -> boolean. Test vectors: 'Test123!' should hash and verify correctly. Add password strength validator (min 8, 1 uppercase, 1 number, 1 special char recommended).",
+    "acceptance_criteria": [
+      "hashPassword('Test123!') produces bcrypt hash starting with $2",
+      "verifyPassword('Test123!', hash) returns true",
+      "verifyPassword('WrongPassword', hash) returns false",
+      "Hashes are unique each time (bcrypt salt)"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "auth-backend-signup-api",
+    "intent": "Implement /auth/signup endpoint with validation and user creation",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create POST /auth/signup endpoint accepting {email, password, name}. Validate: email format, password strength, no duplicate email. Hash password using PasswordService. Create user in DB with role='USER', status='active'. Return JWT token and user object (no password). Test non-interactively: curl POST with valid email/password (test@example.com/Test123!), verify user created. Test duplicate email rejection.",
+    "acceptance_criteria": [
+      "Valid signup creates user in DB and returns JWT token",
+      "Invalid email rejected with 400",
+      "Duplicate email rejected with 409",
+      "Weak password rejected with 400",
+      "User object returned does NOT include password_hash",
+      "JWT token is valid (can be decoded)"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "auth-backend-login-api",
+    "intent": "Implement /auth/login endpoint with email/password validation",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create POST /auth/login endpoint accepting {email, password}. Find user by email, verify password using PasswordService. Return JWT token and user object if valid. Return 401 if invalid. Test non-interactively: curl POST with valid credentials (test@example.com/Test123!), verify JWT returned. Test with wrong password, verify 401.",
+    "acceptance_criteria": [
+      "Valid login returns JWT token",
+      "Invalid password returns 401 Unauthorized",
+      "Non-existent email returns 401 Unauthorized",
+      "JWT token is valid and contains user_id",
+      "User object returned excludes password_hash"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "auth-backend-jwt-middleware",
+    "intent": "Implement JWT verification middleware for protected routes",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create JWT middleware that extracts token from Authorization header (Bearer format), verifies signature, and attaches user_id to request context. Return 401 if token missing/invalid. Apply to all non-auth endpoints. Test: send request with valid token, verify it passes. Send with invalid token, verify 401.",
+    "acceptance_criteria": [
+      "Valid JWT token in 'Authorization: Bearer <token>' passes middleware",
+      "Missing token returns 401",
+      "Malformed token returns 401",
+      "Expired token returns 401",
+      "user_id is available in request context after middleware"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "auth-backend-role-guard",
+    "intent": "Implement role-based access control (RBAC) middleware",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create @RequireRole(roles: ['ADMIN', 'MANAGER']) decorator/middleware that checks user role from JWT. Return 403 Forbidden if user role not in required list. Admin can do everything. Manager can approve timesheets and manage projects. User can only view/edit own data. Test: create endpoints with different role requirements, test with user/manager/admin tokens.",
+    "acceptance_criteria": [
+      "Admin role passes all role checks",
+      "Manager role passes manager checks, fails admin checks",
+      "User role only accesses own data",
+      "Missing required role returns 403 Forbidden",
+      "Request context has user.role available"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "project-backend-model",
+    "intent": "Create Project model in database",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create Project entity with fields: code (string, max 10, unique), description (string, max 40), default_task (string, max 100), start_date (date), end_date (date), status (enum: active, completed, archived), created_by (user_id), created_at, updated_at. Add validation: code format, date logic (end_date >= start_date), max length constraints. Create migration.",
+    "acceptance_criteria": [
+      "Project model created with all fields",
+      "Code field is unique and max 10 chars",
+      "Description is max 40 chars",
+      "end_date >= start_date validation",
+      "Status defaults to 'active'",
+      "created_by is required (FK to User)"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "project-backend-crud-api",
+    "intent": "Implement Project CRUD endpoints (Create, Read, Update, List, Archive)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create endpoints: POST /projects (create), GET /projects (list, exclude archived by default), GET /projects/:id (read), PATCH /projects/:id (update), DELETE /projects/:id (soft delete/archive). Only creator or ADMIN can edit/delete. List should return paginated results (limit 20, offset param). Test non-interactively: curl POST to create project, GET to list, PATCH to update, DELETE to archive.",
+    "acceptance_criteria": [
+      "POST /projects creates project, returns id and all fields",
+      "GET /projects returns list, excludes archived by default",
+      "GET /projects?include_archived=true returns archived",
+      "GET /projects/:id returns single project or 404",
+      "PATCH /projects/:id updates fields, returns updated project",
+      "Only creator/ADMIN can update (test: user tries to update another's project, gets 403)",
+      "DELETE /projects/:id archives project, returns 204",
+      "Pagination works: GET /projects?limit=10&offset=0"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "timesheet-backend-model",
+    "intent": "Create Timesheet model with status, weekly tracking, and constraints",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create Timesheet entity: id (TM00001 auto-format), user_id (FK), project_id (FK), status (enum: draft, pending, approved), week_start_date (Monday), week_end_date (Sunday), total_hours (read-only, calculated), comments (max 500 chars), created_at, updated_at. Add validation: week dates must be Mon-Sun boundary. Status transitions: only draft and pending can be edited by user.",
+    "acceptance_criteria": [
+      "Timesheet created with week_start as Monday, week_end as Sunday",
+      "Status defaults to 'draft'",
+      "total_hours is calculated from daily entries",
+      "Only draft/pending timesheets can be edited by user",
+      "Approved timesheets are read-only",
+      "Timesheet ID auto-generates as TM00001, TM00002, etc",
+      "Week_start_date and week_end_date constraints enforced"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "timesheet-backend-entry-model",
+    "intent": "Create TimesheetEntry model for daily hour tracking",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create TimesheetEntry entity: id, timesheet_id (FK), project_task (string, what task was worked on), date (Mon-Sun within timesheet week), hours (decimal, 0-8 max), created_at, updated_at. Add validation: hours must be 0-8 (enforce at DB level with check constraint). Date must fall within timesheet week. Multiple entries per day allowed (different tasks).",
+    "acceptance_criteria": [
+      "TimesheetEntry stores date and hours",
+      "Hours constraint: 0 <= hours <= 8 (DB check constraint)",
+      "Date must be within timesheet week (validate in application)",
+      "Multiple entries per day per task allowed",
+      "project_task field stores task name (string)",
+      "Hours is stored as decimal (allow 0.5, 1.25, etc.)"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "timesheet-backend-entry-crud",
+    "intent": "Implement TimesheetEntry CRUD with validation (8hr/day, 40hr/week)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create endpoints: POST /timesheets/:id/entries (create entry), GET /timesheets/:id/entries (list), PATCH /timesheets/:id/entries/:entryId (update), DELETE /timesheets/:id/entries/:entryId (delete). Validation: total hours per day across all entries <= 8, total hours per week <= 40. User can only edit own timesheet if status is draft/pending. Test: POST entry with 5 hours, should succeed. POST another 4 hours same day, should fail (exceeds 8). POST entries totaling 40 hours week, should succeed. POST 41st hour, should fail.",
+    "acceptance_criteria": [
+      "POST creates entry, validates total_hours_per_day <= 8",
+      "POST validates total_hours_per_week <= 40",
+      "Exceeding daily limit returns 400 with clear message",
+      "Exceeding weekly limit returns 400 with clear message",
+      "PATCH updates entry with same validations",
+      "DELETE removes entry, recalculates totals",
+      "User can only edit own timesheet (test: user A tries to edit user B's, gets 403)",
+      "Only draft/pending timesheets can be edited (test: try to edit approved, get 400)"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "timesheet-backend-approval",
+    "intent": "Implement timesheet approval workflow (Manager approval with comments)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create endpoints: PATCH /timesheets/:id/approve (manager-only), PATCH /timesheets/:id/reject (manager-only, requires comment). Approve: status draft->pending->approved. Reject: status back to draft with rejection comment. Store rejection_comment field in Timesheet. Only MANAGER/ADMIN can approve. Test: user submits timesheet (draft->pending), manager approves (pending->approved), read-only after. Test: manager rejects (back to draft), user sees rejection comment.",
+    "acceptance_criteria": [
+      "Only MANAGER/ADMIN can approve timesheets",
+      "Approve transitions status to 'approved'",
+      "Reject requires rejection_comment",
+      "Reject sets status back to 'draft'",
+      "Rejected timesheet becomes editable again",
+      "Non-manager trying to approve gets 403",
+      "Approving non-pending timesheet returns 400"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "timesheet-backend-submit",
+    "intent": "Implement timesheet submit action (draft to pending)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create endpoint: PATCH /timesheets/:id/submit. Validates timesheet is in draft status, all entries valid, transitions to 'pending'. User can only submit own timesheet. Once submitted, cannot edit without manager rejecting. Test: user creates entries, submits timesheet (draft->pending), tries to add entry, gets 400 (cannot edit pending).",
+    "acceptance_criteria": [
+      "User can submit own draft timesheet",
+      "Submit validates all entries are valid",
+      "Status transitions draft -> pending",
+      "Pending timesheet cannot be edited",
+      "Non-owner trying to submit gets 403",
+      "Submitting non-draft timesheet returns 400"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "timesheet-backend-list-api",
+    "intent": "Implement list timesheets endpoint with filtering and pagination",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create GET /timesheets with filters: user_id (required for non-admin), project_id, status, date_range. Admin sees all. User sees only own. Manager sees team. Paginate: limit (default 20), offset. Test: GET /timesheets (own), GET /timesheets?status=pending, GET /timesheets?date_from=2025-01-01&date_to=2025-01-31.",
+    "acceptance_criteria": [
+      "User gets only own timesheets",
+      "Admin gets all timesheets",
+      "Manager gets own + team timesheets",
+      "Filter by status works",
+      "Filter by date range works",
+      "Pagination works: limit and offset",
+      "Returns total count for pagination"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "report-backend-hours-aggregate",
+    "intent": "Implement hours aggregation report (user hours by date range)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create GET /reports/hours?user_id=&date_from=&date_to=. Returns: {user: {id, name}, date_range: {from, to}, total_hours: number, by_week: [{week_start, week_end, hours}], by_project: [{project_id, project_name, hours}]}. Only user can see own, admin can see all. Test: GET /reports/hours?user_id=user1&date_from=2025-01-01&date_to=2025-01-31, verify totals match manual calculation.",
+    "acceptance_criteria": [
+      "Report aggregates approved timesheets only",
+      "Total hours calculation is correct",
+      "Weekly breakdown is accurate",
+      "Project breakdown is accurate",
+      "User can only see own report",
+      "Admin can see any report",
+      "Date range filtering works correctly"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "report-backend-csv-export",
+    "intent": "Implement CSV export for reports",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create GET /reports/hours/export?user_id=&date_from=&date_to=&format=csv. Returns CSV file with headers: User,Project,Date,Hours,Status,WeekTotal. Rows: one per timesheet entry. Include weekly subtotals. Test: curl with format=csv, verify CSV format (proper quotes, escaping). Download and open in spreadsheet app (non-interactive: verify headers and row count).",
+    "acceptance_criteria": [
+      "CSV has proper headers",
+      "CSV escapes special characters correctly",
+      "Response has Content-Type: text/csv",
+      "Response has Content-Disposition: attachment",
+      "CSV includes weekly totals",
+      "Row order is chronological"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-auth-login-page",
+    "intent": "Build login page with email/password form and validation",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create Login page component with email and password inputs. On submit: call POST /auth/login, store JWT in localStorage, redirect to dashboard. Show loading state during request. Show error message if login fails (invalid credentials). Add client-side email validation. Test non-interactively: fill form with valid email/password, submit, verify localStorage has jwt token, verify redirect to /. Test with invalid password, verify error shown.",
+    "acceptance_criteria": [
+      "Login form renders with email and password fields",
+      "Submit button disabled while loading",
+      "Valid login stores JWT in localStorage",
+      "Valid login redirects to dashboard",
+      "Invalid credentials shows error message",
+      "Email validation works (client-side)",
+      "Remember me (optional): store email in localStorage"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-auth-signup-page",
+    "intent": "Build signup page with registration form and validation",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create Signup page with name, email, password, confirm password fields. Validate: email format, password strength (min 8, 1 uppercase, 1 number), passwords match. On submit: call POST /auth/signup, store JWT, redirect to dashboard. Show loading and error states. Test: valid signup succeeds and redirects. Test: duplicate email shows error. Test: weak password shows error. Test: passwords don't match shows error.",
+    "acceptance_criteria": [
+      "Signup form renders with all fields",
+      "Password strength validator works",
+      "Passwords match validation works",
+      "Valid signup calls API and stores JWT",
+      "Duplicate email shows error message",
+      "Weak password shows specific error",
+      "Error messages are clear and helpful"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-auth-context",
+    "intent": "Implement authentication context for global user state",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create React Context for auth: useAuth() hook returning {user, login(), logout(), isAuthenticated}. On mount, check localStorage for JWT, validate it. Provide user object {id, email, name, role}. Logout clears localStorage and context. Protected routes check useAuth().isAuthenticated. Test: login, verify user object in context. Logout, verify cleared. Refresh page, verify JWT restored from localStorage.",
+    "acceptance_criteria": [
+      "useAuth() hook provides user object",
+      "JWT persists in localStorage",
+      "JWT restored on page refresh",
+      "Logout clears token and user",
+      "Protected routes redirect to login if no auth",
+      "user.role is available from context"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-api-client",
+    "intent": "Create API client with JWT interceptor",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create apiClient instance (using fetch or axios) that automatically adds JWT to Authorization header (Bearer format) from localStorage. Add interceptors for error handling: 401 -> logout and redirect to login, 403 -> show permission error, network errors -> retry logic. Export functions: apiClient.post(), get(), patch(), delete(). Test: call endpoint with JWT, verify header sent. Test: call with expired JWT (401 response), verify logout triggered.",
+    "acceptance_criteria": [
+      "API client adds 'Authorization: Bearer <token>' header",
+      "401 response triggers logout",
+      "403 response shows permission error",
+      "Network errors are handled gracefully",
+      "Request/response interceptors work",
+      "Retry logic for network timeouts (optional)"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-dashboard-layout",
+    "intent": "Build dashboard layout with navigation sidebar and header",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create main Layout component (sidebar + header + content area). Sidebar shows: Home, Projects, Timesheets, Reports links, user profile dropdown (logout). Header shows: page title, user greeting. Style: responsive (mobile sidebar collapses). Test: navigate to each page, verify sidebar links work. Test: logout button works. Test: responsive layout on mobile.",
+    "acceptance_criteria": [
+      "Sidebar displays navigation links",
+      "Active page highlighted in sidebar",
+      "User profile dropdown shows email",
+      "Logout button removes JWT and redirects",
+      "Header shows current page title",
+      "Responsive: sidebar collapses on mobile",
+      "All layout links navigate correctly"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-dashboard-overview",
+    "intent": "Build dashboard page with stats and quick actions",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create Dashboard page showing: current week stats (hours worked, pending/approved count), quick action buttons (New Timesheet Entry, New Project), recent timesheets list (last 5). Display weekly hours as a bar chart. Test: verify stats load correctly (mock data). Test: 'New Timesheet' button navigates to editor. Test: 'New Project' button navigates to projects page.",
+    "acceptance_criteria": [
+      "Dashboard loads user's current week stats",
+      "Chart shows last 5 weeks of hours",
+      "Pending/Approved/Draft counts display",
+      "Recent timesheets list shows 5 most recent",
+      "New Timesheet button creates entry for current week",
+      "New Project button navigates to projects page",
+      "Stats update after editing timesheet"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-projects-list",
+    "intent": "Build projects list page with CRUD operations",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create Projects page: table showing code, description, start_date, end_date, status. Buttons: New Project, Edit, Delete. New/Edit opens modal with form. List shows paginated results (20 per page). Test: load projects, verify list displays. Create new project, verify added to list. Edit project, verify updates. Delete project, verify removed.",
+    "acceptance_criteria": [
+      "Projects list displays with pagination",
+      "New Project button opens form modal",
+      "Form validates: code (max 10), description (max 40)",
+      "Create project sends POST request",
+      "Edit project opens pre-filled form, sends PATCH",
+      "Delete project removes after confirmation",
+      "Status shows as badge (Active, Archived, Completed)"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-timesheet-list",
+    "intent": "Build timesheets list page with filtering and status",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create Timesheets page: table showing ID (TM00001), project, week_start, week_end, status, total_hours, actions (Edit/View). Filter by status (Draft, Pending, Approved). Status badge colors: yellow (Draft), blue (Pending), green (Approved). Clicking row opens timesheet. Test: load timesheets, verify list. Filter by status, verify results. Click to open timesheet editor.",
+    "acceptance_criteria": [
+      "List shows all user's timesheets",
+      "Filter by status works",
+      "Status badges colored correctly",
+      "Clicking opens timesheet editor",
+      "Draft/Pending timesheets are editable",
+      "Approved timesheets are read-only",
+      "Pagination works for large lists"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-timesheet-week-grid",
+    "intent": "Build timesheet week grid (Mon-Sun daily entry input)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create a grid showing days Mon-Sun as columns, task rows showing hours per day. Each cell is an input field for hours (0-8). Below each day: total hours label (sum of entries). Below grid: week total hours (sum of all). Add project_task dropdown for each row. Test: enter 3 hours Monday task 1, 5 hours Tuesday task 1, verify daily total shows 3, 5. Enter 4 hours Monday task 2, verify daily total shows 7. Verify week total shows 12.",
+    "acceptance_criteria": [
+      "Grid shows Mon-Sun columns",
+      "Each row represents a task",
+      "Input validation: hours 0-8",
+      "Daily totals calculated and displayed",
+      "Weekly total displayed",
+      "Real-time validation feedback",
+      "Red highlight if daily > 8 or weekly > 40"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-timesheet-entry-validation",
+    "intent": "Implement real-time validation for timesheet entries (8hr/day, 40hr/week)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Add validation to timesheet grid: as user types hours, check constraints. If > 8 in a day, show red highlight and message 'Max 8 hours per day'. If > 40 in week, show message 'Max 40 hours per week'. Disable save button if constraints violated. Show violation count. Test: enter 9 hours in a day, verify red highlight and message. Enter enough entries for 41 hours, verify warning and save disabled.",
+    "acceptance_criteria": [
+      "Daily limit (8 hours) enforced with visual feedback",
+      "Weekly limit (40 hours) enforced with visual feedback",
+      "Save button disabled if constraints violated",
+      "User can clear entries to fix violations",
+      "Validation messages are clear",
+      "Real-time feedback as user types"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-timesheet-save",
+    "intent": "Implement timesheet save (create/update entries)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create Save button in timesheet editor. On click: validate all entries, call API to create/update entries. Show loading state. On success: show success toast, redirect to list. On error: show error message, allow retry. Test: enter entries, save, verify API called. Verify entries persisted in backend. Try to save invalid data (>8 hours/day), verify rejected.",
+    "acceptance_criteria": [
+      "Save button calls POST /timesheets/:id/entries for each entry",
+      "Shows loading spinner while saving",
+      "Success toast appears on save",
+      "Entries are updated in backend",
+      "Invalid entries rejected with clear error",
+      "User can retry after error",
+      "Redirect to timesheet list after success"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-timesheet-submit",
+    "intent": "Implement timesheet submit action (draft to pending)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Add Submit button in draft timesheet view. On click: validate all entries, call PATCH /timesheets/:id/submit. Show confirmation dialog: 'Submit timesheet for approval? You won't be able to edit after.' On success: show toast, timesheet becomes read-only. Test: submit draft timesheet, verify status changes to pending in list view.",
+    "acceptance_criteria": [
+      "Submit button visible only for draft timesheets",
+      "Confirmation dialog before submit",
+      "API call sends submission request",
+      "Timesheet becomes read-only after submit",
+      "Status updates to 'Pending' in list",
+      "Success message shown"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-timesheet-approval-ui",
+    "intent": "Build approval UI for managers (approve/reject pending timesheets)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "For MANAGER role: show Approve/Reject buttons on pending timesheets. Approve: immediate action, confirm, status -> approved. Reject: opens modal with comment field (required), submit, status -> draft, shows comment. Test: as manager, open pending timesheet, approve, verify status changes. Reject, enter comment, verify comment shown and timesheet editable.",
+    "acceptance_criteria": [
+      "Approve/Reject buttons visible only for managers",
+      "Approve requires confirmation",
+      "Reject requires comment",
+      "Status updates correctly (approved or back to draft)",
+      "Rejection comment displayed to user",
+      "User can re-edit after rejection"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-reports-page",
+    "intent": "Build reports page with hours aggregation and CSV export",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create Reports page with: date range picker (from/to), show button. On show: load and display hours report as table (User, Project, Total Hours, Week breakdown). Add Export CSV button: downloads CSV file. Test: select date range, verify report loads with correct totals. Click Export CSV, verify file downloads.",
+    "acceptance_criteria": [
+      "Date range picker shows date inputs",
+      "Show button fetches report data",
+      "Report table displays hours by project",
+      "Weekly breakdown shown",
+      "Export CSV button downloads file",
+      "CSV file has correct headers and data",
+      "Manager can see team reports"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-dashboard-timesheet-widget",
+    "intent": "Add quick timesheet entry widget to dashboard",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "On Dashboard: add 'Quick Entry' card showing current week. Allow user to quickly add hours for today without full editor: dropdown for project_task, input for hours. Save button. Show today's current hours. Test: add 3 hours entry, verify saved to current week timesheet, verify total updates.",
+    "acceptance_criteria": [
+      "Quick entry form visible on dashboard",
+      "Shows current day and total hours",
+      "Project/task dropdown populated",
+      "Hours input with validation (0-8, and daily limit)",
+      "Save creates entry in current week timesheet",
+      "Success toast shown",
+      "Daily limit enforced (can't exceed 8 total)"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-responsive-design",
+    "intent": "Ensure responsive design for mobile, tablet, desktop",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Review all pages for responsive layout. Mobile: stack layout vertically, collapse sidebar, fullwidth tables. Tablet: 2-column where appropriate. Desktop: 3+ columns if needed. Test non-interactively: use browser DevTools to test at 375px (mobile), 768px (tablet), 1920px (desktop). Verify: text readable, buttons clickable, no horizontal scroll.",
+    "acceptance_criteria": [
+      "Mobile (375px): all content visible, no horizontal scroll",
+      "Tablet (768px): layout optimized for touch",
+      "Desktop (1920px): full layout utilized",
+      "Touch targets >= 44px for mobile",
+      "Text readable at all sizes",
+      "Images/charts scale properly"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-error-handling",
+    "intent": "Implement global error handling and user feedback",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Add toast notification system (success, error, warning, info). API errors trigger toasts with friendly messages. Network errors show retry option. 401 errors redirect to login. 403 errors show 'Access Denied'. Test: trigger API error, verify toast shown. Trigger network error (offline DevTools), verify retry option. Invalid JWT, verify logout.",
+    "acceptance_criteria": [
+      "Toast notifications appear for success/error",
+      "API errors show user-friendly message",
+      "Network errors allow retry",
+      "401 errors trigger logout",
+      "403 errors show access denied message",
+      "Toasts auto-dismiss after 5 seconds",
+      "Multiple toasts stack properly"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-loading-states",
+    "intent": "Add loading spinners and skeleton states throughout app",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Add loading indicators: page spinners while data loads, skeleton cards for list items, disabled buttons during submission. Test: slow API (DevTools throttle), verify spinner shows. Verify button disabled during submit. Verify skeleton cards visible while loading.",
+    "acceptance_criteria": [
+      "Spinner shows while loading data",
+      "Skeleton cards show while fetching lists",
+      "Buttons disabled during API calls",
+      "Loading state messages clear",
+      "Smooth transition when loading completes"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "frontend-backend-type-alignment",
+    "intent": "Align frontend types, enums, and API calls with backend API contract",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Fix all frontend type mismatches vs backend: 1) types.ts: Project.code string not number, Project.defaultTask not task, Project.status lowercase, TimesheetStatus values lowercase. 2) All pages: update field references (task→defaultTask), status comparisons to lowercase. 3) API services: handle backend paginated response format {items,total,limit,offset}. 4) Replace all MockService calls with real API calls (timesheetsApi, projectsApi). 5) Fix backend TypeORM findAll take/skip bug (use limit/offset). 6) Add project relation field to Timesheet type.",
+    "acceptance_criteria": [
+      "Frontend types.ts matches backend entity field names and types exactly",
+      "All pages use defaultTask not task, lowercase status values",
+      "API services handle {items} response wrapper from backend",
+      "No MockService calls remain in Dashboard, TimesheetList, TimesheetEditor",
+      "Frontend compiles clean (tsc --noEmit, vite build)",
+      "Backend list endpoints return 200 (no TypeORM databaseName error)"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "testing-auth-integration",
+    "intent": "Test authentication flow end-to-end",
+    "tool": "claude",
+    "task_type": "testing",
+    "instructions": "Test: signup new user, login, verify access to dashboard, edit timesheet, logout. Test: try accessing dashboard without login, verify redirect to login. Test: invalid credentials rejected. Test: expired JWT causes re-login.",
+    "acceptance_criteria": [
+      "Signup -> Login -> Dashboard flow works",
+      "Unauthorized users redirected to login",
+      "JWT expiration handled gracefully",
+      "All auth errors show clear messages"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "testing-timesheet-constraints",
+    "intent": "Test 8hr/day and 40hr/week constraints thoroughly",
+    "tool": "claude",
+    "task_type": "testing",
+    "instructions": "Test scenarios: enter 8 hours one task one day (should pass). Enter 4+4+1 hours (should fail on 3rd). Enter 40 hours across week (should pass). Enter 41st hour (should fail). Test API rejects invalid entries. Test UI prevents submission with violations.",
+    "acceptance_criteria": [
+      "Daily limit enforced at API and UI",
+      "Weekly limit enforced at API and UI",
+      "No way to bypass constraints",
+      "Error messages are clear"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "testing-approval-workflow",
+    "intent": "Test timesheet approval workflow (submit, approve, reject)",
+    "tool": "claude",
+    "task_type": "testing",
+    "instructions": "Test: user creates draft timesheet, submits to pending, cannot edit. Manager approves, becomes approved, user cannot edit. Manager rejects with comment, reverts to draft, user can edit. Test permissions: user cannot approve own, manager can approve team members.",
+    "acceptance_criteria": [
+      "Draft -> Pending -> Approved workflow",
+      "Reject sends back to Draft with comment",
+      "Only managers can approve",
+      "Proper permission enforcement"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "testing-reports-accuracy",
+    "intent": "Test report calculations and CSV export accuracy",
+    "tool": "claude",
+    "task_type": "testing",
+    "instructions": "Test: create timesheets with known hours, generate report, verify totals match manual calculation. Test: date range filtering. Test: CSV contains correct data (spot-check rows). Test: managers see team reports, users see own.",
+    "acceptance_criteria": [
+      "Report totals accurate",
+      "Date range filtering works",
+      "CSV data matches report",
+      "Proper access control"
+    ],
+    "working_directory": "frontend",
+    "project_id": "timesheet-app"
+  }
+]

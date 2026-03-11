@@ -1,14 +1,4 @@
-// Default priority order: Gemini → Cursor → Codex → Claude
-
-import { Provider } from "../../../domain/agents/enums/provider";
-
-// Gemini first for better performance, Claude moved to end due to payment requirements
-export const DEFAULT_PRIORITY: Provider[] = [
-    Provider.CURSOR,
-    Provider.COPILOT,
-    Provider.GEMINI,
-    Provider.OLLAMA,
-    Provider.CODEX,
-    Provider.CLAUDE,
-    Provider.GEMINI_STUB,
-];
+// Provider strategy configuration — see strategies.ts for definitions.
+// DEFAULT_PRIORITY replaced by ProviderStrategy (primary + secondary lists).
+export { getActiveStrategy, STRATEGY_1, STRATEGY_2 } from './strategies';
+export type { ProviderEntry, ProviderStrategy } from './strategies';

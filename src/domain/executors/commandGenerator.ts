@@ -7,8 +7,6 @@ import { log as logShared, logVerbose } from '../../infrastructure/adapters/logg
 import { appendPromptLog } from '../../infrastructure/adapters/logging/promptLogger';
 import * as path from 'path';
 import { getFileList } from '../../infrastructure/connectors/os/executors/fileSystem';
-import { helperAgentConfig } from '../../config/modelConfig';
-import { Provider } from '../../domain/agents/enums/provider';
 
 function log(message: string, ...args: unknown[]): void {
   logShared('CommandGenerator', message, ...args);
@@ -80,33 +78,15 @@ export async function generateValidationCommands(
     );
   }
 
-  // Determine provider: Local (Ollama) or Cloud (default)
-  let providerToUse: Provider | undefined = undefined;
-  if (helperAgentConfig.useLocalModel) {
-    providerToUse = Provider.OLLAMA;
-    log(`Selecting Local Helper Agent (${helperAgentConfig.localModelName})`);
-  }
-
-  // Execute Helper Agent (separate instance via cliAdapter with different agentMode)
+  // Execute Helper Agent via secondary adapter (provider selection handled by strategy)
   const generationStartTime = Date.now();
-  log(`Executing Helper Agent with mode: ${agentMode}${sessionId ? ` (Session: ${sessionId})` : ''}${providerToUse ? ` (Provider: ${providerToUse})` : ''}`);
-  
+  log(`Executing Helper Agent with mode: ${agentMode}${sessionId ? ` (Session: ${sessionId})` : ''}`);
+
   let helperResult;
   try {
-      helperResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, sessionId, featureId, providerToUse);
-      
-      // Fallback logic
-      if (providerToUse === Provider.OLLAMA && helperResult.status === 'FAILED' && helperAgentConfig.fallbackToCloud) {
-          log(`Local Helper Agent failed (Status: FAILED), falling back to Cloud Provider`);
-          helperResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, sessionId, featureId);
-      }
+    helperResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, sessionId, featureId);
   } catch (error) {
-      if (providerToUse === Provider.OLLAMA && helperAgentConfig.fallbackToCloud) {
-          log(`Local Helper Agent threw error, falling back to Cloud Provider: ${error}`);
-          helperResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, sessionId, featureId);
-      } else {
-          throw error;
-      }
+    throw error;
   }
 
   const generationDuration = Date.now() - generationStartTime;

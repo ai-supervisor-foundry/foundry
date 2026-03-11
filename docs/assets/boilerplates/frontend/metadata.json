@@ -1,0 +1,5 @@
+{
+  "name": "TimeMate",
+  "description": "A comprehensive timesheet management application featuring project tracking, weekly timesheet entry with strict validation (8h/day, 40h/week), approval workflows, and intelligent reporting.",
+  "requestFramePermissions": []
+}

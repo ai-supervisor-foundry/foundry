@@ -1,0 +1,234 @@
+[
+    {
+      "task_id": "setup-user-frontend-init",
+      "intent": "Initialize User frontend application scaffold with Vite and Tailwind CSS, for Web",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Initialize frontend project with Vite and Tailwind CSS, build, dev server, linting. This should be for Web, yet mobile friendly.",
+      "acceptance_criteria": ["Frontend builds", "Dev server runs - do non interactive tests"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "frontend"
+    },
+    {
+      "task_id": "setup-backend-init",
+      "intent": "Initialize backend API scaffold - Use base Nestjs project provided in working directory",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Initialize backend REST API with base config and health endpoint.",
+      "acceptance_criteria": ["API starts - with pm2 - non intreactive no stream test", "Health endpoint returns 200 - non intreactive no stream test"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+        "task_id": "setup-admin-frontend-init",
+        "intent": "Initialize Admin frontend application scaffold with Vite and Tailwind CSS, for Web to Register Users",
+        "tool": "cursor",
+        "task_type": { "type": "coding" },
+        "instructions": "Initialize frontend project with Vite and Tailwind CSS, build, dev server, linting.",
+        "acceptance_criteria": ["Frontend builds", "Dev server runs - do non interactive tests"],
+        "retry_policy": { "max_retries": 1 },
+        "status": "pending",
+        "working_directory": "frontend-admin"
+    },
+    {
+        "task_id": "setup-admin-backend-init",
+        "intent": "Initialize Admin backend API scaffold - Use base Nestjs project provided in working directory",
+        "tool": "cursor",
+        "task_type": { "type": "coding" },
+        "instructions": "Initialize backend REST API with base config and health endpoint.",
+        "acceptance_criteria": ["API starts - with pm2 - non intreactive no stream test", "Health endpoint returns 200 - non intreactive no stream test"],
+        "retry_policy": { "max_retries": 1 },
+        "status": "pending",
+        "working_directory": "backend-admin"
+    },
+    {
+      "task_id": "setup-database-init",
+      "intent": "Initialize database and migrations",
+      "tool": "cursor",
+      "task_type": { "type": "configuration" },
+      "instructions": "Configure relational DB and migration tooling.",
+      "acceptance_criteria": ["DB connects", "Initial migration applies"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "auth-user-model",
+      "intent": "Create user model",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Define User model with email, password_hash, role, status, timestamps.",
+      "acceptance_criteria": ["User persists", "Email unique"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "auth-password-hashing",
+      "intent": "Implement password hashing",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Hash and verify passwords using secure algorithm.",
+      "acceptance_criteria": ["No plain text passwords", "Login validates hash"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "auth-login-api",
+      "intent": "Implement login/logout",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Create login and logout endpoints with token/session.",
+      "acceptance_criteria": ["Valid login works", "Invalid login rejected"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "auth-role-guard-backend",
+      "intent": "Backend role-based access control",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Implement middleware enforcing Admin/Manager/User roles.",
+      "acceptance_criteria": ["Unauthorized blocked", "Authorized allowed"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "project-model",
+      "intent": "Create project model",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Define Project model with name, description, status, timestamps.",
+      "acceptance_criteria": ["Project persists", "Default status active"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "project-crud-api",
+      "intent": "Project CRUD APIs",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Implement create/read/update/archive project endpoints.",
+      "acceptance_criteria": ["CRUD works", "Archived excluded by default"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "project-user-mapping",
+      "intent": "Assign users to projects",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Implement many-to-many user–project mapping.",
+      "acceptance_criteria": ["Users assigned", "Access enforced"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "task-model",
+      "intent": "Create task/activity model",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Define Task model linked to Project with status and assignee.",
+      "acceptance_criteria": ["Task persists", "Linked to project"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "task-crud-api",
+      "intent": "Task CRUD APIs",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Create endpoints for task create/update/list per project.",
+      "acceptance_criteria": ["CRUD works", "Scoped to project"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "timesheet-model",
+      "intent": "Create time entry model",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Define TimeEntry model with user, project, task, date, duration, notes.",
+      "acceptance_criteria": ["TimeEntry persists", "Duration normalized"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "timesheet-entry-api",
+      "intent": "Time entry CRUD",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Implement create/edit/delete own time entries with validation.",
+      "acceptance_criteria": ["Cannot edit others", "Validation enforced"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "approval-status-model",
+      "intent": "Add approval status to timesheets",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Add draft/submitted/approved/rejected states.",
+      "acceptance_criteria": ["Transitions enforced", "Draft editable"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "approval-actions-api",
+      "intent": "Approve or reject timesheets",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Manager-only approve/reject endpoints with comments.",
+      "acceptance_criteria": ["Only managers approve", "Rejection needs comment"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "report-user-hours",
+      "intent": "Aggregate user hours",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Implement API to aggregate hours per user by date range.",
+      "acceptance_criteria": ["Totals correct", "Date filters work"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "report-export-csv",
+      "intent": "Export reports to CSV",
+      "tool": "cursor",
+      "task_type": { "type": "coding" },
+      "instructions": "Enable CSV export for report endpoints.",
+      "acceptance_criteria": ["CSV downloads", "Data matches report"],
+      "retry_policy": { "max_retries": 1 },
+      "status": "pending",
+      "working_directory": "backend"
+    },
+    {
+      "task_id": "qa-permission-audit",
+      "intent": "Audit role permissions",
+      "tool": "claude",
+      "task_type": { "type": "testing" },
+      "instructions": "Test all role-based access paths for privilege issues.",
+      "acceptance_criteria": ["No unauthorized access"],
+      "retry_policy": { "max_retries": 2 },
+      "status": "pending",
+      "working_directory": "backend"
+    }
+  ]
+  

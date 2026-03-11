@@ -1,0 +1,512 @@
+[
+  {
+    "task_id": "backend-scaffold-nestjs",
+    "intent": "Initialize NestJS project with Postgres database and configuration",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create NestJS project structure: nest new timesheet-backend (or scaffold from scratch). Install: @nestjs/common, @nestjs/core, @nestjs/platform-express, @nestjs/typeorm, @nestjs/jwt, @nestjs/passport, typeorm, pg, bcrypt, class-validator, class-transformer, passport-jwt. Create .env file with: DB_URI (postgres://localhost:5432/timesheet), JWT_SECRET, NODE_ENV. Configure TypeOrmModule with synchronize: true for development. Test: npm run start should start dev server on port 3001.",
+    "acceptance_criteria": [
+      "NestJS project initialized",
+      "All required packages installed",
+      ".env configured with database and JWT",
+      "npm run start starts server on port 3001",
+      "Health check endpoint /health returns 200",
+      "Database connection works (test query succeeds)"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-database-setup",
+    "intent": "Configure TypeORM and PostgreSQL connection",
+    "tool": "cursor",
+    "task_type": "configuration",
+    "instructions": "Create TypeORM configuration (ormconfig.ts or dataSource.ts) with PostgreSQL connection. Configure: host (localhost), port (5432), username, password, database (timesheet), synchronize (true for dev), logging (true for dev). Create database.module.ts exporting TypeOrmModule.forRoot(). Test: npm run typeorm:migration:generate -- creates migration files without error.",
+    "acceptance_criteria": [
+      "TypeORM connects to PostgreSQL",
+      "Database 'timesheet' is created",
+      "Synchronize runs migrations",
+      "Connection pooling configured",
+      "Development logging enabled"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-user-entity",
+    "intent": "Create User entity with email, password_hash, role, status",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/modules/user/user.entity.ts with columns: id (UUID primary), email (unique varchar), password_hash (varchar), role (enum: ADMIN, MANAGER, USER), status (enum: active, inactive), created_at (timestamp), updated_at (timestamp). Add indexes on email. Create migration. Test: npm run typeorm:migration:run generates user table with constraints.",
+    "acceptance_criteria": [
+      "User entity defined with all fields",
+      "Email unique constraint at DB level",
+      "Role enum enforced",
+      "Timestamps auto-update",
+      "Migration created and runs successfully",
+      "Can insert user without errors"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-password-service",
+    "intent": "Create password hashing and verification service",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/modules/auth/password.service.ts with methods: hashPassword(plaintext): Promise<string> using bcrypt rounds=10, verifyPassword(plaintext, hash): Promise<boolean>. Add password strength validator: min 8 chars, 1 uppercase, 1 digit. Test: inject service, test hash('Test123!') produces $2 hash, verify('Test123!', hash) returns true, verify('wrong', hash) returns false.",
+    "acceptance_criteria": [
+      "Password hashing uses bcrypt with salt rounds 10",
+      "Hash and verify round-trip works",
+      "Different calls produce different hashes (salt)",
+      "Password strength validation works",
+      "Weak passwords rejected"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-jwt-strategy",
+    "intent": "Configure JWT authentication strategy with Passport",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/modules/auth/jwt.strategy.ts extending PassportStrategy(Strategy, 'jwt'). Configure: secret from env, extract from 'Authorization' header (Bearer format), return user object with id, email, role. Create jwt-auth.guard.ts applying this strategy. Test: send request with valid JWT in header, verify passed. Send without token, verify 401.",
+    "acceptance_criteria": [
+      "JWT strategy configured with secret from env",
+      "Bearer token extracted from Authorization header",
+      "Valid JWT passes authentication",
+      "Invalid/missing token returns 401",
+      "User object attached to request with id, email, role"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-signup-endpoint",
+    "intent": "Create POST /auth/signup endpoint with validation and user creation",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/modules/auth/auth.controller.ts with POST /signup. Accept {email: string, password: string, name?: string}. Validate email format, password strength. Check duplicate email. Hash password using PasswordService. Create user in DB with role=USER. Return {access_token: string, user: {id, email, name, role}} (exclude password_hash). Test: curl -X POST http://localhost:3001/auth/signup -H 'Content-Type: application/json' -d '{\"email\":\"test@example.com\",\"password\":\"Test123!\"}', verify 201 and JWT returned. Test duplicate email returns 409.",
+    "acceptance_criteria": [
+      "Signup endpoint accepts email, password",
+      "Email validation enforced",
+      "Password strength enforced",
+      "Duplicate email returns 409 Conflict",
+      "User created in database",
+      "JWT token returned",
+      "Response excludes password_hash"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-login-endpoint",
+    "intent": "Create POST /auth/login endpoint with credentials verification",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create POST /login in auth.controller.ts. Accept {email, password}. Find user by email. Verify password using PasswordService. Return {access_token, user} or 401. Test: curl with valid credentials (test@example.com/Test123!), verify 200 and JWT. Test with wrong password, verify 401 with message 'Invalid credentials'.",
+    "acceptance_criteria": [
+      "Login accepts email and password",
+      "Queries user by email",
+      "Verifies password correctly",
+      "Returns JWT on valid credentials",
+      "Returns 401 on invalid credentials",
+      "Does not leak user existence (same error for missing/wrong password)"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-role-guard",
+    "intent": "Create role-based access control (RBAC) guard",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/modules/auth/roles.guard.ts with @RequireRole() decorator accepting array of roles. Check user.role from JWT against required roles. Return 403 if not authorized. Apply guard to endpoints. Test: create endpoint requiring MANAGER role, test with USER token (403), MANAGER token (200).",
+    "acceptance_criteria": [
+      "@RequireRole decorator created",
+      "Guard checks user role from JWT",
+      "Admin role bypasses all role checks",
+      "User gets 403 if role not in required list",
+      "Can apply decorator to controllers/methods"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-project-entity",
+    "intent": "Create Project entity with code, description, dates",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/modules/project/project.entity.ts with columns: id (UUID), code (varchar 10, unique), description (varchar 40), default_task (varchar 100), start_date (date), end_date (date), status (enum: active, completed, archived), created_by_id (FK to User), created_at, updated_at. Add check constraint: end_date >= start_date. Create migration. Test: create project, verify all fields stored correctly.",
+    "acceptance_criteria": [
+      "Project entity has all required fields",
+      "Code is unique and max 10 chars",
+      "Description is max 40 chars",
+      "end_date >= start_date enforced",
+      "Status defaults to 'active'",
+      "created_by_id is required (FK to User)",
+      "Timestamps auto-managed"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-project-crud",
+    "intent": "Create Project CRUD endpoints (Create, Read, Update, List, Archive)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/modules/project/project.controller.ts with endpoints: POST /projects (create), GET /projects (list), GET /projects/:id (read), PATCH /projects/:id (update), DELETE /projects/:id (archive). Only creator or ADMIN can edit/delete. List excludes archived by default unless ?include_archived=true. Paginate: limit (default 20), offset (default 0). Test: curl -X POST http://localhost:3001/projects with valid project data, verify 201. GET /projects, verify list excludes archived. Test permission: non-creator tries to PATCH, verify 403.",
+    "acceptance_criteria": [
+      "POST creates project with code unique check",
+      "GET lists projects, excludes archived by default",
+      "GET supports include_archived query param",
+      "GET /projects/:id returns single project or 404",
+      "PATCH updates only by creator/ADMIN",
+      "DELETE archives project (soft delete)",
+      "Pagination: limit and offset work",
+      "Returns total count for pagination UI"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-timesheet-entity",
+    "intent": "Create Timesheet entity with status, week tracking, total hours",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/modules/timesheet/timesheet.entity.ts with columns: id (UUID), tm_id (varchar, auto-generated TM00001 format, unique), user_id (FK), project_id (FK), status (enum: draft, pending, approved), week_start_date (date, Monday), week_end_date (date, Sunday), total_hours (decimal, read-only/computed), comments (text max 500), rejection_comment (text, nullable), created_at, updated_at. Add check constraint: week_end_date = week_start_date + 6 days. Create migration. Test: create timesheet, verify TM ID auto-generates.",
+    "acceptance_criteria": [
+      "Timesheet entity created with all fields",
+      "TM ID auto-generates as TM00001, TM00002, etc",
+      "Status defaults to 'draft'",
+      "total_hours is computed from entries",
+      "week_end_date = week_start_date + 6 days enforced",
+      "Comments max 500 chars",
+      "rejection_comment nullable",
+      "Timestamps auto-managed"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-timesheet-entry-entity",
+    "intent": "Create TimesheetEntry entity for daily hour tracking",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/modules/timesheet/timesheet-entry.entity.ts with columns: id (UUID), timesheet_id (FK), project_task (varchar, task name), entry_date (date), hours (decimal precision 3,2 for 0-8 range), created_at, updated_at. Add check constraint: hours >= 0 AND hours <= 8. Add index on (timesheet_id, entry_date). Create migration. Test: insert entry with 5.5 hours, verify stored. Try to insert 8.1 hours, verify constraint rejects.",
+    "acceptance_criteria": [
+      "TimesheetEntry has all fields",
+      "Hours constraint: 0 <= hours <= 8 (DB check)",
+      "Hours stored as decimal, allow 0.5, 1.25, etc",
+      "entry_date must be within timesheet week",
+      "Multiple entries per day allowed",
+      "Check constraint enforced at DB level"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-timesheet-entry-crud",
+    "intent": "Create TimesheetEntry CRUD with 8hr/day and 40hr/week validation",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/modules/timesheet/timesheet-entry.controller.ts and service. Endpoints: POST /timesheets/:id/entries, GET /timesheets/:id/entries, PATCH /timesheets/:id/entries/:entryId, DELETE /timesheets/:id/entries/:entryId. Validation in service: total_hours_per_day (sum of all entries for that date) <= 8, total_hours_per_week (sum for week) <= 40. User can only edit if timesheet status is draft or pending. Test: POST entry 5 hours, should succeed. POST another 4 same day (total 9), should fail with 'Daily limit exceeded (8 hours max)'. POST entries totaling 40 hours, succeed. POST 41st, fail with 'Weekly limit exceeded (40 hours max)'.",
+    "acceptance_criteria": [
+      "POST creates entry with validation",
+      "Daily limit (8 hrs) enforced with clear message",
+      "Weekly limit (40 hrs) enforced with clear message",
+      "PATCH updates with same validations",
+      "DELETE removes entry, recalculates totals",
+      "User can only edit own timesheet",
+      "Only draft/pending timesheets editable",
+      "Errors are 400 with descriptive messages"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-timesheet-list-api",
+    "intent": "Create GET /timesheets with filtering, pagination, role-based access",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create GET /timesheets endpoint in timesheet.controller.ts. User: only own timesheets. Admin: all timesheets. Manager: own + team. Filters: user_id (required for non-admin), project_id, status, week_start_date (range). Paginate: limit (default 20), offset. Response: array of timesheets with week_start, week_end, status, total_hours. Test: curl GET /timesheets (own), GET /timesheets?status=pending, GET /timesheets?week_start_date=2025-01-20&week_end_date=2025-01-26.",
+    "acceptance_criteria": [
+      "User gets only own timesheets",
+      "Admin gets all",
+      "Manager gets own + team",
+      "Filter by status works",
+      "Filter by date range works",
+      "Pagination returns limit/offset results",
+      "Response includes total count"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-timesheet-submit",
+    "intent": "Create PATCH /timesheets/:id/submit endpoint (draft to pending)",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create PATCH /timesheets/:id/submit endpoint. Validates: timesheet is draft, has at least 1 entry, all entries valid. Transitions status from draft to pending. User can only submit own timesheet. Once submitted, entries cannot be edited (except by manager reject). Test: user creates entries, submits (status changes to pending), tries to POST new entry, gets 400 'Cannot edit pending timesheet'.",
+    "acceptance_criteria": [
+      "User submits draft timesheet",
+      "Status transitions to 'pending'",
+      "Validation: at least 1 entry",
+      "Validation: total hours <= 40",
+      "Non-owner cannot submit",
+      "Submitting non-draft returns 400",
+      "Pending timesheet becomes read-only"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-timesheet-approval",
+    "intent": "Create PATCH /timesheets/:id/approve and /reject endpoints",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create PATCH /timesheets/:id/approve (MANAGER only): transitions pending->approved, read-only after. Create PATCH /timesheets/:id/reject (MANAGER only): requires {rejection_comment} body, stores comment, transitions to draft (editable again). Test: manager approves pending timesheet, verify status approved. Try to edit, get 400 'Cannot edit approved'. Manager rejects, timesheet back to draft with comment visible.",
+    "acceptance_criteria": [
+      "Only MANAGER/ADMIN can approve",
+      "Approve requires pending status",
+      "Approve sets status to 'approved'",
+      "Reject requires rejection_comment",
+      "Reject stores comment, sets status to draft",
+      "Non-manager approve attempt returns 403",
+      "Approved timesheet is immutable"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-total-hours-calculation",
+    "intent": "Implement total_hours calculation as computed property",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Add method in Timesheet entity or service: calculateTotalHours() sums all TimesheetEntry.hours for that timesheet. Expose as read-only property/method. When fetching timesheet, always calculate fresh. Test: create timesheet, add entries (5, 3, 2 hours = 10 total), fetch, verify total_hours = 10.",
+    "acceptance_criteria": [
+      "Total hours calculated from entries",
+      "Always fresh (not cached)",
+      "Returns 0 if no entries",
+      "Decimal precision maintained (5.5 + 2.5 = 8)",
+      "Exposed in GET responses"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-report-hours-aggregate",
+    "intent": "Create GET /reports/hours endpoint for aggregated hours by date range",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/modules/report/report.controller.ts with GET /reports/hours?user_id=&date_from=&date_to=. Returns {user: {id, email, name}, date_range: {from, to}, total_hours: number, by_week: [{week_start, week_end, hours}], by_project: [{project_id, project_name, hours}]}. Only approved timesheets count. User can see own, admin sees all, manager sees team. Test: curl GET /reports/hours?user_id=uuid&date_from=2025-01-01&date_to=2025-01-31, verify totals match manual calculation.",
+    "acceptance_criteria": [
+      "Report aggregates approved timesheets only",
+      "Total calculation correct",
+      "Weekly breakdown accurate",
+      "Project breakdown accurate",
+      "User sees only own",
+      "Admin sees any",
+      "Date range filters correctly",
+      "Returns JSON structure as specified"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-report-csv-export",
+    "intent": "Create GET /reports/hours/export?format=csv endpoint",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Extend report endpoint to support format=csv query param. Returns CSV with headers: User,Project,Task,StartDate,EndDate,Hours,Status,WeekTotal. One row per timesheet entry. Include weekly subtotal rows. Response headers: Content-Type: text/csv, Content-Disposition: attachment; filename=report-YYYYMMDD.csv. Test: curl 'http://localhost:3001/reports/hours/export?user_id=uuid&format=csv' -o report.csv, verify CSV format (proper escaping, quotes for strings).",
+    "acceptance_criteria": [
+      "CSV has correct headers",
+      "Special characters escaped properly",
+      "Response Content-Type is text/csv",
+      "Content-Disposition includes filename",
+      "Weekly totals included",
+      "Rows chronological order",
+      "File downloads properly"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-error-handling",
+    "intent": "Implement global error handling and logging",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/common/filters/http-exception.filter.ts for exception handling. Catch all exceptions, return standardized error response: {statusCode, message, timestamp, path, error: {details}}. Log errors with context (user, endpoint, stack). Test: trigger 404, verify formatted response. Trigger 400 validation, verify message. Check logs contain context.",
+    "acceptance_criteria": [
+      "Exception filter catches all HTTP exceptions",
+      "Response format consistent",
+      "Status codes correct (400, 401, 403, 404, 500)",
+      "Error messages user-friendly",
+      "Stack traces only in dev",
+      "Request ID/tracing available",
+      "Logs contain user context"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-validation-pipes",
+    "intent": "Add DTO validation using class-validator and ValidationPipe",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create DTOs: src/modules/auth/dto/signup.dto.ts {email: string, password: string}, login.dto.ts, create-project.dto.ts, create-timesheet-entry.dto.ts. Use @IsEmail(), @MinLength(), @IsDate() decorators. Apply global ValidationPipe in main.ts. Test: send invalid email to signup, verify 400 'Email must be valid'. Send password < 8 chars, verify error.",
+    "acceptance_criteria": [
+      "DTOs created for all endpoints",
+      "Validation decorators applied",
+      "ValidationPipe returns 400 with field errors",
+      "Custom validation messages",
+      "Transform (whitespace trim) applied"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-logging",
+    "intent": "Implement structured logging for debugging and monitoring",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/common/logger/logger.service.ts with methods: log(), error(), warn(), debug(). Inject into services. Log: incoming requests (method, path, user), database operations (slow queries), errors with full context. Use console.log or Winston library. Test: check logs when signup/login/create entry executed.",
+    "acceptance_criteria": [
+      "Logger service created",
+      "Logs request method/path",
+      "Logs database queries in dev",
+      "Logs errors with stack trace",
+      "User context logged",
+      "Timestamped entries"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-cors-config",
+    "intent": "Configure CORS for frontend communication",
+    "tool": "cursor",
+    "task_type": "configuration",
+    "instructions": "In main.ts, enable CORS with: origins (http://localhost:3000, http://localhost:5173), credentials: true, methods: GET, POST, PATCH, DELETE. Test: frontend can call backend endpoints from different port.",
+    "acceptance_criteria": [
+      "CORS enabled for frontend origins",
+      "Credentials (cookies, auth) allowed",
+      "Preflight requests handled",
+      "Frontend can call API without CORS error"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-health-check",
+    "intent": "Create /health and /health/db endpoints for monitoring",
+    "tool": "cursor",
+    "task_type": "coding",
+    "instructions": "Create src/modules/health/health.controller.ts with GET /health returning {status: 'ok', timestamp}. GET /health/db returns {status: 'ok'/'error', database: 'connected'/'disconnected'}. Test: curl http://localhost:3001/health, verify 200 {status: ok}. Curl /health/db, verify database status.",
+    "acceptance_criteria": [
+      "GET /health returns 200 {status: ok}",
+      "GET /health/db checks database connection",
+      "Returns timestamp",
+      "Error responses are 503 Service Unavailable",
+      "No auth required"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-seed-data",
+    "intent": "Create database seed script for testing",
+    "tool": "cursor",
+    "task_type": "configuration",
+    "instructions": "Create src/database/seeds/seed.ts script that: creates 3 test users (admin@test.com, manager@test.com, user@test.com with password Test123!), creates 2 test projects, creates sample timesheets and entries. Run with: npm run seed. Test: execute seed, verify users/projects/timesheets in database.",
+    "acceptance_criteria": [
+      "Seed script creates test users with correct roles",
+      "Test projects created",
+      "Sample timesheets with entries",
+      "Can run multiple times (upsert or clear first)",
+      "Passwords hashed before insert"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "backend-docker-config",
+    "intent": "Create Dockerfile and docker-compose for backend",
+    "tool": "cursor",
+    "task_type": "configuration",
+    "instructions": "Create Dockerfile: FROM node:18, COPY package*.json, npm install, COPY src/, RUN npm run build, EXPOSE 3001, CMD npm run start:prod. Create docker-compose.yml with: backend service, postgres service (port 5432, volume), environment variables. Test: docker-compose up starts backend and postgres, health check passes.",
+    "acceptance_criteria": [
+      "Dockerfile builds image",
+      "docker-compose defines backend + postgres",
+      "Volumes persist database",
+      "Environment variables configured",
+      "Backend connects to postgres in container",
+      "Health check passes"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "testing-auth-flow",
+    "intent": "Test auth flow: signup, login, JWT, role-based access",
+    "tool": "claude",
+    "task_type": "testing",
+    "instructions": "Test scenarios: signup new user (200, JWT returned), login with correct password (200, JWT), login with wrong password (401), access protected endpoint without JWT (401), with invalid JWT (401), with valid JWT (200). Test roles: create endpoint requiring MANAGER, test USER (403), MANAGER (200), ADMIN (200).",
+    "acceptance_criteria": [
+      "Signup -> login -> dashboard access flow works",
+      "JWT validation enforced",
+      "Role checks enforced",
+      "All error codes correct (400, 401, 403, 404)"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "testing-constraints-validation",
+    "intent": "Test 8hr/day and 40hr/week constraints at API level",
+    "tool": "claude",
+    "task_type": "testing",
+    "instructions": "Test: POST entry 8 hours (pass). POST 0.1 hours same day (fail, > 8). POST entries totaling 40 hours week (pass). POST 1 more hour (fail, > 40). Test with different days: 8 hrs Mon, 8 Tue, 8 Wed, 8 Thu, 8 Fri = 40 (pass). Add 1 more hour any day (fail). Test API validation (not just frontend).",
+    "acceptance_criteria": [
+      "Daily limit enforced at API",
+      "Weekly limit enforced at API",
+      "No way to bypass constraints",
+      "Error messages clear",
+      "Decimal hours work (5.5 + 2.5 = 8)"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "testing-approval-workflow",
+    "intent": "Test timesheet submit, approve, reject workflow",
+    "tool": "claude",
+    "task_type": "testing",
+    "instructions": "Test: user creates draft timesheet, tries to submit (no entries, fails). Adds entries, submits (status->pending). Tries to add entry (fails, pending is read-only). Manager approves (status->approved, read-only). Manager rejects (status->draft, shows comment). User edits and resubmits.",
+    "acceptance_criteria": [
+      "Submit validates entries",
+      "Status transitions correct",
+      "Permissions enforced (only manager can approve)",
+      "Rejection allows re-edit",
+      "Approved is immutable"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  },
+  {
+    "task_id": "testing-report-accuracy",
+    "intent": "Test report calculations and CSV export accuracy",
+    "tool": "claude",
+    "task_type": "testing",
+    "instructions": "Test: create 3 approved timesheets with known hours, generate report for date range, verify totals match calculation (spot-check). Export to CSV, verify file content matches report. Test date range filtering (include one week, exclude another). Test permission: user sees own, manager sees team.",
+    "acceptance_criteria": [
+      "Report totals accurate",
+      "Date range filters correctly",
+      "CSV data matches report",
+      "Permissions enforced",
+      "Decimal hours accurate in report"
+    ],
+    "working_directory": "backend",
+    "project_id": "timesheet-app"
+  }
+]
