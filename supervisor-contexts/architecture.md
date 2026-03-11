@@ -19,8 +19,13 @@ The system is organized into distinct modules with clear responsibilities:
 ### Tool Dispatcher (`src/domain/agents/`, `src/infrastructure/connectors/agents/providers/`)
 - Constructs provider task prompts
 - Injects state snapshots
-- Manages CLI provider selection (Gemini, Copilot, Cursor, Claude, Codex)
-- Handles circuit breaker and fallback logic
+- Manages CLI provider selection via **ProviderStrategy**
+- Two adapters instantiated at startup from the active strategy:
+  - **Primary adapter** (`strategy.primary`): used by TaskExecutor, GoalCompletionChecker, RetryOrchestrator — no Ollama
+  - **Secondary adapter** (`strategy.secondary`): used by ValidationOrchestrator (HelperAgent + Interrogator) — may include Ollama
+- Each `ProviderEntry` carries `{ provider, agentMode }` — agentMode is the default for that provider in that role
+- Active strategy selected via `PROVIDER_STRATEGY` env var (default: `'1'`)
+- Handles circuit breaker and fallback logic per adapter independently
 
 ### Persistence Layer (`src/persistence.ts`)
 - DragonflyDB read/write only

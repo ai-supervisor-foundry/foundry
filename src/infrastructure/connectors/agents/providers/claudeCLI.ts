@@ -15,7 +15,8 @@ function log(message: string, ...args: unknown[]): void {
 export async function dispatchToClaude(
   prompt: string,
   cwd: string,
-  agentMode?: string
+  agentMode?: string,
+  sessionId?: string
 ): Promise<ProviderResult> {
   log(`Executing Claude CLI in directory: ${cwd}`);
   log(`Prompt length: ${prompt.length} characters`);
@@ -45,12 +46,20 @@ export async function dispatchToClaude(
   // Use --print for non-interactive mode (prints response and exits)
   args.push('--print');
   
-  // Set output format to text (default, but explicit)
-  args.push('--output-format', 'text');
+  // Set output format to JSON so we can parse session_id and result
+  args.push('--output-format', 'json');
+  
+  // Skip interactive permission prompts in sandboxed, non-interactive runs
+  args.push('--dangerously-skip-permissions');
   
   // Set model if provided (agentMode maps to Claude model)
   if (agentMode && agentMode !== 'auto') {
     args.push('--model', agentMode);
+  }
+  
+  // If we have a session id from Supervisor, reuse it
+  if (sessionId) {
+    args.push('--session-id', sessionId);
   }
   
   // Add prompt as argument

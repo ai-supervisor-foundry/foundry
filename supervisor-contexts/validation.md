@@ -9,7 +9,8 @@
 ## Validation Process
 
 1. **Helper Agent Phase (V2)** (optional):
-   - If validation fails, supervisor uses a separate agent instance to generate read-only validation commands.
+   - If validation fails, supervisor uses the **secondary adapter** to generate read-only validation commands.
+   - Provider selection (including Ollama fallback) is handled transparently by the secondary adapter's strategy priority list — no explicit override needed.
    - **Session Reuse**: Helper Agents persist their session context across invocations, significantly reducing latency and enabling learning from previous attempts.
    - **Code Discovery**: The Helper Agent is provided with a list of actual filenames from the codebase to prevent hallucinations.
    - **Proactive**: Automatically triggered on validation failure.
