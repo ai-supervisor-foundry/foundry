@@ -70,7 +70,19 @@ export async function dispatchToCursor(
   args.push('--model', modelToUse);
   args.push(finalPrompt);
 
-  log(`Spawning: ${cursorCommand} ${args.slice(0, -1).join(' ')} [prompt]`);
+  const buildArgs = (approveMcps: boolean): string[] => {
+    const a = [
+      'agent',
+      '--print',
+      '--force',
+      '--output-format', 'json',
+      ...(approveMcps ? ['--approve-mcps'] : []),
+    ];
+    if (sessionId) a.push('--resume', sessionId);
+    a.push('--model', modelToUse);
+    a.push(finalPrompt);
+    return a;
+  };
 
   return new Promise((resolve, reject) => {
     const childProcess = spawn(cursorCommand, args, {
@@ -82,13 +94,13 @@ export async function dispatchToCursor(
     log(`Cursor CLI process started, PID: ${childProcess.pid}`);
     childProcess.stdin?.end();
 
-    let stdout = '';
-    let stderr = '';
+      const timeout = setTimeout(() => {
+        childProcess.kill('SIGTERM');
+        reject(new Error('Cursor CLI process timed out after 30 minutes'));
+      }, 30 * 60 * 1000);
 
-    const timeout = setTimeout(() => {
-      childProcess.kill('SIGTERM');
-      reject(new Error('Cursor CLI process timed out after 30 minutes'));
-    }, 30 * 60 * 1000);
+      childProcess.stdout?.on('data', (data: Buffer) => { stdout += data.toString('utf8'); });
+      childProcess.stderr?.on('data', (data: Buffer) => { stderr += data.toString('utf8'); });
 
     childProcess.stdout?.on('data', (data: Buffer) => { stdout += data.toString('utf8'); });
     childProcess.stderr?.on('data', (data: Buffer) => { stderr += data.toString('utf8'); });
