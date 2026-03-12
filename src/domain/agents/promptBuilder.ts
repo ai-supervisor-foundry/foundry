@@ -84,7 +84,7 @@ export function validateFilePaths(
 export function buildMinimalState(task: Task, state: SupervisorState, sandboxCwd: string): MinimalState {
   const context: MinimalState = {
     project: {
-      id: task.project_id || state.goal.project_id || 'default',
+      id: task.project_id,
       sandbox_root: sandboxCwd,
     },
   };
@@ -124,9 +124,10 @@ export function buildMinimalState(task: Task, state: SupervisorState, sandboxCwd
     criteriaText.includes('goal') ||
     task.task_id.startsWith('goal-')
   ) {
+    const projectGoal = state.goals[task.project_id];
     context.goal = {
-      id: task.project_id || state.goal.project_id || 'default',
-      description: state.goal.description,
+      id: task.project_id,
+      description: projectGoal?.description || 'No goal set for this project',
     };
     included.push('goal');
   }
@@ -689,8 +690,17 @@ export function buildGoalCompletionPrompt(state: SupervisorState, sandboxRoot: s
   sections.push('');
   sections.push('You are being asked to evaluate if the project goal has been completed.');
   sections.push('');
-  sections.push('## Goal Description');
-  sections.push(state.goal.description);
+  sections.push('## Goals');
+  const goalEntries = Object.entries(state.goals);
+  if (goalEntries.length === 0) {
+    sections.push('No goals set.');
+  } else {
+    for (const [pid, goal] of goalEntries) {
+      sections.push(`### Project: ${pid} ${goal.completed ? '(COMPLETED)' : '(IN PROGRESS)'}`);
+      sections.push(goal.description);
+      sections.push('');
+    }
+  }
   sections.push('');
   sections.push('## Completed Tasks');
   if (state.completed_tasks && state.completed_tasks.length > 0) {
@@ -783,11 +793,7 @@ export function parseGoalCompletionResponse(response: string): boolean {
 // Legacy PromptBuilder class for backward compatibility
 export class PromptBuilder {
   buildMinimalSnapshot(state: SupervisorState, task: Task, sandboxCwd?: string): MinimalState {
-    const defaultCwd = task.project_id
-      ? `sandbox/${task.project_id}`
-      : state.goal.project_id
-        ? `sandbox/${state.goal.project_id}`
-        : 'sandbox/default';
+    const defaultCwd = `sandbox/${task.project_id}`;
     return buildMinimalState(task, state, sandboxCwd || defaultCwd);
   }
 

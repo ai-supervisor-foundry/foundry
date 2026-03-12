@@ -173,10 +173,12 @@ describe('Persistence', () => {
 
     it('should handle goal transitions', async () => {
       const state = createMockState({
-        goal: {
-          description: 'Complete feature X',
-          completed: true,
-          project_id: 'proj-1',
+        goals: {
+          'proj-1': {
+            description: 'Complete feature X',
+            completed: true,
+            project_id: 'proj-1',
+          },
         },
       });
       const stateKey = 'supervisor:state';
@@ -185,9 +187,9 @@ describe('Persistence', () => {
 
       const loaded = await loadState(mockRedis, stateKey);
 
-      expect(loaded.goal.completed).toBe(true);
-      expect(loaded.goal.description).toBe('Complete feature X');
-      expect(loaded.goal.project_id).toBe('proj-1');
+      expect(loaded.goals['proj-1'].completed).toBe(true);
+      expect(loaded.goals['proj-1'].description).toBe('Complete feature X');
+      expect(loaded.goals['proj-1'].project_id).toBe('proj-1');
     });
 
     it('should backfill missing intent for legacy completed tasks', async () => {
@@ -220,7 +222,7 @@ describe('Persistence', () => {
     it('should maintain state integrity through persist/load cycle', async () => {
       const original = createMockState({
         supervisor: { status: 'RUNNING', iteration: 42 },
-        goal: { description: 'Test goal', completed: false },
+        goals: { 'test-project': { description: 'Test goal', completed: false, project_id: 'test-project' } },
       });
       const stateKey = 'supervisor:state';
 
@@ -235,7 +237,7 @@ describe('Persistence', () => {
 
       expect(loaded.supervisor.status).toBe(original.supervisor.status);
       expect(loaded.supervisor.iteration).toBe(original.supervisor.iteration);
-      expect(loaded.goal.description).toBe(original.goal.description);
+      expect(loaded.goals['test-project'].description).toBe(original.goals['test-project'].description);
       expect(loaded.execution_mode).toBe(original.execution_mode);
     });
   });

@@ -154,9 +154,12 @@ export async function controlLoop(
         }
         
         if (goalResult.completed) {
-            logShared('ControlLoop', `[Iteration ${iteration}] Queue exhausted, goal completed - exiting`);
+            logShared('ControlLoop', `[Iteration ${iteration}] Queue exhausted, all goals completed - exiting`);
             state.supervisor.status = 'COMPLETED';
-            state.goal.completed = true;
+            // Mark all goals as completed
+            for (const goal of Object.values(state.goals)) {
+              goal.completed = true;
+            }
             await stateManager.persistState(state, iteration);
             await auditLogger.append({ event: 'COMPLETED', timestamp: new Date().toISOString() });
             return;
@@ -170,8 +173,13 @@ export async function controlLoop(
     analyticsService.initializeTask(task.task_id);
     analyticsService.recordIteration(task.task_id);
 
-    // 5. Set current_task and persist
-    state.current_task = task;
+    // 5. Set active_tasks and persist
+    if (!state.active_tasks) state.active_tasks = {};
+    state.active_tasks[task.task_id] = {
+      task,
+      worker_id: 'main',
+      started_at: new Date().toISOString(),
+    };
     await stateManager.persistState(state, iteration, task.task_id);
 
     // 6. Execute task

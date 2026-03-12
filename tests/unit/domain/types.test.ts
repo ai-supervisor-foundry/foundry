@@ -17,9 +17,8 @@ describe('Types', () => {
           status: 'RUNNING',
           iteration: 0,
         },
-        goal: {
-          description: 'Test goal',
-          completed: false,
+        goals: {
+          'test-project': { description: 'Test goal', completed: false, project_id: 'test-project' },
         },
         queue: {
           exhausted: false,
@@ -38,9 +37,8 @@ describe('Types', () => {
           iteration: 5,
           halt_reason: 'ASKED_QUESTION',
         },
-        goal: {
-          description: 'Test goal',
-          completed: false,
+        goals: {
+          'test-project': { description: 'Test goal', completed: false, project_id: 'test-project' },
         },
         queue: {
           exhausted: false,
@@ -60,9 +58,8 @@ describe('Types', () => {
           halt_reason: 'TASK_LIST_EXHAUSTED_GOAL_INCOMPLETE',
           halt_details: 'Task list exhausted but goal not achieved',
         },
-        goal: {
-          description: 'Test goal',
-          completed: false,
+        goals: {
+          'test-project': { description: 'Test goal', completed: false, project_id: 'test-project' },
         },
         queue: {
           exhausted: true,
@@ -81,9 +78,8 @@ describe('Types', () => {
           status: 'COMPLETED',
           iteration: 10,
         },
-        goal: {
-          description: 'Test goal',
-          completed: true,
+        goals: {
+          'test-project': { description: 'Test goal', completed: true, project_id: 'test-project' },
         },
         queue: {
           exhausted: true,
@@ -93,7 +89,7 @@ describe('Types', () => {
       };
 
       expect(state.supervisor.status).toBe('COMPLETED');
-      expect(state.goal.completed).toBe(true);
+      expect(state.goals['test-project'].completed).toBe(true);
     });
 
     it('should track completed tasks', () => {
@@ -102,9 +98,8 @@ describe('Types', () => {
           status: 'RUNNING',
           iteration: 5,
         },
-        goal: {
-          description: 'Test goal',
-          completed: false,
+        goals: {
+          'test-project': { description: 'Test goal', completed: false, project_id: 'test-project' },
         },
         queue: {
           exhausted: false,
@@ -139,9 +134,8 @@ describe('Types', () => {
           status: 'BLOCKED',
           iteration: 3,
         },
-        goal: {
-          description: 'Test goal',
-          completed: false,
+        goals: {
+          'test-project': { description: 'Test goal', completed: false, project_id: 'test-project' },
         },
         queue: {
           exhausted: false,
@@ -171,9 +165,8 @@ describe('Types', () => {
             next_retry_at: '2024-01-01T00:01:00Z',
           },
         },
-        goal: {
-          description: 'Test goal',
-          completed: false,
+        goals: {
+          'test-project': { description: 'Test goal', completed: false, project_id: 'test-project' },
         },
         queue: {
           exhausted: false,
@@ -207,6 +200,7 @@ describe('Types', () => {
           task_type: type,
           instructions: 'Test instructions',
           acceptance_criteria: [],
+          affects_files: ['src/test.ts'],
           status: 'pending',
         };
 
@@ -222,6 +216,7 @@ describe('Types', () => {
         tool: Provider.CURSOR,
         instructions: 'Test instructions',
         acceptance_criteria: [],
+        affects_files: ['src/test.ts'],
         status: 'pending',
         retry_policy: {
           max_retries: 2,
@@ -241,6 +236,7 @@ describe('Types', () => {
         tool: Provider.CURSOR,
         instructions: 'Test instructions',
         acceptance_criteria: [],
+        affects_files: ['src/test.ts'],
         status: 'pending',
         meta: {
           session_id: 'sess-123',
@@ -262,6 +258,7 @@ describe('Types', () => {
           tool: Provider.CURSOR,
           instructions: 'Test instructions',
           acceptance_criteria: [],
+          affects_files: ['src/test.ts'],
           status,
         };
 
@@ -277,6 +274,7 @@ describe('Types', () => {
         tool: Provider.CURSOR,
         instructions: 'Test instructions',
         acceptance_criteria: [],
+        affects_files: ['src/test.ts'],
         status: 'pending',
         working_directory: 'src/subsystem',
       };
@@ -292,6 +290,7 @@ describe('Types', () => {
         tool: Provider.CURSOR,
         instructions: 'Test instructions',
         acceptance_criteria: [],
+        affects_files: ['src/test.ts'],
         status: 'pending',
         agent_mode: 'opus',
       };

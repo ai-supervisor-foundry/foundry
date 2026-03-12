@@ -5,8 +5,14 @@
   "constraints": {
     "_comment": "Operator-defined constraints on execution"
   },
-  "current_task": {
-    "_comment": "The task currently being executed"
+  "active_tasks": {
+    "_comment": "Record<string, ActiveTask> — tasks currently being executed by workers, keyed by task_id. Each entry contains { task, worker_id, started_at, worktree_path? }"
+  },
+  "worker_pool": {
+    "_comment": "Worker pool configuration: { max_workers, active_count }"
+  },
+  "file_locks": {
+    "_comment": "Record<string, FileLock> — active file locks for parallel execution, keyed by file_path"
   },
   "completed_tasks": {
     "_comment": "List of tasks that have been completed. Includes 'intent', 'summary', and 'requires_context' for context tracking."

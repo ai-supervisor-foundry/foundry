@@ -38,7 +38,7 @@ export interface AuditLogEntry {
 interface MinimalStateDiff {
   supervisor_status?: string;
   supervisor_iteration?: number;
-  goal_completed?: boolean;
+  all_goals_completed?: boolean;
   queue_exhausted?: boolean;
   completed_tasks_count?: number;
 }
@@ -50,7 +50,7 @@ function createMinimalStateDiff(state: SupervisorState): MinimalStateDiff {
   return {
     supervisor_status: state.supervisor.status,
     supervisor_iteration: state.supervisor.iteration,
-    goal_completed: state.goal.completed,
+    all_goals_completed: Object.values(state.goals).every(g => g.completed),
     queue_exhausted: state.queue.exhausted,
     completed_tasks_count: state.completed_tasks?.length || 0,
   };

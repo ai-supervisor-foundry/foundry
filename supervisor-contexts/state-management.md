@@ -16,10 +16,12 @@ The supervisor state is stored as a single JSON blob in DragonflyDB with the fol
 
 ```json
 {
-  "goal": {
-    "description": "string",
-    "completed": boolean,
-    "project_id": "string (optional — goal-level default for tasks)"
+  "goals": {
+    "<project_id>": {
+      "description": "string",
+      "completed": boolean,
+      "project_id": "string (same as key, for self-reference)"
+    }
   },
   "supervisor": {
     "status": "RUNNING" | "HALTED" | "COMPLETED" | "BLOCKED",
@@ -27,12 +29,26 @@ The supervisor state is stored as a single JSON blob in DragonflyDB with the fol
     "halt_reason": "string" | undefined,
     "halt_details": "string" | undefined
   },
-  "current_task": {
-    "task_id": "string",
-    "attempt": number,
-    "started_at": "ISO8601",
-    "last_attempt_at": "ISO8601"
-  } | null,
+  "active_tasks": {
+    "<task_id>": {
+      "task": Task,
+      "worker_id": "string",
+      "started_at": "ISO8601",
+      "worktree_path": "string" | undefined
+    }
+  },
+  "worker_pool": {
+    "max_workers": number,
+    "active_count": number
+  } | undefined,
+  "file_locks": {
+    "<file_path>": {
+      "file_path": "string",
+      "task_id": "string",
+      "worker_id": "string",
+      "acquired_at": "ISO8601"
+    }
+  } | undefined,
   "completed_tasks": Array<{
     "task_id": "string",
     "completed_at": "ISO8601",
@@ -45,7 +61,9 @@ The supervisor state is stored as a single JSON blob in DragonflyDB with the fol
   }>,
   "queue": {
     "name": "string",
-    "exhausted": boolean
+    "exhausted": boolean,
+    "ready_count": number | undefined,
+    "waiting_count": number | undefined
   },
   "last_validation_report": ValidationReport | null,
   "last_updated": "ISO8601",
@@ -59,10 +77,13 @@ The supervisor state is stored as a single JSON blob in DragonflyDB with the fol
 }
 ```
 
-## Project ID Resolution
+## Per-Project Goals
 
-- `goal.project_id` is optional and serves as a default for tasks that omit their own.
-- Each task carries a required `project_id` field. Resolution order: `task.project_id || state.goal.project_id || 'default'`.
+- `state.goals` is a `Record<string, Goal>` keyed by `project_id`.
+- Each task carries a required `project_id` field that determines its CWD (`sandbox/{project_id}/`) and which goal it belongs to.
+- Supervisor reaches `COMPLETED` only when all project goals are completed.
+- Old state with a single `goal:` field is auto-migrated to `goals:` on load.
+- Set goals with: `npm run cli -- set-goal --project-id <id> --description "<text>"` (project-id is required).
 
 ## State Access Rules
 

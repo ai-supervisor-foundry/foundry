@@ -48,7 +48,9 @@ npm run cli -- init-state \
   --execution-mode AUTO
 ```
 
-## 2. Set Goal
+## 2. Set Goals (per project)
+
+Goals are per-project. Run once per project you want to work on:
 
 ```bash
 npm run cli -- set-goal \
@@ -57,11 +59,11 @@ npm run cli -- set-goal \
   --state-key supervisor:state \
   --queue-name tasks \
   --queue-db 2 \
-  --description "Your goal description here" \
-  --project-id my-project
+  --project-id my-project \
+  --description "Your goal description here"
 ```
 
-**Important**: The `--project-id` should match the directory name in `sandbox/` where your boilerplates are located.
+Repeat with a different `--project-id` for each sandbox project. `--project-id` is required and must match the directory name under `sandbox/`.
 
 ## 3. Enqueue Tasks
 
@@ -79,6 +81,23 @@ Tasks can reference existing files from your boilerplates. For example:
 - "Extend the existing `App.tsx` component to add..."
 - "Add a new API endpoint following the pattern in `routes/users.ts`"
 - "Update the existing database schema in `schema.sql`"
+
+### Parallel Execution Fields
+
+Each task **must** include `affects_files` (required for file locking in parallel mode):
+
+```json
+{
+  "task_id": "task-001",
+  "project_id": "my-project",
+  "affects_files": ["src/api/users.ts", "src/models/user.ts"],
+  "depends_on": ["task-000"],
+  ...
+}
+```
+
+- `affects_files` (required): Files this task will modify. Used for file-level locking to prevent concurrent edits.
+- `depends_on` (optional): Task IDs that must complete before this task can start. Tasks with unmet dependencies go to the waiting queue and are automatically promoted when deps complete.
 
 ## 4. Start Supervisor
 

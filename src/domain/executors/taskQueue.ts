@@ -89,7 +89,7 @@ export function getQueueKey(queueName: string): string {
   return `queue:${queueName}`;
 }
 
-// QueueAdapter class for backward compatibility
+// QueueAdapter class for backward compatibility (sequential mode)
 export class QueueAdapter {
   private queueKey: string;
 
@@ -106,6 +106,131 @@ export class QueueAdapter {
 
   async enqueue(task: Task): Promise<void> {
     return enqueueTask(this.client, this.queueKey, task);
+  }
+
+  async close(): Promise<void> {
+    await this.client.quit();
+  }
+}
+
+/**
+ * Dual Queue Adapter — ready/waiting queues with dependency resolution.
+ * Ready queue: tasks with no unmet dependencies (immediately dispatchable).
+ * Waiting queue: tasks with depends_on that haven't completed yet.
+ * Both use Redis Lists (LPUSH/RPOP for FIFO).
+ */
+export class DualQueueAdapter {
+  private readyKey: string;
+  private waitingKey: string;
+
+  constructor(
+    private client: Redis,
+    queueName: string
+  ) {
+    this.readyKey = `queue:${queueName}:ready`;
+    this.waitingKey = `queue:${queueName}:waiting`;
+  }
+
+  /**
+   * Enqueue a task — auto-classifies to ready or waiting based on depends_on.
+   */
+  async enqueue(task: Task): Promise<'ready' | 'waiting'> {
+    const taskJson = JSON.stringify(task);
+    if (task.depends_on && task.depends_on.length > 0) {
+      await this.client.lpush(this.waitingKey, taskJson);
+      const len = await this.client.llen(this.waitingKey);
+      log(`Task ${task.task_id} enqueued to WAITING (deps: ${task.depends_on.join(', ')}), waiting queue length: ${len}`);
+      return 'waiting';
+    } else {
+      await this.client.lpush(this.readyKey, taskJson);
+      const len = await this.client.llen(this.readyKey);
+      log(`Task ${task.task_id} enqueued to READY, ready queue length: ${len}`);
+      return 'ready';
+    }
+  }
+
+  /**
+   * Dequeue one task from the ready queue (FIFO).
+   */
+  async dequeueReady(): Promise<Task | null> {
+    const taskJson = await this.client.rpop(this.readyKey);
+    if (!taskJson) {
+      return null;
+    }
+    const task: Task = JSON.parse(taskJson);
+    log(`Dequeued ready task: ${task.task_id}`);
+    return task;
+  }
+
+  /**
+   * Promote eligible tasks from waiting → ready.
+   * A task is eligible when all its depends_on task_ids are in completedTaskIds.
+   * Returns the tasks that were promoted.
+   */
+  async promoteReadyTasks(completedTaskIds: string[]): Promise<Task[]> {
+    const completedSet = new Set(completedTaskIds);
+    const waitingLen = await this.client.llen(this.waitingKey);
+    if (waitingLen === 0) return [];
+
+    // Read all waiting tasks
+    const waitingJsons = await this.client.lrange(this.waitingKey, 0, -1);
+    const promoted: Task[] = [];
+    const stillWaiting: Task[] = [];
+
+    for (const json of waitingJsons) {
+      const task: Task = JSON.parse(json);
+      const allDepsMet = task.depends_on?.every(dep => completedSet.has(dep)) ?? true;
+      if (allDepsMet) {
+        promoted.push(task);
+      } else {
+        stillWaiting.push(task);
+      }
+    }
+
+    if (promoted.length === 0) return [];
+
+    // Rebuild waiting queue with only still-waiting tasks
+    // Use pipeline for atomicity
+    const pipeline = this.client.pipeline();
+    pipeline.del(this.waitingKey);
+    for (const task of stillWaiting) {
+      pipeline.lpush(this.waitingKey, JSON.stringify(task));
+    }
+    // Push promoted tasks to ready queue
+    for (const task of promoted) {
+      pipeline.lpush(this.readyKey, JSON.stringify(task));
+    }
+    await pipeline.exec();
+
+    for (const task of promoted) {
+      log(`Promoted task ${task.task_id} from WAITING → READY`);
+    }
+
+    return promoted;
+  }
+
+  /**
+   * Peek into the waiting queue without removing.
+   */
+  async peekWaiting(): Promise<Task[]> {
+    const items = await this.client.lrange(this.waitingKey, 0, -1);
+    return items.map(json => JSON.parse(json));
+  }
+
+  /**
+   * Peek into the ready queue without removing.
+   */
+  async peekReady(): Promise<Task[]> {
+    const items = await this.client.lrange(this.readyKey, 0, -1);
+    return items.map(json => JSON.parse(json));
+  }
+
+  async readyCount(): Promise<number> {
+    return this.client.llen(this.readyKey);
+  }
+
+  async waitingCount(): Promise<number> {
+    return this.client.llen(this.waitingKey);
   }
 
   async close(): Promise<void> {

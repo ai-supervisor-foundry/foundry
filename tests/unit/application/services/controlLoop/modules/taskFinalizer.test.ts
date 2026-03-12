@@ -38,9 +38,10 @@ describe('TaskFinalizer', () => {
       tool: Provider.GEMINI,
       instructions: 'Fix it',
       acceptance_criteria: [],
+      affects_files: ['src/test.ts'],
       status: 'in_progress',
     };
-    
+
     const report: ValidationReport = {
       valid: true,
       rules_passed: [],
@@ -89,6 +90,7 @@ describe('TaskFinalizer', () => {
         tool: Provider.GEMINI,
         instructions: 'Do it',
         acceptance_criteria: [],
+        affects_files: ['src/test.ts'],
         status: 'in_progress'
     };
     

@@ -51,8 +51,10 @@ export class TaskFinalizer {
     // Prune old tasks to cap state size
     state.completed_tasks = this.pruneCompletedTasks(state.completed_tasks);
     
-    // 3. Cleanup current task and retry state
-    state.current_task = undefined;
+    // 3. Cleanup active task and retry state
+    if (state.active_tasks) {
+      delete state.active_tasks[task.task_id];
+    }
     if (state.supervisor.resource_exhausted_retry) {
       this.logger.log('ControlLoop', `[Iteration ${iteration}] Task ${task.task_id}: Clearing resource_exhausted_retry after successful completion`);
       delete state.supervisor.resource_exhausted_retry;

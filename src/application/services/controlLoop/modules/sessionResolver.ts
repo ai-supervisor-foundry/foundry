@@ -47,7 +47,7 @@ export class SessionResolver {
   getFeatureId(task: Task, state: SupervisorState): string {
     return task.meta?.feature_id 
       || (task.task_id ? `task:${task.task_id.split('_')[0]}` : undefined)
-      || (state.goal.project_id ? `project:${state.goal.project_id}` : undefined)
+      || (task.project_id ? `project:${task.project_id}` : undefined)
       || 'default';
   }
 

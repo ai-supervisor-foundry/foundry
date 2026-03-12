@@ -14,19 +14,23 @@ export interface SupervisorState {
     halt_reason?: string;
     halt_details?: string;
   };
-  goal: {
+  goals: Record<string, {
     description: string;
     completed: boolean;
-    project_id?: string; // Default project for goal-level operations
-  };
+    project_id: string;
+  }>;
   constraints?: Record<string, unknown>;
-  current_task?: unknown;
+  active_tasks?: Record<string, { task: unknown; worker_id: string; started_at: string; worktree_path?: string }>;
   completed_tasks?: unknown[];
   blocked_tasks?: unknown[];
   decisions?: unknown[];
   artifacts?: unknown[];
+  worker_pool?: { max_workers: number; active_count: number };
+  file_locks?: Record<string, { file_path: string; task_id: string; worker_id: string; acquired_at: string }>;
   queue: {
     exhausted: boolean;
+    ready_count?: number;
+    waiting_count?: number;
   };
   last_updated: string;
   execution_mode: 'AUTO' | 'MANUAL';
@@ -130,10 +134,15 @@ export async function updateTaskInState(taskId: string, updates: Record<string, 
     }
   }
   
-  // Also check if it's the current task (though usually read-only)
-  if (!found && (state as any).current_task && (state as any).current_task.task_id === taskId) {
-      (state as any).current_task = { ...(state as any).current_task, ...updates };
-      found = true;
+  // Also check if it's an active task (though usually read-only)
+  if (!found && state.active_tasks) {
+    for (const [atId, activeTask] of Object.entries(state.active_tasks)) {
+      if ((activeTask.task as any)?.task_id === taskId) {
+        state.active_tasks[atId] = { ...activeTask, task: { ...(activeTask.task as object), ...updates } };
+        found = true;
+        break;
+      }
+    }
   }
 
   if (found) {
@@ -166,14 +175,14 @@ export async function getSupervisorStatus(): Promise<{
 }
 
 /**
- * Get current task
+ * Get active tasks
  */
-export async function getCurrentTask(): Promise<unknown | null> {
+export async function getActiveTasks(): Promise<Record<string, unknown> | null> {
   try {
     const state = await loadSupervisorState();
-    return state?.current_task || null;
+    return state?.active_tasks || null;
   } catch (error) {
-    console.error('Error getting current task:', error);
+    console.error('Error getting active tasks:', error);
     return null;
   }
 }

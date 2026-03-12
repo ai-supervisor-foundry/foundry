@@ -1,4 +1,4 @@
-// Script to clean up goal (remove AI-powered and Gemini mentions)
+// Script to clean up goals (remove AI-powered and Gemini mentions)
 import Redis from 'ioredis';
 
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
@@ -23,35 +23,42 @@ async function cleanGoal() {
     }
 
     const state = JSON.parse(rawState);
-    console.log('\n=== Current Goal ===');
-    console.log(state.goal.description);
 
-    // Clean up: Remove AI-powered and Gemini mentions
-    let cleanedGoal = state.goal.description
-      .replace(/AI-powered smart search via Google Gemini API integration,?\s*/gi, '')
-      .replace(/AI-powered\s*/gi, '')
-      .replace(/Google Gemini API integration,?\s*/gi, '')
-      .replace(/Gemini API integration,?\s*/gi, '')
-      .replace(/via Google Gemini API integration,?\s*/gi, '')
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .trim();
+    // Handle both old (goal) and new (goals) shapes
+    const goals = state.goals || (state.goal ? { [state.goal.project_id || 'default']: state.goal } : {});
 
-    // Ensure proper sentence structure
-    if (cleanedGoal.includes('The system features')) {
-      cleanedGoal = cleanedGoal.replace(/The system features\s*,?\s*/gi, 'The system features ');
+    for (const [projectId, goal] of Object.entries(goals) as [string, any][]) {
+      console.log(`\n=== Goal [${projectId}] ===`);
+      console.log(goal.description);
+
+      let cleanedGoal = goal.description
+        .replace(/AI-powered smart search via Google Gemini API integration,?\s*/gi, '')
+        .replace(/AI-powered\s*/gi, '')
+        .replace(/Google Gemini API integration,?\s*/gi, '')
+        .replace(/Gemini API integration,?\s*/gi, '')
+        .replace(/via Google Gemini API integration,?\s*/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (cleanedGoal.includes('The system features')) {
+        cleanedGoal = cleanedGoal.replace(/The system features\s*,?\s*/gi, 'The system features ');
+      }
+
+      console.log(`\n=== Cleaned [${projectId}] ===`);
+      console.log(cleanedGoal);
+
+      goal.description = cleanedGoal;
     }
 
-    console.log('\n=== Cleaned Goal ===');
-    console.log(cleanedGoal);
-
-    // Update state
-    state.goal.description = cleanedGoal;
+    // Write back with new shape
+    state.goals = goals;
+    delete state.goal;
     state.last_updated = new Date().toISOString();
 
     await client.set(STATE_KEY, JSON.stringify(state));
-    console.log('\n✅ Goal cleaned and state updated successfully!');
+    console.log('\nGoals cleaned and state updated successfully!');
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('Error:', error);
     process.exit(1);
   } finally {
     await client.quit();
@@ -59,4 +66,3 @@ async function cleanGoal() {
 }
 
 cleanGoal();
-

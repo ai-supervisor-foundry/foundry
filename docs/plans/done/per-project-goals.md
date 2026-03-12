@@ -1,6 +1,6 @@
 # Per-Project Goals
 
-**Status:** PLANNED
+**Status:** COMPLETED
 **Date:** 2026-03-12
 **Depends on:** multi-goal-support.md (Option B — completed)
 

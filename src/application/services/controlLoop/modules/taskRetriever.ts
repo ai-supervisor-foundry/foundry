@@ -4,7 +4,7 @@ import { log as logShared, logVerbose, logPerformance } from '../../../../infras
 
 export interface TaskRetrievalResult {
   task: Task | null;
-  source: 'current_task_recovery' | 'retry_task' | 'queue' | 'none';
+  source: 'active_task_recovery' | 'retry_task' | 'queue' | 'none';
 }
 
 export class TaskRetriever {
@@ -17,15 +17,19 @@ export class TaskRetriever {
     let task: Task | null = null;
     let taskSource: TaskRetrievalResult['source'] = 'none';
 
-    // 1. Recover interrupted task
-    if (state.current_task) {
-      task = state.current_task;
-      taskSource = 'current_task_recovery';
+    // 1. Recover interrupted task from active_tasks
+    const activeTaskEntries = state.active_tasks ? Object.values(state.active_tasks) : [];
+    if (activeTaskEntries.length > 0) {
+      // In sequential mode, recover the first (only) active task
+      const activeEntry = activeTaskEntries[0];
+      task = activeEntry.task;
+      taskSource = 'active_task_recovery';
       logShared('ControlLoop', `[Iteration ${iteration}] Recovering interrupted task: ${task.task_id}`);
-      logVerbose('ControlLoop', 'Recovered interrupted task from state', {
+      logVerbose('ControlLoop', 'Recovered interrupted task from active_tasks', {
         iteration,
         task_id: task.task_id,
         intent: task.intent,
+        worker_id: activeEntry.worker_id,
       });
     }
     // 2. Recover retry task

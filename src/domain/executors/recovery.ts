@@ -109,15 +109,17 @@ export function detectRecoveryScenario(
   }
 
   // Scenario 3: Conflicting state
-  // Detected by: inconsistent state (e.g., RUNNING but no current task, or multiple conflicting flags)
-  if (state.supervisor.status === 'RUNNING' && !state.current_task && state.queue.exhausted && !state.goal.completed) {
+  // Detected by: inconsistent state (e.g., RUNNING but no active tasks, or multiple conflicting flags)
+  const allGoalsCompleted = Object.values(state.goals).every(g => g.completed);
+  const hasActiveTasks = state.active_tasks && Object.keys(state.active_tasks).length > 0;
+  if (state.supervisor.status === 'RUNNING' && !hasActiveTasks && state.queue.exhausted && !allGoalsCompleted) {
     const duration = Date.now() - startTime;
     logPerformance('DetectRecoveryScenario', duration, { scenario: 'CONFLICTING_STATE' });
     logVerbose('DetectRecoveryScenario', 'CONFLICTING_STATE detected (RUNNING but exhausted)', {
       status: state.supervisor.status,
-      has_current_task: !!state.current_task,
+      has_active_tasks: hasActiveTasks,
       queue_exhausted: state.queue.exhausted,
-      goal_completed: state.goal.completed,
+      all_goals_completed: allGoalsCompleted,
     });
     return {
       scenario: 'CONFLICTING_STATE',
