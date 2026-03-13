@@ -68,10 +68,8 @@ describe('PromptBuilder', () => {
         instructions: 'Implement the goal described in the project',
       });
       const state = createMockState({
-        goal: {
-          description: 'Build a RESTful API',
-          completed: false,
-          project_id: 'test-project',
+        goals: {
+          'test-project': { description: 'Build a RESTful API', completed: false, project_id: 'test-project' },
         },
       });
       const sandboxCwd = '/sandbox/test-project';
@@ -215,9 +213,8 @@ describe('PromptBuilder', () => {
         instructions: 'Initialize the goal',
       });
       const state = createMockState({
-        goal: {
-          description: 'Build the system',
-          completed: false,
+        goals: {
+          'test-project': { description: 'Build the system', completed: false, project_id: 'test-project' },
         },
       });
       const sandboxCwd = '/sandbox/test-project';

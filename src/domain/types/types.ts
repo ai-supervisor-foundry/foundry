@@ -40,6 +40,31 @@ export interface CodingOutput {
   summary: string;
 }
 
+export interface Goal {
+  description: string;
+  completed: boolean;
+  project_id: string; // same as the key in goals Record
+}
+
+export interface ActiveTask {
+  task: Task;
+  worker_id: string;
+  started_at: string;
+  worktree_path?: string;
+}
+
+export interface FileLock {
+  file_path: string;
+  task_id: string;
+  worker_id: string;
+  acquired_at: string;
+}
+
+export interface WorkerPoolConfig {
+  max_workers: number;
+  active_count: number;
+}
+
 export interface SupervisorState {
   supervisor: {
     status: SupervisorStatus;
@@ -54,20 +79,20 @@ export interface SupervisorState {
       next_retry_at: string;
     };
   };
-  goal: {
-    description: string;
-    completed: boolean;
-    project_id?: string;
-  };
+  goals: Record<string, Goal>; // keyed by project_id
   constraints?: Record<string, unknown>;
-  current_task?: Task;
+  active_tasks?: Record<string, ActiveTask>;
   completed_tasks?: CompletedTask[];
   blocked_tasks?: BlockedTask[];
   decisions?: Decision[];
   artifacts?: Artifact[];
   active_sessions?: Record<string, SessionInfo>; // Keyed by feature_id or project_id
+  worker_pool?: WorkerPoolConfig;
+  file_locks?: Record<string, FileLock>;
   queue: {
     exhausted: boolean;
+    ready_count?: number;
+    waiting_count?: number;
   };
   last_updated: string;
   execution_mode: 'AUTO' | 'MANUAL';
@@ -101,6 +126,9 @@ export interface Task {
   acceptance_criteria: string[];
   retry_policy?: RetryPolicy;
   status: 'pending' | 'in_progress' | 'completed' | 'blocked' | 'failed';
+  // Parallel execution fields
+  depends_on?: string[]; // task_ids that must complete first
+  affects_files: string[]; // files this task will touch (required for parallel dispatch)
   // Validation-specific fields
   expected_json_schema?: Record<string, unknown>; // Expected JSON schema for output
   required_artifacts?: string[]; // Relative paths to required artifacts

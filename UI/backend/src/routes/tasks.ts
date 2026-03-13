@@ -80,7 +80,7 @@ router.get('/dump', async (req, res, next) => {
       pending: pending,
       completed: state?.completed_tasks || [],
       blocked: state?.blocked_tasks || [],
-      in_progress: state?.current_task ? [state.current_task] : [],
+      in_progress: state?.active_tasks ? Object.values(state.active_tasks).map(at => at.task) : [],
       dumped_at: new Date().toISOString()
     };
     
@@ -123,9 +123,9 @@ router.post('/update', async (req, res, next) => {
     } else if (state.blocked_tasks?.some((t: any) => t.task_id === taskId)) {
       taskLocation = 'blocked';
       taskData = state.blocked_tasks.find((t: any) => t.task_id === taskId);
-    } else if ((state.current_task as any)?.task_id === taskId) {
+    } else if (state.active_tasks && state.active_tasks[taskId]) {
       taskLocation = 'current';
-      taskData = state.current_task;
+      taskData = state.active_tasks[taskId].task;
     }
     
     // Check Queue if not found in state
@@ -173,8 +173,8 @@ router.post('/update', async (req, res, next) => {
         } else if (taskLocation === 'blocked') {
            const idx = state.blocked_tasks!.findIndex((t: any) => t.task_id === taskId);
            state.blocked_tasks![idx] = updatedTask;
-        } else if (taskLocation === 'current') {
-           state.current_task = updatedTask;
+        } else if (taskLocation === 'current' && state.active_tasks && state.active_tasks[taskId]) {
+           state.active_tasks[taskId] = { ...state.active_tasks[taskId], task: updatedTask };
         }
         await saveSupervisorState(state);
       }
@@ -187,7 +187,7 @@ router.post('/update', async (req, res, next) => {
       } else {
         if (taskLocation === 'completed') removeTaskFromList(state.completed_tasks!, taskId);
         else if (taskLocation === 'blocked') removeTaskFromList(state.blocked_tasks!, taskId);
-        else if (taskLocation === 'current') state.current_task = undefined;
+        else if (taskLocation === 'current' && state.active_tasks) delete state.active_tasks[taskId];
       }
 
       // Add to target
@@ -212,7 +212,12 @@ router.post('/update', async (req, res, next) => {
           if (!updatedTask.blocked_at) updatedTask.blocked_at = new Date().toISOString();
           state.blocked_tasks.push(updatedTask);
         } else if (targetLocation === 'current') {
-          state.current_task = updatedTask;
+          if (!state.active_tasks) state.active_tasks = {};
+          state.active_tasks[taskId] = {
+            task: updatedTask,
+            worker_id: 'main',
+            started_at: new Date().toISOString(),
+          };
         }
       }
       

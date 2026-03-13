@@ -21,10 +21,12 @@ export class GoalCompletionChecker {
 
   async checkGoalCompletion(state: SupervisorState, iteration: number): Promise<GoalCheckResult> {
     this.logger.log('ControlLoop', `[Iteration ${iteration}] No task available`);
+    const allGoalsCompleted = Object.values(state.goals).every(g => g.completed);
     this.logger.logVerbose('ControlLoop', 'No task available, checking queue and goal status', {
       iteration,
       queue_exhausted: state.queue.exhausted,
-      goal_completed: state.goal.completed,
+      all_goals_completed: allGoalsCompleted,
+      goal_count: Object.keys(state.goals).length,
     });
     
     // mark queue.exhausted = true
@@ -34,8 +36,8 @@ export class GoalCompletionChecker {
       this.logger.logStateTransition('QUEUE_ACTIVE', 'QUEUE_EXHAUSTED', { iteration });
     }
     
-    // If goal is already completed, return true
-    if (state.goal.completed) {
+    // If all goals are already completed, return true
+    if (allGoalsCompleted && Object.keys(state.goals).length > 0) {
         return { completed: true, shouldHalt: false };
     }
 
@@ -48,23 +50,24 @@ export class GoalCompletionChecker {
       return { completed: false, shouldHalt: false }; 
     }
     
-    this.logger.log('ControlLoop', `[Iteration ${iteration}] Queue exhausted, checking if goal is met...`);
-    this.logger.logVerbose('ControlLoop', 'Asking agent if goal is completed', {
+    this.logger.log('ControlLoop', `[Iteration ${iteration}] Queue exhausted, checking if goals are met...`);
+    const goalDescriptions = Object.entries(state.goals).map(([pid, g]) => `${pid}: ${g.description}`);
+    this.logger.logVerbose('ControlLoop', 'Asking agent if goals are completed', {
         iteration,
-        goal_description: state.goal.description,
+        goal_descriptions: goalDescriptions,
         completed_tasks_count: state.completed_tasks?.length || 0,
         blocked_tasks_count: state.blocked_tasks?.length || 0,
     });
-    
+
     // Build goal completion check prompt
     const goalCheckPrompt = buildGoalCompletionPrompt(state, this.sandboxRoot);
-    const projectId = state.goal.project_id || 'default';
-    const sandboxCwd = path.join(this.sandboxRoot, projectId);
+    const firstProjectId = Object.keys(state.goals)[0] || 'default';
+    const sandboxCwd = path.join(this.sandboxRoot, firstProjectId);
     
     // Log goal check prompt
     await this.promptLogger.appendPromptLog(
         this.sandboxRoot,
-        projectId,
+        firstProjectId,
         {
         task_id: 'goal-completion-check',
         iteration,
@@ -81,14 +84,14 @@ export class GoalCompletionChecker {
     
     // Ask agent if goal is met
     this.logger.log('ControlLoop', `[Iteration ${iteration}] Asking agent if goal is completed...`);
-    const goalSessionId = state.active_sessions?.['default']?.session_id || state.active_sessions?.[projectId]?.session_id;
+    const goalSessionId = state.active_sessions?.['default']?.session_id || state.active_sessions?.[firstProjectId]?.session_id;
     const goalCheckResult = await this.cliAdapter.execute(goalCheckPrompt, sandboxCwd, 'auto', goalSessionId);
     const goalCheckResponse = goalCheckResult.stdout || goalCheckResult.rawOutput || '';
     
     // Log goal check response
     await this.promptLogger.appendPromptLog(
         this.sandboxRoot,
-        projectId,
+        firstProjectId,
         {
         task_id: 'goal-completion-check',
         iteration,

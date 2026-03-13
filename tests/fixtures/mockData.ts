@@ -15,6 +15,7 @@ export const createMockTask = (overrides?: Partial<Task>): Task => ({
     'Function must validate input',
     'Function must return boolean',
   ],
+  affects_files: ['src/test.ts'],
   status: 'pending',
   retry_policy: {
     max_retries: 2,
@@ -28,10 +29,12 @@ export const createMockState = (overrides?: Partial<SupervisorState>): Superviso
     iteration: 0,
     last_task_id: undefined,
   },
-  goal: {
-    description: 'Build a test module',
-    completed: false,
-    project_id: 'test-project',
+  goals: {
+    'test-project': {
+      description: 'Build a test module',
+      completed: false,
+      project_id: 'test-project',
+    },
   },
   queue: {
     exhausted: false,

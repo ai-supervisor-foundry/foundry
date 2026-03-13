@@ -7,15 +7,15 @@ describe('Supervisor Integration', () => {
     it('should transition from RUNNING to COMPLETED when goal is achieved', () => {
       const state = createMockState({
         supervisor: { status: 'RUNNING', iteration: 0 },
-        goal: { description: 'Test goal', completed: false },
+        goals: { 'test-project': { description: 'Test goal', completed: false, project_id: 'test-project' } },
       });
 
       // Simulate completion
       state.supervisor.status = 'COMPLETED';
-      state.goal.completed = true;
+      state.goals['test-project'].completed = true;
 
       expect(state.supervisor.status).toBe('COMPLETED');
-      expect(state.goal.completed).toBe(true);
+      expect(state.goals['test-project'].completed).toBe(true);
     });
 
     it('should transition from RUNNING to BLOCKED on ambiguity', () => {
@@ -219,7 +219,7 @@ describe('Supervisor Integration', () => {
   describe('Goal completion detection', () => {
     it('should detect goal completion when all criteria met', () => {
       const state = createMockState({
-        goal: { description: 'Build system', completed: false },
+        goals: { 'test-project': { description: 'Build system', completed: false, project_id: 'test-project' } },
         completed_tasks: [],
         queue: { exhausted: false },
       });
@@ -231,21 +231,21 @@ describe('Supervisor Integration', () => {
         validation_report: { valid: true, rules_passed: [], rules_failed: [] },
       });
 
-      state.goal.completed = true;
+      state.goals['test-project'].completed = true;
       state.supervisor.status = 'COMPLETED';
 
-      expect(state.goal.completed).toBe(true);
+      expect(state.goals['test-project'].completed).toBe(true);
       expect(state.supervisor.status).toBe('COMPLETED');
     });
 
     it('should detect goal incompleteness on queue exhaustion', () => {
       const state = createMockState({
-        goal: { description: 'Build system', completed: false },
+        goals: { 'test-project': { description: 'Build system', completed: false, project_id: 'test-project' } },
         queue: { exhausted: true },
       });
 
       expect(state.queue.exhausted).toBe(true);
-      expect(state.goal.completed).toBe(false);
+      expect(state.goals['test-project'].completed).toBe(false);
     });
   });
 });

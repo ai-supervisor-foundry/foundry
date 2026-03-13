@@ -47,14 +47,14 @@ describe('cursorCLI', () => {
       request_id: 'req-123',
     });
 
-  test('dispatchToCursor spawns with --approve-mcps on first attempt', async () => {
+  test('dispatchToCursor spawns without --approve-mcps', async () => {
     mockSpawnProcess(cursorJsonOutput('Hello', 'sess-abc'), '', 0);
 
     await dispatchToCursor('hi', validCwd);
 
     expect(mockSpawn).toHaveBeenCalledTimes(1);
     const args = mockSpawn.mock.calls[0][1];
-    expect(args).toContain('--approve-mcps');
+    expect(args).not.toContain('--approve-mcps');
     expect(args).toContain('agent');
     expect(args).toContain('--print');
     expect(args).toContain('--force');
@@ -92,36 +92,7 @@ describe('cursorCLI', () => {
     expect(promptArg).toBe('[Feature: my-feature] task');
   });
 
-  test('retries without --approve-mcps when first attempt rejects (timeout)', async () => {
-    let callCount = 0;
-    mockSpawn.mockImplementation(() => {
-      callCount++;
-      const child = new EventEmitter() as any;
-      child.stdout = new EventEmitter();
-      child.stderr = new EventEmitter();
-      child.stdin = { end: jest.fn() };
-      child.pid = 12345;
-      if (callCount === 1) {
-        setTimeout(() => child.emit('error', new Error('timeout')), 5);
-      } else {
-        setTimeout(() => {
-          child.stdout.emit('data', Buffer.from(cursorJsonOutput('Retry ok', 's2')));
-          child.emit('close', 0);
-        }, 10);
-      }
-      return child;
-    });
-
-    const result = await dispatchToCursor('hi', validCwd);
-
-    expect(mockSpawn).toHaveBeenCalledTimes(2);
-    expect(mockSpawn.mock.calls[0][1]).toContain('--approve-mcps');
-    expect(mockSpawn.mock.calls[1][1]).not.toContain('--approve-mcps');
-    expect(result.stdout).toContain('Retry ok');
-    expect(result.sessionId).toBe('s2');
-  });
-
-  test('throws when both attempts fail', async () => {
+  test('throws on spawn error (single attempt, no retry)', async () => {
     mockSpawn.mockImplementation(() => {
       const child = new EventEmitter() as any;
       child.stdout = new EventEmitter();
@@ -133,7 +104,7 @@ describe('cursorCLI', () => {
     });
 
     await expect(dispatchToCursor('hi', validCwd)).rejects.toThrow('spawn failed');
-    expect(mockSpawn).toHaveBeenCalledTimes(2);
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
   });
 
   test('throws when cwd is invalid', async () => {

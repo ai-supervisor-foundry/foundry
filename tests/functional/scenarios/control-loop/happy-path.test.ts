@@ -54,7 +54,7 @@ describe('Functional: Control Loop - Happy Path', () => {
     const finalState = await harness.getFinalState();
     
     expect(finalState.supervisor.status).toBe('COMPLETED');
-    expect(finalState.goal.completed).toBe(true);
+    expect(Object.values(finalState.goals).every((g: any) => g.completed)).toBe(true);
     expect(finalState.completed_tasks).toHaveLength(1);
     expect(finalState.completed_tasks[0].task_id).toBe('task-001');
     expect(finalState.queue.exhausted).toBe(true);

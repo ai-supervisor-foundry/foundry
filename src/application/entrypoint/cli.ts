@@ -6,15 +6,22 @@ import { Command } from 'commander';
 import dotenv from 'dotenv';
 import Redis from 'ioredis';
 import { loadState, persistState, PersistenceLayer } from '../services/persistence';
-import { enqueueTask, getQueueKey, QueueAdapter, createQueue } from '../../domain/executors/taskQueue';
-import { SupervisorState, Task, TaskMetrics } from '../../domain/types/types';
+import { enqueueTask, getQueueKey, QueueAdapter, DualQueueAdapter, createQueue } from '../../domain/executors/taskQueue';
+import { SupervisorState, Goal, Task, TaskMetrics } from '../../domain/types/types';
 import { controlLoop } from '../services/controlLoop';
+import { scheduler } from '../services/scheduler';
 import { PromptBuilder } from '../../domain/agents/promptBuilder';
 import { CLIAdapter } from '../../infrastructure/adapters/agents/providers/cliAdapter';
 import { Validator } from '../services/validator';
 import { validationCache } from '../services/validationCache';
 import { AuditLogger } from '../../infrastructure/adapters/logging/auditLogger';
 import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared } from '../../infrastructure/adapters/logging/logger';
+import { WorkerPool } from '../workers/workerPool';
+import { FileLockManager } from '../../infrastructure/network/resilience/fileLockManager';
+import { WorktreeManager } from '../../infrastructure/adapters/os/worktreeManager';
+import { GoalCompletionChecker } from '../services/controlLoop/modules/goalCompletionChecker';
+import { LoggerAdapter } from '../../infrastructure/adapters/logging/loggerAdapter';
+import { PromptLoggerAdapter } from '../../infrastructure/adapters/logging/promptLoggerAdapter';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { Provider } from '../../domain/agents/enums/provider';
@@ -53,8 +60,7 @@ async function initState(
   client: Redis,
   stateKey: string,
   executionMode: 'AUTO' | 'MANUAL',
-  sandboxRoot: string,
-  goalDescription?: string
+  sandboxRoot: string
 ): Promise<void> {
   const startTime = Date.now();
   logVerbose('InitState', 'Initializing supervisor state', {
@@ -84,10 +90,7 @@ async function initState(
       status: 'HALTED', // Start halted, operator must resume
       iteration: 0,
     },
-    goal: {
-      description: goalDescription || '[Placeholder] Goal to be set', // Default placeholder if not provided
-      completed: false,
-    },
+    goals: {}, // Empty — operator sets goals per project via set-goal
     queue: {
       exhausted: false,
     },
@@ -128,51 +131,52 @@ async function setGoal(
   client: Redis,
   stateKey: string,
   goalDescription: string,
-  projectId?: string
+  projectId: string
 ): Promise<void> {
   const startTime = Date.now();
   logVerbose('SetGoal', 'Setting supervisor goal', {
     state_key: stateKey,
     goal_description_length: goalDescription.length,
-    has_project_id: !!projectId,
     project_id: projectId,
   });
-  
+
   const loadStartTime = Date.now();
   const state = await loadState(client, stateKey);
   const loadDuration = Date.now() - loadStartTime;
   logPerformance('SetGoalStateLoad', loadDuration, { state_key: stateKey });
+
+  const existingGoal = state.goals[projectId];
   logVerbose('SetGoal', 'State loaded', {
     state_key: stateKey,
     current_status: state.supervisor.status,
-    current_goal: state.goal.description,
-    current_project_id: state.goal.project_id,
+    existing_goal: existingGoal?.description,
+    project_id: projectId,
   });
-  
-  const previousGoal = state.goal.description;
-  const previousProjectId = state.goal.project_id;
-  state.goal.description = goalDescription;
-  if (projectId) {
-    state.goal.project_id = projectId;
-  }
-  logVerbose('SetGoal', 'Goal updated in state', {
+
+  // Upsert goal for this project
+  state.goals[projectId] = {
+    description: goalDescription,
+    completed: existingGoal?.completed || false,
+    project_id: projectId,
+  };
+  logVerbose('SetGoal', 'Goal upserted', {
     state_key: stateKey,
-    previous_goal_length: previousGoal.length,
+    project_id: projectId,
     new_goal_length: goalDescription.length,
-    previous_project_id: previousProjectId,
-    new_project_id: projectId || previousProjectId,
+    was_update: !!existingGoal,
   });
 
   const persistStartTime = Date.now();
   await persistState(client, stateKey, state);
   const persistDuration = Date.now() - persistStartTime;
   logPerformance('SetGoalStatePersist', persistDuration, { state_key: stateKey });
-  
+
   const totalDuration = Date.now() - startTime;
   logPerformance('SetGoal', totalDuration, { state_key: stateKey });
-  console.log('Goal set successfully');
+  console.log(`Goal set for project '${projectId}' successfully`);
   logVerbose('SetGoal', 'Goal set completed', {
     state_key: stateKey,
+    project_id: projectId,
     total_duration_ms: totalDuration,
   });
 }
@@ -230,6 +234,9 @@ async function enqueue(
       });
       throw new Error(`Task ${task.task_id || 'unknown'} must have task_id, project_id, instructions, and acceptance_criteria`);
     }
+    if (!task.affects_files || !Array.isArray(task.affects_files) || task.affects_files.length === 0) {
+      throw new Error(`Task ${task.task_id} must have a non-empty affects_files array (required for parallel execution)`);
+    }
   }
   const validationDuration = Date.now() - validationStartTime;
   logPerformance('TaskValidation', validationDuration, { task_count: tasks.length });
@@ -254,11 +261,12 @@ async function enqueue(
     queue_db_index: queueDbIndex,
   });
 
-  const queueKey = getQueueKey(queueName);
-  logVerbose('Enqueue', 'Queue key determined', { queue_key: queueKey });
-  
-  // Enqueue all tasks
+  const dualQueue = new DualQueueAdapter(queueClient, queueName);
+
+  // Enqueue all tasks via dual queue (auto-classifies ready vs waiting)
   const enqueueStartTime = Date.now();
+  let readyCount = 0;
+  let waitingCount = 0;
   for (let i = 0; i < tasks.length; i++) {
     const task = tasks[i];
     const taskEnqueueStartTime = Date.now();
@@ -267,18 +275,24 @@ async function enqueue(
       total_tasks: tasks.length,
       task_id: task.task_id,
       intent: task.intent,
+      depends_on: task.depends_on,
+      affects_files: task.affects_files,
     });
-    await enqueueTask(queueClient, queueKey, task);
+    const classification = await dualQueue.enqueue(task);
+    if (classification === 'ready') readyCount++;
+    else waitingCount++;
     const taskEnqueueDuration = Date.now() - taskEnqueueStartTime;
     logPerformance('IndividualTaskEnqueue', taskEnqueueDuration, {
       task_id: task.task_id,
       task_index: i + 1,
+      classification,
     });
-    console.log(`Task ${task.task_id} enqueued successfully`);
+    console.log(`Task ${task.task_id} enqueued → ${classification.toUpperCase()}`);
   }
   const enqueueDuration = Date.now() - enqueueStartTime;
-  logPerformance('AllTasksEnqueue', enqueueDuration, { task_count: tasks.length });
-  
+  logPerformance('AllTasksEnqueue', enqueueDuration, { task_count: tasks.length, readyCount, waitingCount });
+  console.log(`Summary: ${readyCount} ready, ${waitingCount} waiting`);
+
   // Close queue connection
   const closeStartTime = Date.now();
   await queueClient.quit();
@@ -375,17 +389,54 @@ async function status(
       console.log(`Halt Details: ${state.supervisor.halt_details}`);
     }
     
-    // Display goal information
-    console.log('\n=== Goal ===');
-    console.log(`Description: ${state.goal.description || '(not set)'}`);
-    console.log(`Completed: ${state.goal.completed ? 'Yes' : 'No'}`);
-    if (state.goal.project_id) {
-      console.log(`Project ID: ${state.goal.project_id}`);
+    // Display goals information
+    console.log('\n=== Goals ===');
+    const goalEntries = Object.entries(state.goals);
+    if (goalEntries.length === 0) {
+      console.log('No goals set. Use set-goal --project-id <id> --description <text>');
+    } else {
+      for (const [pid, goal] of goalEntries) {
+        console.log(`  [${pid}] ${goal.completed ? 'DONE' : 'IN PROGRESS'}: ${goal.description}`);
+      }
+      const allDone = goalEntries.every(([, g]) => g.completed);
+      console.log(`Overall: ${allDone ? 'All goals completed' : 'In progress'}`);
     }
     
+    // Display active tasks
+    const activeTasks = state.active_tasks ? Object.entries(state.active_tasks) : [];
+    if (activeTasks.length > 0) {
+      console.log('\n=== Active Tasks ===');
+      for (const [taskId, active] of activeTasks) {
+        console.log(`  [${active.worker_id}] ${taskId} (started: ${active.started_at})`);
+        if (active.worktree_path) {
+          console.log(`    Worktree: ${active.worktree_path}`);
+        }
+      }
+    }
+
+    // Display worker pool info
+    if (state.worker_pool) {
+      console.log('\n=== Worker Pool ===');
+      console.log(`Active: ${state.worker_pool.active_count} / ${state.worker_pool.max_workers}`);
+    }
+
+    // Display file locks
+    if (state.file_locks && Object.keys(state.file_locks).length > 0) {
+      console.log('\n=== File Locks ===');
+      for (const [filePath, lock] of Object.entries(state.file_locks)) {
+        console.log(`  ${filePath} → ${lock.task_id} (worker: ${lock.worker_id})`);
+      }
+    }
+
     // Display queue information
     console.log('\n=== Queue ===');
     console.log(`Exhausted: ${state.queue.exhausted ? 'Yes' : 'No'}`);
+    if (state.queue.ready_count !== undefined) {
+      console.log(`Ready: ${state.queue.ready_count}`);
+    }
+    if (state.queue.waiting_count !== undefined) {
+      console.log(`Waiting: ${state.queue.waiting_count}`);
+    }
     
     // Display task statistics
     console.log('\n=== Task Statistics ===');
@@ -471,9 +522,15 @@ async function showMetrics(
 ): Promise<void> {
   logVerbose('Metrics', 'Showing metrics', { state_key: stateKey, sandbox_root: sandboxRoot });
   
-  // 1. Load state to get project_id
+  // 1. Load state to get project_ids
   const state = await loadState(client, stateKey);
-  const projectId = state.goal.project_id || 'default';
+  const projectIds = Object.keys(state.goals);
+  if (projectIds.length === 0) {
+    console.log('No goals set — no metrics available.');
+    return;
+  }
+  // Show metrics for first project (or could iterate all)
+  const projectId = projectIds[0];
   const metricsPath = path.join(sandboxRoot, projectId, 'metrics.jsonl');
 
   try {
@@ -537,21 +594,20 @@ async function resume(
   const state = await loadState(client, stateKey);
   const loadDuration = Date.now() - loadStartTime;
   logPerformance('ResumeStateLoad', loadDuration, { state_key: stateKey });
+  const goalCount = Object.keys(state.goals).length;
   logVerbose('Resume', 'State loaded', {
     state_key: stateKey,
     current_status: state.supervisor.status,
     current_halt_reason: state.supervisor.halt_reason,
-    has_goal: !!state.goal.description,
-    goal_length: state.goal.description?.length || 0,
+    goal_count: goalCount,
   });
-  
-  // Validate that goal is set
-  if (!state.goal.description) {
-    logVerbose('Resume', 'Resume failed: goal not set', {
+
+  // Validate that at least one goal is set
+  if (goalCount === 0) {
+    logVerbose('Resume', 'Resume failed: no goals set', {
       state_key: stateKey,
-      has_goal: false,
     });
-    throw new Error('Cannot resume: goal not set. Use set-goal command first.');
+    throw new Error('Cannot resume: no goals set. Use set-goal --project-id <id> --description <text> first.');
   }
 
   const previousStatus = state.supervisor.status;
@@ -644,23 +700,22 @@ async function start(
     const state = await loadState(stateClient, stateKey);
     const stateLoadDuration = Date.now() - stateLoadStartTime;
     logPerformance('StartStateLoad', stateLoadDuration, { state_key: stateKey });
+    const goalCount = Object.keys(state.goals).length;
     logVerbose('Start', 'State loaded', {
       state_key: stateKey,
       status: state.supervisor.status,
       iteration: state.supervisor.iteration,
       execution_mode: state.execution_mode,
-      has_goal: !!state.goal.description,
-      goal_length: state.goal.description?.length || 0,
-      project_id: state.goal.project_id,
+      goal_count: goalCount,
+      project_ids: Object.keys(state.goals),
     });
-    
-    // Validate that goal is set
-    if (!state.goal.description) {
-      logVerbose('Start', 'Start failed: goal not set', {
+
+    // Validate that at least one goal is set
+    if (goalCount === 0) {
+      logVerbose('Start', 'Start failed: no goals set', {
         state_key: stateKey,
-        has_goal: false,
       });
-      throw new Error('Cannot start: goal not set. Use set-goal command first.');
+      throw new Error('Cannot start: no goals set. Use set-goal --project-id <id> --description <text> first.');
     }
 
     // Initialize all dependencies
@@ -694,52 +749,94 @@ async function start(
       circuit_breaker_ttl_seconds: ttlSeconds,
     });
     
-    // Determine audit log path from state
-    const projectId = state.goal.project_id || 'default';
-    const logDir = path.join(sandboxRoot, projectId);
+    // Determine audit log path — use first project or sandbox root
+    const firstProjectId = Object.keys(state.goals)[0] || 'default';
+    const logDir = path.join(sandboxRoot, firstProjectId);
     const logPath = path.join(logDir, 'audit.log.jsonl');
     const auditLogger = new AuditLogger(logPath);
     logVerbose('Start', 'Audit logger initialized', {
-      project_id: projectId,
+      project_id: firstProjectId,
       log_dir: logDir,
       log_path: logPath,
     });
 
     const promptsLogPath = path.join(logDir, 'logs', 'prompts.log.jsonl');
-    console.log('Starting supervisor control loop...');
+    const maxWorkers = parseInt(process.env.MAX_WORKERS || '1', 10);
+    const fileLockTtl = parseInt(process.env.FILE_LOCK_TTL || '2100', 10);
+
+    console.log('Starting supervisor...');
     console.log(`State key: ${stateKey}`);
     console.log(`Queue: ${queueName}`);
     console.log(`Sandbox root: ${sandboxRoot}`);
-    console.log(`Project ID: ${projectId}`);
+    console.log(`Projects: ${Object.keys(state.goals).join(', ')}`);
+    console.log(`Workers: ${maxWorkers}`);
     console.log(`Audit log: ${logPath}`);
     console.log(`Prompts log: ${promptsLogPath}`);
     console.log('Press Ctrl+C to stop\n');
-    logVerbose('Start', 'Control loop starting', {
-      state_key: stateKey,
-      queue_name: queueName,
-      sandbox_root: sandboxRoot,
-      project_id: projectId,
-      audit_log_path: logPath,
-      prompts_log_path: promptsLogPath,
-    });
 
-    // Run control loop (runs until halted or completed)
-    const controlLoopStartTime = Date.now();
-    await controlLoop(
-      persistence,
-      queue,
-      promptBuilder,
-      primaryAdapter,
-      secondaryAdapter,
-      validator,
-      auditLogger,
-      sandboxRoot
-    );
-    const controlLoopDuration = Date.now() - controlLoopStartTime;
-    logPerformance('ControlLoop', controlLoopDuration, {});
-    logVerbose('Start', 'Control loop completed', {
-      total_duration_ms: controlLoopDuration,
-    });
+    if (maxWorkers > 1) {
+      // Parallel mode — use scheduler with worker pool
+      logVerbose('Start', 'Starting in PARALLEL mode', { maxWorkers, fileLockTtl });
+
+      const dualQueue = new DualQueueAdapter(queueClient, queueName);
+      const workerScriptPath = path.join(__dirname, '..', 'workers', 'worker.js');
+      const workerPool = new WorkerPool(maxWorkers, workerScriptPath);
+      const lockManager = new FileLockManager(stateClient, fileLockTtl);
+      const worktreeManager = new WorktreeManager(sandboxRoot);
+      const logger = new LoggerAdapter();
+      const promptLogger = new PromptLoggerAdapter();
+      const goalChecker = new GoalCompletionChecker(
+        primaryAdapter,
+        logger,
+        promptLogger,
+        sandboxRoot
+      );
+
+      const workerConfig = {
+        sandboxRoot,
+        redisHost,
+        redisPort,
+        stateKey,
+        queueDb,
+        providerStrategy: process.env.PROVIDER_STRATEGY || '1',
+        circuitBreakerTtl: ttlSeconds,
+      };
+
+      const schedulerStartTime = Date.now();
+      await scheduler(
+        persistence,
+        dualQueue,
+        workerPool,
+        lockManager,
+        worktreeManager,
+        goalChecker,
+        auditLogger,
+        workerConfig,
+        sandboxRoot,
+        logger,
+      );
+      const schedulerDuration = Date.now() - schedulerStartTime;
+      logPerformance('Scheduler', schedulerDuration, {});
+      logVerbose('Start', 'Scheduler completed', { total_duration_ms: schedulerDuration });
+    } else {
+      // Sequential mode — use existing control loop
+      logVerbose('Start', 'Starting in SEQUENTIAL mode (MAX_WORKERS=1)', {});
+
+      const controlLoopStartTime = Date.now();
+      await controlLoop(
+        persistence,
+        queue,
+        promptBuilder,
+        primaryAdapter,
+        secondaryAdapter,
+        validator,
+        auditLogger,
+        sandboxRoot
+      );
+      const controlLoopDuration = Date.now() - controlLoopStartTime;
+      logPerformance('ControlLoop', controlLoopDuration, {});
+      logVerbose('Start', 'Control loop completed', { total_duration_ms: controlLoopDuration });
+    }
   } catch (error) {
     logVerbose('Start', 'Supervisor error occurred', {
       error: error instanceof Error ? error.message : String(error),
@@ -766,7 +863,6 @@ program
   .command('init-state')
   .description('Initialize supervisor state')
   .option('--execution-mode <mode>', 'Execution mode: AUTO or MANUAL (default: AUTO)', 'AUTO')
-  .option('--goal <description>', 'Initial goal description (optional)', '')
   .action(async (options) => {
     const globalOpts = program.opts();
     const client = new Redis({
@@ -780,8 +876,7 @@ program
         client,
         globalOpts.stateKey,
         options.executionMode,
-        globalOpts.sandboxRoot,
-        options.goal
+        globalOpts.sandboxRoot
       );
     } finally {
       await client.quit();
@@ -793,7 +888,7 @@ program
   .command('set-goal')
   .description('Set supervisor goal')
   .requiredOption('--description <text>', 'Goal description')
-  .option('--project-id <id>', 'Project ID')
+  .requiredOption('--project-id <id>', 'Project ID (required)')
   .action(async (options) => {
     const globalOpts = program.opts();
     const client = new Redis({

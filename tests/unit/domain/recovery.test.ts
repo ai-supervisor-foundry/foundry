@@ -158,13 +158,12 @@ describe('Recovery', () => {
           supervisor: {
             status: 'RUNNING',
           },
-          current_task: undefined,
+          active_tasks: {},
           queue: {
             exhausted: true,
           },
-          goal: {
-            completed: false,
-            description: 'Build the feature',
+          goals: {
+            'test-project': { completed: false, description: 'Build the feature', project_id: 'test-project' },
           },
         });
 
@@ -188,13 +187,15 @@ describe('Recovery', () => {
         expect(detection.details).toContain('halt_reason but status is RUNNING');
       });
 
-      it('should not detect conflicting state when RUNNING with current task', () => {
+      it('should not detect conflicting state when RUNNING with active task', () => {
         const task = createMockTask({ task_id: 'task-001' });
         const state = createMockState({
           supervisor: {
             status: 'RUNNING',
           },
-          current_task: task,
+          active_tasks: {
+            'task-001': { task, worker_id: 'main', started_at: new Date().toISOString() },
+          },
           queue: {
             exhausted: false,
           },
@@ -244,9 +245,8 @@ describe('Recovery', () => {
           supervisor: {
             status: 'COMPLETED',
           },
-          goal: {
-            completed: true,
-            description: 'Build the feature',
+          goals: {
+            'test-project': { completed: true, description: 'Build the feature', project_id: 'test-project' },
           },
         });
 

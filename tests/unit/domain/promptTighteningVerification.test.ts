@@ -30,13 +30,14 @@ describe('Prompt Tightening Verification', () => {
     intent: 'fix the bug',
     instructions: 'Fix the export in broken.ts',
     acceptance_criteria: ['x should be 2'],
+    affects_files: ['src/test.ts'],
     tool: 'gemini' as any,
     status: 'in_progress'
   };
 
   const mockState: SupervisorState = {
     supervisor: { status: 'RUNNING', iteration: 1 },
-    goal: { description: 'test goal', completed: false, project_id: 'test-p' },
+    goals: { 'test-p': { description: 'test goal', completed: false, project_id: 'test-p' } },
     queue: { exhausted: false },
     last_updated: new Date().toISOString(),
     execution_mode: 'AUTO'

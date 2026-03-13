@@ -49,6 +49,39 @@ export async function loadState(
   try {
     const parsed = JSON.parse(rawValue) as SupervisorState;
 
+    // MIGRATION: Convert old single goal to goals map
+    if ((parsed as any).goal && !parsed.goals) {
+      const oldGoal = (parsed as any).goal;
+      const projectId = oldGoal.project_id || 'default';
+      parsed.goals = {
+        [projectId]: {
+          description: oldGoal.description,
+          completed: oldGoal.completed,
+          project_id: projectId,
+        }
+      };
+      delete (parsed as any).goal;
+      logVerbose('LoadState', 'Migrated single goal to goals map', {
+        project_id: projectId,
+      });
+    }
+
+    // MIGRATION: Convert old current_task to active_tasks
+    if ((parsed as any).current_task && !parsed.active_tasks) {
+      const oldTask = (parsed as any).current_task;
+      parsed.active_tasks = {
+        [oldTask.task_id]: {
+          task: oldTask,
+          worker_id: 'main',
+          started_at: parsed.last_updated || new Date().toISOString(),
+        }
+      };
+      delete (parsed as any).current_task;
+      logVerbose('LoadState', 'Migrated current_task to active_tasks', {
+        task_id: oldTask.task_id,
+      });
+    }
+
     // BACKFILL: Handle missing intent/summary in old state
     if (parsed.completed_tasks) {
       for (let i = 0; i < parsed.completed_tasks.length; i++) {
@@ -79,7 +112,7 @@ export async function loadState(
       status: parsed.supervisor.status,
       iteration: parsed.supervisor.iteration,
       execution_mode: parsed.execution_mode,
-      goal_completed: parsed.goal.completed,
+      all_goals_completed: Object.values(parsed.goals).every(g => g.completed),
       queue_exhausted: parsed.queue.exhausted,
       completed_tasks_count: parsed.completed_tasks?.length || 0,
     });

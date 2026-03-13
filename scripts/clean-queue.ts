@@ -39,9 +39,10 @@ async function clearQueueAndTasks() {
     const state = JSON.parse(currentStateJSON);
 
     // Reset task-related fields
-    state.current_task = null;
+    state.active_tasks = {};
     state.completed_tasks = [];
     state.blocked_tasks = [];
+    delete state.current_task; // Remove legacy field if present
     
     // Reset queue statistics in state if they exist
     if (state.queue) {
@@ -59,7 +60,7 @@ async function clearQueueAndTasks() {
 
     await stateRedis.set(STATE_KEY, JSON.stringify(state, null, 2));
     console.log(`Successfully reset task-related fields in '${STATE_KEY}'.`);
-    console.log('- Set current_task to null.');
+    console.log('- Reset active_tasks to empty.');
     console.log('- Emptied completed_tasks array.');
     console.log('- Emptied blocked_tasks array.');
 

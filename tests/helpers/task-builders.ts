@@ -13,6 +13,7 @@ export class TaskBuilder {
       task_type: 'coding',
       instructions: 'Default instructions',
       acceptance_criteria: ['Task must be completed'],
+      affects_files: ['src/test.ts'],
       status: 'pending',
     };
   }
@@ -56,6 +57,16 @@ export class TaskBuilder {
 
   withProjectId(projectId: string): this {
     this.task.project_id = projectId;
+    return this;
+  }
+
+  withDependsOn(taskIds: string[]): this {
+    this.task.depends_on = taskIds;
+    return this;
+  }
+
+  withAffectsFiles(files: string[]): this {
+    this.task.affects_files = files;
     return this;
   }
 

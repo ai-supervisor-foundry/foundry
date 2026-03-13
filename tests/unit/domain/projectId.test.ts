@@ -11,6 +11,7 @@ describe('Per-task project_id', () => {
         tool: Provider.CURSOR,
         instructions: 'Test instructions',
         acceptance_criteria: ['criterion-1'],
+        affects_files: ['src/test.ts'],
         status: 'pending',
       };
 
@@ -26,6 +27,7 @@ describe('Per-task project_id', () => {
         tool: Provider.GEMINI,
         instructions: 'Do something',
         acceptance_criteria: ['done'],
+        affects_files: ['src/test.ts'],
         status: 'in_progress',
       };
 

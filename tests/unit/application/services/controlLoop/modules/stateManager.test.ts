@@ -36,7 +36,7 @@ describe('StateManager', () => {
     it('should pass for valid state', () => {
       const validState = {
         supervisor: { status: 'RUNNING' },
-        goal: {},
+        goals: {},
         queue: {}
       } as SupervisorState;
       expect(() => stateManager.validateRequiredFields(validState, 1)).not.toThrow();

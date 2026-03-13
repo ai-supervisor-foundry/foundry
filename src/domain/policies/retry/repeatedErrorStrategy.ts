@@ -65,7 +65,9 @@ export class RepeatedErrorStrategy implements RetryStrategy {
         reason: `Validation failed with identical error 3 times in a row: ${currentError}`,
       });
       
-      state.current_task = undefined;
+      if (state.active_tasks) {
+        delete state.active_tasks[task.task_id];
+      }
       
       await this.auditLogger.append({
         event: 'TASK_BLOCKED',

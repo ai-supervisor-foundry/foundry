@@ -1,4 +1,4 @@
-import { SupervisorState, SupervisorStatus, Task, CompletedTask, BlockedTask } from '@/domain/types/types';
+import { SupervisorState, SupervisorStatus, Goal, Task, CompletedTask, BlockedTask, ActiveTask, FileLock, WorkerPoolConfig } from '@/domain/types/types';
 
 export class StateBuilder {
   private state: SupervisorState;
@@ -9,10 +9,12 @@ export class StateBuilder {
         status: 'RUNNING',
         iteration: 0,
       },
-      goal: {
-        description: 'Default Goal',
-        completed: false,
-        project_id: 'default-project',
+      goals: {
+        'default-project': {
+          description: 'Default Goal',
+          completed: false,
+          project_id: 'default-project',
+        },
       },
       queue: {
         exhausted: false,
@@ -47,7 +49,7 @@ export class StateBuilder {
   }
 
   withGoal(description: string, project_id: string = 'test-project'): this {
-    this.state.goal = {
+    this.state.goals[project_id] = {
       description,
       completed: false,
       project_id,
@@ -55,8 +57,17 @@ export class StateBuilder {
     return this;
   }
 
-  withGoalCompleted(completed: boolean = true): this {
-    this.state.goal.completed = completed;
+  withGoalCompleted(completed: boolean = true, project_id?: string): this {
+    if (project_id) {
+      if (this.state.goals[project_id]) {
+        this.state.goals[project_id].completed = completed;
+      }
+    } else {
+      // Mark all goals
+      for (const goal of Object.values(this.state.goals)) {
+        goal.completed = completed;
+      }
+    }
     return this;
   }
 
@@ -70,14 +81,29 @@ export class StateBuilder {
     return this;
   }
 
-  withCurrentTask(task: Task): this {
-    this.state.current_task = task;
+  withActiveTask(task: Task, workerId: string = 'main'): this {
+    if (!this.state.active_tasks) this.state.active_tasks = {};
+    this.state.active_tasks[task.task_id] = {
+      task,
+      worker_id: workerId,
+      started_at: new Date().toISOString(),
+    };
     return this;
   }
 
   withHaltReason(reason: string, details?: string): this {
     this.state.supervisor.halt_reason = reason;
     this.state.supervisor.halt_details = details;
+    return this;
+  }
+
+  withFileLocks(locks: Record<string, FileLock>): this {
+    this.state.file_locks = locks;
+    return this;
+  }
+
+  withWorkerPool(config: WorkerPoolConfig): this {
+    this.state.worker_pool = config;
     return this;
   }
 

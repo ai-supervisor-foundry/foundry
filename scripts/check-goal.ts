@@ -1,4 +1,4 @@
-// Script to check current goal in state
+// Script to check current goals in state
 import Redis from 'ioredis';
 
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
@@ -21,8 +21,8 @@ async function checkGoal() {
     }
 
     const state = JSON.parse(rawState);
-    console.log('Current goal:');
-    console.log(JSON.stringify(state.goal, null, 2));
+    console.log('Current goals:');
+    console.log(JSON.stringify(state.goals || state.goal, null, 2));
   } catch (error) {
     console.error('Error:', error);
   } finally {
@@ -31,4 +31,3 @@ async function checkGoal() {
 }
 
 checkGoal();
-

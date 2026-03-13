@@ -78,7 +78,9 @@ export class MaxRetriesStrategy implements RetryStrategy {
             reason: `Validation failed after ${maxRetries} retries and final interrogation confirmed incomplete: ${finalInterrogation.remaining_failed_criteria.join(', ')}`,
           });
           
-          state.current_task = undefined;
+          if (state.active_tasks) {
+            delete state.active_tasks[task.task_id];
+          }
           
           await this.auditLogger.append({
             event: 'TASK_BLOCKED',

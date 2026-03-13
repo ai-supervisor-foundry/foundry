@@ -15,7 +15,7 @@ export interface ProviderStrategy {
 export const STRATEGY_1: ProviderStrategy = {
     name: 'claude-primary',
     primary: [
-        { provider: Provider.CLAUDE, agentMode: 'sonnet' },
+        { provider: Provider.CLAUDE, agentMode: 'auto' },
         { provider: Provider.CURSOR, agentMode: 'auto' },
         { provider: Provider.GEMINI, agentMode: 'auto' },
     ],
@@ -32,18 +32,35 @@ export const STRATEGY_2: ProviderStrategy = {
     primary: [
         { provider: Provider.CURSOR, agentMode: 'auto' },
         { provider: Provider.GEMINI, agentMode: 'auto' },
-        { provider: Provider.CLAUDE, agentMode: 'sonnet' },
+        { provider: Provider.CLAUDE, agentMode: 'auto' },
     ],
     secondary: [
         { provider: Provider.GEMINI, agentMode: 'auto' },
         { provider: Provider.OLLAMA, agentMode: 'phi4-mini' },
-        { provider: Provider.CLAUDE, agentMode: 'sonnet' },
+        { provider: Provider.CLAUDE, agentMode: 'auto' },
+    ],
+};
+
+// Strategy 3: Gemini primary, Claude/Cursor/Ollama secondary
+export const STRATEGY_3: ProviderStrategy = {
+    name: 'gemini-primary',
+    primary: [
+        { provider: Provider.GEMINI, agentMode: 'auto' },
+        { provider: Provider.CLAUDE, agentMode: 'auto' },
+        { provider: Provider.CURSOR, agentMode: 'auto' },
+    ],
+    secondary: [
+        { provider: Provider.CURSOR, agentMode: 'auto' },
+        { provider: Provider.GEMINI, agentMode: 'gemini-2.5-flash-lite' },
+        { provider: Provider.CLAUDE, agentMode: 'auto' },
+        { provider: Provider.OLLAMA, agentMode: 'phi4-mini' },
     ],
 };
 
 const STRATEGIES: Record<string, ProviderStrategy> = {
     '1': STRATEGY_1,
     '2': STRATEGY_2,
+    '3': STRATEGY_3,
 };
 
 /**

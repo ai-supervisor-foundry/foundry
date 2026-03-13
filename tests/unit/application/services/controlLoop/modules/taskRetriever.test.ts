@@ -13,14 +13,18 @@ describe('TaskRetriever', () => {
     taskRetriever = new TaskRetriever(mockQueue);
   });
 
-  it('should recover current_task if present', async () => {
+  it('should recover active_task if present', async () => {
     const task = { task_id: 't1' } as Task;
-    const state = { current_task: task } as SupervisorState;
+    const state = {
+      active_tasks: {
+        't1': { task, worker_id: 'main', started_at: new Date().toISOString() }
+      }
+    } as unknown as SupervisorState;
 
     const result = await taskRetriever.retrieveTask(state, 1);
-    
+
     expect(result.task).toBe(task);
-    expect(result.source).toBe('current_task_recovery');
+    expect(result.source).toBe('active_task_recovery');
     expect(mockQueue.dequeue).not.toHaveBeenCalled();
   });
 

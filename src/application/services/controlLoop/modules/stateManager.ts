@@ -36,8 +36,8 @@ export class StateManager {
       if (!state.supervisor.status) {
         throw new Error(`Missing required field: supervisor.status`);
       }
-      if (!state.goal) {
-        throw new Error(`Missing required field: goal`);
+      if (!state.goals) {
+        throw new Error(`Missing required field: goals`);
       }
       if (!state.queue) {
         throw new Error(`Missing required field: queue`);
