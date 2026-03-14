@@ -351,6 +351,15 @@ sequenceDiagram
 
 ## Documentation
 
+### Where to start
+
+- **Supervisor context (single source of truth)** — [supervisor-contexts/README.md](supervisor-contexts/README.md) and the [context index](supervisor-contexts/CONTEXT.md) with quick links to overview, architecture, control loop, validation, usage, and configuration.
+- **Plans & design** — [docs/plans/](docs/plans/) for architecture proposals, functional test plans, and implementation notes.
+- **Tests** — [tests/README.md](tests/README.md) for unit and functional test coverage and how to run them.
+- **Investigation & diagnostics** — [scripts/investigations/README.md](scripts/investigations/README.md) for provider health, queue inspection, and log analysis.
+
+### Specs and runbooks (docs/)
+
 All specifications and documentation are in the `docs/` directory:
 
 - [Control Loop](docs/LOOP.md) - Control loop steps

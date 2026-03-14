@@ -1,6 +1,13 @@
 # Supervisor Contexts
 
-This directory contains comprehensive context documentation for the Supervisor system.
+This directory contains comprehensive context documentation for the Supervisor system. Use it as the single source of truth for how the supervisor works, how to run it, and how to operate it.
+
+## Where to begin
+
+1. **Index** — Open [CONTEXT.md](./CONTEXT.md) for quick links to every topic (overview, architecture, control loop, validation, usage, configuration, etc.).
+2. **Concepts** — Read [overview.md](./overview.md) for the software-factory model and core purpose, then [core-principles.md](./core-principles.md) and [architecture.md](./architecture.md).
+3. **Run it** — Follow [installation-setup.md](./installation-setup.md) and [usage.md](./usage.md) for install, init, enqueue, start, and monitor.
+4. **Operate it** — Use [configuration.md](./configuration.md), [pm2-integration.md](./pm2-integration.md), and [recovery-actions.md](./recovery-actions.md) for env vars, daemon run, and failure handling.
 
 ## Structure
 

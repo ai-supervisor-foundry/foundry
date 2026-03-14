@@ -2,6 +2,8 @@
 
 The Supervisor is a **persistent orchestration layer for AI-assisted software development**—restart-safe, operator-controlled, fully auditable.
 
+**How to use this index:** Pick a row below to jump to that topic. For a full narrative, start with [overview.md](./overview.md), then [installation-setup.md](./installation-setup.md) and [usage.md](./usage.md). For agents working on the codebase, read [architecture.md](./architecture.md) and [key-components.md](./key-components.md) next.
+
 ## Quick Links
 
 | Section | File |

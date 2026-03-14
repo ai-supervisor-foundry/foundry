@@ -1,5 +1,23 @@
 # Usage
 
+## Quick start (minimal)
+
+From the project root (after [installation-setup](./installation-setup.md) and with DragonflyDB running):
+
+```bash
+# 1. Init state and set goal (once per project)
+pnpm run cli -- init-state --redis-host localhost --redis-port 6499 --state-key supervisor:state --queue-name tasks --queue-db 2 --execution-mode AUTO
+pnpm run cli -- set-goal --redis-host localhost --redis-port 6499 --state-key supervisor:state --queue-name tasks --queue-db 2 --project-id my-project --description "Your goal"
+
+# 2. Enqueue tasks
+pnpm run cli -- enqueue --redis-host localhost --redis-port 6499 --state-key supervisor:state --queue-name tasks --queue-db 2 --task-file tasks/tasks.json
+
+# 3. Start the control loop
+pnpm run cli -- start --redis-host localhost --redis-port 6499 --state-key supervisor:state --queue-name tasks --queue-db 2
+```
+
+Use `npm run cli --` if you use npm instead of pnpm. For PM2 (daemon), see [pm2-integration.md](./pm2-integration.md).
+
 ## Software Factory Workflow
 
 The typical workflow follows this pattern:
