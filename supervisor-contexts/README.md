@@ -2,6 +2,8 @@
 
 This directory contains comprehensive context documentation for the Supervisor system. Use it as the single source of truth for how the supervisor works, how to run it, and how to operate it.
 
+**Online:** [Documentation](https://ai-supervisor-foundry.github.io/site/docs/introduction) and [Wiki](https://ai-supervisor-foundry.github.io/site/wiki/overview) at [ai-supervisor-foundry.github.io/site](https://ai-supervisor-foundry.github.io/site/).
+
 ## Where to begin
 
 1. **Index** — Open [CONTEXT.md](./CONTEXT.md) for quick links to every topic (overview, architecture, control loop, validation, usage, configuration, etc.).
