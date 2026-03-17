@@ -1,3 +1,7 @@
+---
+description: Fixed control loop sequence — dequeue, execute, validate, persist
+---
+
 # Control Loop
 
 The supervisor executes a fixed control loop sequence:

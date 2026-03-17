@@ -1,3 +1,7 @@
+---
+description: Recovery procedures for crashes, stale state, and provider failures
+---
+
 # Recovery Actions
 
 When something goes wrong, the supervisor and operator respond as follows. For what gets logged in each case, see [logging-auditability.md](./logging-auditability.md).

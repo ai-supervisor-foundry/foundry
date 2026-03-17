@@ -8,6 +8,12 @@ jest.setTimeout(30000);
 // Enable Goal Completion Check for tests
 process.env.IS_ENABLED_GOAL_COMPLETION_CHECK = 'true';
 
+// Mock process.exit to prevent Jest worker crashes during halt tests
+const originalExit = process.exit;
+jest.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+  throw new Error(`process.exit called with "${code}"`);
+}) as any);
+
 // --- Mock fs module ---
 jest.mock('fs', () => {
   const originalFs = jest.requireActual('fs');
@@ -32,21 +38,41 @@ jest.mock('fs', () => {
 
     readdirSync: (path: string, options: any) => {
       if (fsRegistry.currentMock) {
+        // Delegate to the mock's readdir (sync wrapper over async)
         const resolved = require('path').resolve(path);
         const filesMap = (fsRegistry.currentMock as any).files;
-        const entries = new Set<string>();
-        const dirPrefix = resolved + require('path').sep;
-        
+        const pathMod = require('path');
+        const dirPrefix = resolved + pathMod.sep;
+        const entriesMap = new Map();
+
         for (const key of filesMap.keys()) {
           if (key.startsWith(dirPrefix)) {
             const relative = key.slice(dirPrefix.length);
-            const parts = relative.split(require('path').sep);
+            const parts = relative.split(pathMod.sep);
             if (parts.length > 0 && parts[0]) {
-              entries.add(parts[0]);
+              const name = parts[0];
+              if (!entriesMap.has(name)) {
+                entriesMap.set(name, parts.length === 1);
+              } else if (parts.length > 1) {
+                entriesMap.set(name, false);
+              }
             }
           }
         }
-        return Array.from(entries);
+
+        if (options?.withFileTypes) {
+          return Array.from(entriesMap.entries()).map(([name, isFile]: [string, boolean]) => ({
+            name,
+            isFile: () => isFile,
+            isDirectory: () => !isFile,
+            isBlockDevice: () => false,
+            isCharacterDevice: () => false,
+            isFIFO: () => false,
+            isSocket: () => false,
+            isSymbolicLink: () => false,
+          }));
+        }
+        return Array.from(entriesMap.keys());
       }
       return originalFs.readdirSync(path, options);
     },
@@ -126,7 +152,8 @@ jest.mock('fs', () => {
     readdir: (path: string, options: any, callback: any) => {
       if (fsRegistry.currentMock) {
         const cb = typeof options === 'function' ? options : callback;
-        fsRegistry.currentMock.readdir(path)
+        const opts = typeof options === 'function' ? undefined : options;
+        fsRegistry.currentMock.readdir(path, opts)
           .then((files: any) => cb(null, files))
           .catch((err: any) => cb(err));
         return;
@@ -183,7 +210,7 @@ jest.mock('fs/promises', () => {
     },
     readdir: async (path: string, options: any) => {
       if (fsRegistry.currentMock) {
-        return await fsRegistry.currentMock.readdir(path);
+        return await fsRegistry.currentMock.readdir(path, options);
       }
       return originalFsPromises.readdir(path, options);
     },

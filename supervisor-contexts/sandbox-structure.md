@@ -1,3 +1,7 @@
+---
+description: Directory layout for sandbox project isolation
+---
+
 # Sandbox Structure
 
 ```

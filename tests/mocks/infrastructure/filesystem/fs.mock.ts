@@ -68,32 +68,46 @@ export class FileSystemMock {
     // but usually 'mkdir' just needs to succeed.
   }
 
-  async readdir(dirPath: string): Promise<string[]> {
+  async readdir(dirPath: string, options?: any): Promise<any[]> {
     const resolved = this.resolvePath(dirPath);
-    this.recordCall('readdir', [dirPath]);
-    
-    const entries = new Set<string>();
-    // Iterate all files to find children
+    this.recordCall('readdir', [dirPath, options]);
+
+    const entriesMap = new Map<string, boolean>(); // name -> isFile (true if exact file, false if directory prefix)
     const dirPrefix = resolved + path.sep;
-    
+
     for (const key of this.files.keys()) {
       if (key.startsWith(dirPrefix)) {
-        // key is /tmp/sandbox/src/index.ts
-        // dirPrefix is /tmp/sandbox/
-        // relative is src/index.ts
         const relative = key.slice(dirPrefix.length);
         const parts = relative.split(path.sep);
-        if (parts.length > 0) {
-          entries.add(parts[0]); // Adds 'src' (dir) or 'index.ts' (file)
+        if (parts.length > 0 && parts[0]) {
+          const name = parts[0];
+          // If parts.length === 1, it's a direct child file; otherwise it's a directory
+          if (!entriesMap.has(name)) {
+            entriesMap.set(name, parts.length === 1);
+          } else if (parts.length > 1) {
+            // If we already saw it as a file but now see subdirectory entries, mark as dir
+            entriesMap.set(name, false);
+          }
         }
       }
     }
-    
-    // If no entries found, check if the directory even "exists" (is a parent of nothing?)
-    // In real fs, readdir throws ENOENT if dir doesn't exist.
-    // Here, if it's not a prefix of anything and we didn't explicitly mkdir, it might fail.
-    // For robustness in tests, returning empty array is often safer unless we want strictness.
-    return Array.from(entries);
+
+    const withFileTypes = options?.withFileTypes === true;
+
+    if (withFileTypes) {
+      return Array.from(entriesMap.entries()).map(([name, isFile]) => ({
+        name,
+        isFile: () => isFile,
+        isDirectory: () => !isFile,
+        isBlockDevice: () => false,
+        isCharacterDevice: () => false,
+        isFIFO: () => false,
+        isSocket: () => false,
+        isSymbolicLink: () => false,
+      }));
+    }
+
+    return Array.from(entriesMap.keys());
   }
 
   async stat(filePath: string): Promise<{ isFile: () => boolean; isDirectory: () => boolean }> {

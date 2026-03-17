@@ -1,3 +1,7 @@
+---
+description: Quick reference to all major modules and their source files
+---
+
 # Key Components
 
 High-level map of the main modules. For role separation and boundaries, see [architecture.md](./architecture.md).

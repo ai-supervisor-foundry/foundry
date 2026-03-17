@@ -1,3 +1,7 @@
+---
+description: Provider resource_exhausted error handling and exponential backoff
+---
+
 # Resource Exhaustion Handling
 
 When a CLI provider (e.g., Cursor) returns `ConnectError: [resource_exhausted]`:

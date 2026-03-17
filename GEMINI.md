@@ -1,35 +1,36 @@
-# Foundry — Copilot Instructions
+---
+project: Foundry — Persistent orchestration layer for AI-assisted software development
+workflow: "Operator: Boilerplates + Tasks + Goal → Foundry: Execute → Validate → Persist → Continue"
+---
 
-## Project Brief
+# Foundry — Agent Instructions
 
-Foundry is a **persistent orchestration layer for AI-assisted software development**—restart-safe, operator-controlled, fully auditable. It externalizes memory, intent, and control so work continues across interruptions.
+Read `supervisor-contexts/CONTEXT.md` first — it indexes all system documentation.
+For each *.md or context file, first read the frontmatter (Lines between "---" in the starting of the file) by doing a head -5 before proceeding - if not required, skip file.
 
-**Workflow**: `Operator: Boilerplates + Tasks + Goal → Foundry: Execute → Validate → Persist → Continue`
+## Always-Apply Behavioral Rules
 
-**Critical rules**: Operator injects goals; scope cannot expand; all tasks need acceptance criteria; state persisted every step; ambiguity halts. If unspecified → STOP and ask operator.
+0. Be concise unless asked for elaboration.
+1. Propose = suggest without edits.
+2. After root cause/fix identified, NEVER run commands—verify I approve.
+3. Check MCP availability before asking.
+4. Questions → answer only, no mutating actions.
+5. Mistake → alert, inform, halt. No changes.
 
-## Full Documentation
+## Cursor Rules (`.cursor/rules/`)
 
-Read `supervisor-contexts/CONTEXT.md` for the index. Section files: overview, architecture, control-loop, state-management, validation, tool-contracts, usage, etc.
-
-## Behavioral Rules
-
-- Be concise unless asked for elaboration.
-- Propose = suggest without edits.
-- Max 6 line changes at a time; announce, wait for review, then proceed.
-- After root cause/fix identified, NEVER run commands—verify operator approval.
-- Questions → answer only, no mutating actions.
-- Mistake → alert, inform, halt. No changes.
-- Ask before cleanup/delete; use ./tmp for *.baks.
-- PM2 logs always `--nostream`.
-- Never print secrets or credentials.
-
-## Referenced Rules
-
-- `.cursor/rules/` — cleanup, pm2, secrets, mcp, restart, task-lifecycle (read when relevant)
+- **always**: Concise responses, propose-only, 6-line limit, verify approval, questions=answer-only, halt on mistakes
+- **supervisor-specs**: Operator goals only, no scope expansion, deterministic validation, no anti-goals
+- **task-lifecycle**: Blocked tasks never autocompleted — set to pending for supervisor
+- **cleanup**: Ask before cleanup/delete; use ./tmp for *.baks
+- **pm2**: Logs always `--nostream`; lifecycle: halt→stop→rebuild→restart→resume
+- **secrets**: Never print secrets; shell-based length check only
+- **mcp**: Tool fail → report and halt
+- **restart**: Halt→stop→rebuild→restart→resume
+- **contexts**: Read CONTEXT.md first; use supervisor-contexts/ for system, contexts/ for projects
 
 ## Conditional Contexts
 
-- **Project details**: README.md, ./docs/*.md (not ./docs/plans unless working on a plan)
-- **Foundry system**: ./supervisor-contexts (read specific section files as needed)
-- **Sandbox projects**: ./contexts/sandbox/
+- **System docs**: `supervisor-contexts/` (read specific section files as needed)
+- **Project details**: `README.md`, `docs/*.md` (not `docs/plans` unless working on a plan)
+- **Sandbox projects**: `contexts/sandbox/`

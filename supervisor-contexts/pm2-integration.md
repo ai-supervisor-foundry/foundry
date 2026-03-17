@@ -1,3 +1,7 @@
+---
+description: PM2 daemon configuration and lifecycle management
+---
+
 # PM2 Integration
 
 The supervisor can be run as a daemon using PM2 so it survives terminal close and restarts on crash.

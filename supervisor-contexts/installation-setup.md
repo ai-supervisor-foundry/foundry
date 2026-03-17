@@ -1,3 +1,7 @@
+---
+description: Prerequisites, DragonflyDB setup, and npm installation
+---
+
 # Installation & Setup
 
 ## Prerequisites

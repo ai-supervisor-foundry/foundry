@@ -1,3 +1,7 @@
+---
+description: Redis list-based FIFO queue with ready/waiting dual-queue support
+---
+
 # Queue System
 
 ## Implementation

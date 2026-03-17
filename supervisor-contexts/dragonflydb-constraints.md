@@ -1,3 +1,7 @@
+---
+description: DragonflyDB single-node constraints and atomic state rules
+---
+
 # DragonflyDB Constraints
 
 - DragonflyDB is **single-node only**
