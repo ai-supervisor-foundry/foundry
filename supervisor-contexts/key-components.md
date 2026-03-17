@@ -1,3 +1,7 @@
+---
+description: Quick reference to all major modules and their source files
+---
+
 # Key Components
 
 - **Operator Interface** (`src/cli.ts`): CLI commands for operator control

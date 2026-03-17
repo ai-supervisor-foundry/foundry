@@ -1,16 +1,11 @@
+---
+project: Foundry — Persistent orchestration layer for AI-assisted software development
+workflow: "Operator: Boilerplates + Tasks + Goal → Foundry: Execute → Validate → Persist → Continue"
+---
+
 # Foundry — Agent Instructions
 
-## Project Brief
-
-Foundry is a **persistent orchestration layer for AI-assisted software development**—restart-safe, operator-controlled, fully auditable. It externalizes memory, intent, and control so work continues across interruptions.
-
-**Workflow**: `Operator: Boilerplates + Tasks + Goal → Foundry: Execute → Validate → Persist → Continue`
-
-**Critical rules**: Operator injects goals; scope cannot expand; all tasks need acceptance criteria; state persisted every step; ambiguity halts. If unspecified → STOP and ask operator.
-
-## Full Documentation
-
-Read `supervisor-contexts/CONTEXT.md` for the index. Section files: overview, architecture, control-loop, state-management, validation, tool-contracts, usage, etc.
+Read `supervisor-contexts/CONTEXT.md` first — it indexes all system documentation.
 
 ## Always-Apply Behavioral Rules
 
@@ -22,17 +17,20 @@ Read `supervisor-contexts/CONTEXT.md` for the index. Section files: overview, ar
 6. Questions → answer only, no mutating actions.
 7. Mistake → alert, inform, halt. No changes.
 
-## Referenced Rules (read when relevant)
+## Cursor Rules (`.cursor/rules/`)
 
-- **Cleanup**: `.cursor/rules/cleanup.mdc` — ask before cleanup/delete; use ./tmp for *.baks
-- **PM2**: `.cursor/rules/pm2.mdc` — logs always `--nostream`; halt→stop→rebuild→restart→resume
-- **Secrets**: `.cursor/rules/secrets.mdc` — never print secrets; shell length check
-- **MCP**: `.cursor/rules/mcp.mdc` — tool fail → report and halt
-- **Restart**: `.cursor/rules/restart.mdc` — lifecycle when restarting
-- **Task lifecycle**: `.cursor/rules/task-lifecycle.mdc` — blocked tasks never autocompleted
+- **always**: Concise responses, propose-only, 6-line limit, verify approval, questions=answer-only, halt on mistakes
+- **supervisor-specs**: Operator goals only, no scope expansion, deterministic validation, no anti-goals
+- **task-lifecycle**: Blocked tasks never autocompleted — set to pending for supervisor
+- **cleanup**: Ask before cleanup/delete; use ./tmp for *.baks
+- **pm2**: Logs always `--nostream`; lifecycle: halt→stop→rebuild→restart→resume
+- **secrets**: Never print secrets; shell-based length check only
+- **mcp**: Tool fail → report and halt
+- **restart**: Halt→stop→rebuild→restart→resume
+- **contexts**: Read CONTEXT.md first; use supervisor-contexts/ for system, contexts/ for projects
 
 ## Conditional Contexts
 
-- **Project details**: README.md, ./docs/*.md (not ./docs/plans unless working on a plan)
-- **Foundry system**: ./supervisor-contexts (read specific section files as needed)
-- **Sandbox projects**: ./contexts/sandbox/
+- **System docs**: `supervisor-contexts/` (read specific section files as needed)
+- **Project details**: `README.md`, `docs/*.md` (not `docs/plans` unless working on a plan)
+- **Sandbox projects**: `contexts/sandbox/`

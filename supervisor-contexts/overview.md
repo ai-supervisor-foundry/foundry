@@ -1,3 +1,7 @@
+---
+description: Foundry purpose, software factory concept, and core value proposition
+---
+
 # Overview
 
 The Supervisor is a **persistent orchestration layer for AI-assisted software development** that enables long-running, restart-safe project execution with full operator control and auditability. It is a control plane that externalizes memory, intent, and control so work can continue across interruptions, sleep, crashes, or session loss.
@@ -44,4 +48,4 @@ The Supervisor provides:
 
 ## The Problem It Solves
 
-AI coding agents are powerful but ephemeral—context is lost on interruption, making long-running projects difficult. The Supervisor bridges this gap by maintaining persistent state and deterministic execution. It enables a **"set it and forget it"** workflow where you provide boilerplates, tasks, and a goal, then the supervisor autonomously builds the project.
+AI coding agents are ephemeral—context is lost on interruption. Foundry bridges this with persistent state and deterministic execution: provide boilerplates, tasks, and a goal, then it autonomously builds the project.

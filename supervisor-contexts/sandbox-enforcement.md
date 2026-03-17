@@ -1,3 +1,7 @@
+---
+description: Multi-project sandbox isolation rules and path enforcement
+---
+
 # Sandbox Enforcement
 
 ## Multi-Project Rules

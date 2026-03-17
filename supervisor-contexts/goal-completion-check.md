@@ -1,3 +1,7 @@
+---
+description: Goal completion evaluation when queue exhausted
+---
+
 # Goal Completion Check
 
 When the queue is exhausted and not all goals are completed:

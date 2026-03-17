@@ -1,3 +1,7 @@
+---
+description: HALT conditions for ambiguous or unspecified situations
+---
+
 # Ambiguity Handling
 
 ## Hard Rule: HALT Conditions

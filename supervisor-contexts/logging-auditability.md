@@ -1,3 +1,7 @@
+---
+description: JSONL audit logging, required log events, and reviewability rules
+---
+
 # Logging & Auditability
 
 ## Required Logs

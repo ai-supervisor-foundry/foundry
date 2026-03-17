@@ -1,3 +1,7 @@
+---
+description: Recovery procedures for crashes, stale state, and provider failures
+---
+
 # Recovery Actions
 
 - **Cursor CLI crash** → Reload rules & state, reissue last task

@@ -1,3 +1,7 @@
+---
+description: Provider CLI integration contracts and adapter rules
+---
+
 # Tool Contracts
 
 ## Provider CLI Integration
@@ -34,17 +38,8 @@ The supervisor uses a CLI adapter (`src/cliAdapter.ts`) that provides:
 - **Automatic fallback**: On resource exhaustion or provider failure
 - **Model filtering**: Only allowed models (sonnet*, opus*, gpt4*, gpt5*, gemini*)
 
-## Cursor Prompt Construction
+## Prompt Construction
 
-Every task dispatched to Cursor must include:
-- Task ID
-- Task description (verbatim from operator)
-- Acceptance criteria (verbatim)
-- Injected state snapshot (explicit section)
-- Explicit instruction to remain in AUTO MODE
-- Explicit instruction to halt on ambiguity
-- Explicit output format requirement
-- **WORKING DIRECTORY** instruction
-- **AGENT MODE** instruction (if specified)
+Every dispatched task includes: task ID, description (verbatim), acceptance criteria (verbatim), state snapshot, AUTO MODE instruction, halt-on-ambiguity instruction, output format, working directory, and agent mode. Agents must **never infer missing information**.
 
-The Cursor agent must **never infer missing information**.
+Full prompt construction details: [tool-prompt-construction.md](./tool-prompt-construction.md)

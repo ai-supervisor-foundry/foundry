@@ -1,107 +1,45 @@
+---
+description: State lifecycle, JSON schema, per-project goals, and access rules
+---
+
 # State Management
 
-## State Lifecycle
+## Lifecycle
 
-- State is **initialized by the operator**
-- State is **loaded at the start of every control loop iteration**
-- State is **read-only during task execution**
-- State is **mutated only after validation**
-- State is **persisted immediately after mutation**
-- State persistence failure **halts execution**
-- Provider CLIs **do not access state directly**. The supervisor injects the required state context into each task prompt.
+- Initialized by operator, loaded every iteration, read-only during execution
+- Mutated only after validation, persisted immediately after mutation
+- Persistence failure → HALT. Providers never access state directly.
 
-## State Schema
-
-The supervisor state is stored as a single JSON blob in DragonflyDB with the following structure:
+## Schema (DragonflyDB JSON blob)
 
 ```json
 {
-  "goals": {
-    "<project_id>": {
-      "description": "string",
-      "completed": boolean,
-      "project_id": "string (same as key, for self-reference)"
-    }
-  },
-  "supervisor": {
-    "status": "RUNNING" | "HALTED" | "COMPLETED" | "BLOCKED",
-    "iteration": number,
-    "halt_reason": "string" | undefined,
-    "halt_details": "string" | undefined
-  },
-  "active_tasks": {
-    "<task_id>": {
-      "task": Task,
-      "worker_id": "string",
-      "started_at": "ISO8601",
-      "worktree_path": "string" | undefined
-    }
-  },
-  "worker_pool": {
-    "max_workers": number,
-    "active_count": number
-  } | undefined,
-  "file_locks": {
-    "<file_path>": {
-      "file_path": "string",
-      "task_id": "string",
-      "worker_id": "string",
-      "acquired_at": "ISO8601"
-    }
-  } | undefined,
-  "completed_tasks": Array<{
-    "task_id": "string",
-    "completed_at": "ISO8601",
-    "validation_report": ValidationReport
-  }>,
-  "blocked_tasks": Array<{
-    "task_id": "string",
-    "reason": "string",
-    "blocked_at": "ISO8601"
-  }>,
-  "queue": {
-    "name": "string",
-    "exhausted": boolean,
-    "ready_count": number | undefined,
-    "waiting_count": number | undefined
-  },
-  "last_validation_report": ValidationReport | null,
-  "last_updated": "ISO8601",
-  "execution_mode": "AUTO" | "MANUAL",
-  "resource_exhausted_retry": {
-    "attempt": number,
-    "last_attempt_at": "ISO8601",
-    "next_retry_at": "ISO8601",
-    "provider": "string"
-  } | null
+  "goals": { "<project_id>": { "description": "", "completed": false, "project_id": "" } },
+  "supervisor": { "status": "RUNNING|HALTED|COMPLETED|BLOCKED", "iteration": 0 },
+  "active_tasks": { "<task_id>": { "task": {}, "worker_id": "", "started_at": "" } },
+  "completed_tasks": [{ "task_id": "", "completed_at": "", "validation_report": {} }],
+  "blocked_tasks": [{ "task_id": "", "reason": "", "blocked_at": "" }],
+  "queue": { "exhausted": false, "ready_count": 0, "waiting_count": 0 },
+  "worker_pool": { "max_workers": 3, "active_count": 0 },
+  "file_locks": { "<path>": { "file_path": "", "task_id": "", "worker_id": "", "acquired_at": "" } },
+  "last_updated": "", "execution_mode": "AUTO"
 }
 ```
 
 ## Per-Project Goals
 
-- `state.goals` is a `Record<string, Goal>` keyed by `project_id`.
-- Each task carries a required `project_id` field that determines its CWD (`sandbox/{project_id}/`) and which goal it belongs to.
-- Supervisor reaches `COMPLETED` only when all project goals are completed.
-- Old state with a single `goal:` field is auto-migrated to `goals:` on load.
-- Set goals with: `npm run cli -- set-goal --project-id <id> --description "<text>"` (project-id is required).
+- `state.goals` keyed by `project_id`. Each task carries required `project_id`.
+- COMPLETED only when all project goals completed. Old single `goal:` auto-migrated.
+- Set: `npm run cli -- set-goal --project-id <id> --description "<text>"`
 
-## State Access Rules
+Full annotated schema: [state-schema-detail.md](./state-schema-detail.md)
 
-- State key is operator-defined (e.g., `supervisor:state`)
-- State is stored in DragonflyDB database index 0 (default)
-- Queue is stored in separate database index (e.g., 2)
-- State is atomic—read entire blob, mutate, write entire blob
+## Access Rules
+
+- State key operator-defined. State DB index 0, queue DB separate (e.g., 2).
+- Atomic: read entire blob → mutate → write entire blob.
 
 ## Supervisor States
 
-Explicit states:
-- `RUNNING`: Actively processing tasks
-- `HALTED`: Stopped (operator intervention, critical failure, ambiguity)
-- `COMPLETED`: Goal achieved, queue exhausted
-- `BLOCKED`: Cannot proceed (requires operator input)
-
-State rules:
-- HALT always persists state first
-- BLOCKED requires operator input to resume
-- No automatic resume after ambiguity
-- Operator input is the only unblock mechanism
+- `RUNNING`: Processing tasks. `HALTED`: Operator/failure stop. `COMPLETED`: Goal met. `BLOCKED`: Needs input.
+- HALT always persists first. BLOCKED requires operator input. No auto-resume after ambiguity.

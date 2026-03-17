@@ -1,3 +1,7 @@
+---
+description: Task JSON structure — required fields, depends_on, affects_files
+---
+
 # Task Schema
 
 Tasks are defined as JSON objects with the following structure:

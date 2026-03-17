@@ -1,3 +1,7 @@
+---
+description: Supervisor specifications, anti-goals, and hard constraints
+---
+
 # Core Principles
 
 ## Supervisor Specifications
