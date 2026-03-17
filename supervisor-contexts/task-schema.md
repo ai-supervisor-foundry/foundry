@@ -22,6 +22,8 @@ Tasks are defined as JSON objects with the following structure:
   "working_directory": "string (optional, relative to sandboxRoot)",
   "agent_mode": "string (optional, e.g., 'opus-4.5', 'auto')",
   "required_artifacts": ["array of file paths (optional)"],
+  "affects_files": ["array of file paths (required for parallel mode — file locking)"],
+  "depends_on": ["array of task IDs (optional — execution order)"],
   "test_command": "string (optional)",
   "tests_required": boolean (optional)
 }
@@ -30,6 +32,15 @@ Tasks are defined as JSON objects with the following structure:
 ## Project Assignment
 
 Each task must specify its `project_id`. This determines the agent's working directory as `sandbox/{project_id}/`. The `working_directory` field can still override this default if a task needs a different CWD.
+
+## Parallel execution fields
+
+For parallel or file-locked execution, each task must include:
+
+- **`affects_files`** (required in parallel mode): Array of file paths this task will modify. Used for file-level locking so no two tasks edit the same file at once.
+- **`depends_on`** (optional): Array of task IDs that must complete before this task can start.
+
+See [usage.md](./usage.md) § Parallel Execution Fields for examples.
 
 ## Task Lifecycle
 

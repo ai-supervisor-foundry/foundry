@@ -6,16 +6,16 @@ workflow: "Operator: Boilerplates + Tasks + Goal → Foundry: Execute → Valida
 # Foundry — Agent Instructions
 
 Read `supervisor-contexts/CONTEXT.md` first — it indexes all system documentation.
+For each *.md or context file, first read the frontmatter (Lines between "---" in the starting of the file) by doing a head -5 before proceeding - if not required, skip file.
 
 ## Always-Apply Behavioral Rules
 
 0. Be concise unless asked for elaboration.
 1. Propose = suggest without edits.
-2. Max 6 line changes at a time; announce, wait for review, then proceed.
-4. After root cause/fix identified, NEVER run commands—verify I approve.
-5. Check MCP availability before asking.
-6. Questions → answer only, no mutating actions.
-7. Mistake → alert, inform, halt. No changes.
+2. After root cause/fix identified, NEVER run commands—verify I approve.
+3. Check MCP availability before asking.
+4. Questions → answer only, no mutating actions.
+5. Mistake → alert, inform, halt. No changes.
 
 ## Cursor Rules (`.cursor/rules/`)
 

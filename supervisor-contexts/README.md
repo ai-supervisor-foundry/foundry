@@ -5,6 +5,14 @@ description: Directory structure and usage guide for supervisor-contexts
 # Supervisor Contexts
 
 System documentation for the Foundry supervisor.
+This directory provides all documentation for the Supervisor system.
+
+- **Docs:** [Introduction](https://ai-supervisor-foundry.github.io/site/docs/introduction)
+- **Wiki:** [Overview](https://ai-supervisor-foundry.github.io/site/wiki/overview)
+- **Index:** [CONTEXT.md](./CONTEXT.md)
+- **Concepts:** [Overview](./overview.md), [Core Principles](./core-principles.md), [Architecture](./architecture.md)
+- **Getting Started:** [Installation & Setup](./installation-setup.md), [Usage](./usage.md)
+- **Operation:** [Configuration](./configuration.md), [PM2 Integration](./pm2-integration.md), [Recovery Actions](./recovery-actions.md)
 
 ## Structure
 

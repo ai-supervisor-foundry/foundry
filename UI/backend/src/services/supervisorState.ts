@@ -177,13 +177,13 @@ export async function getSupervisorStatus(): Promise<{
 /**
  * Get current task (first active task, for backwards compatibility)
  */
-export async function getCurrentTask(): Promise<unknown | null> {
+export async function getCurrentTask(): Promise<Record<string, unknown> | null> {
   try {
     const state = await loadSupervisorState();
     if (!state?.active_tasks) return null;
     const entries = Object.values(state.active_tasks);
     if (entries.length === 0) return null;
-    return entries[0].task;
+    return entries[0].task as Record<string, unknown> | null;
   } catch (error) {
     console.error('Error getting current task:', error);
     return null;

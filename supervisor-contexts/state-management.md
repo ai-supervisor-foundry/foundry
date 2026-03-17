@@ -28,9 +28,11 @@ description: State lifecycle, JSON schema, per-project goals, and access rules
 
 ## Per-Project Goals
 
-- `state.goals` keyed by `project_id`. Each task carries required `project_id`.
-- COMPLETED only when all project goals completed. Old single `goal:` auto-migrated.
-- Set: `npm run cli -- set-goal --project-id <id> --description "<text>"`
+- `state.goals` is an object (JSON) keyed by `project_id`. Each value is a Goal object.
+- Each task carries a required `project_id` field that determines its working directory (`sandbox/{project_id}/`) and which goal it is associated with.
+- Supervisor state becomes `COMPLETED` only when all goals for all projects in `state.goals` have been completed.
+- Legacy state files with a top-level single `goal:` property are automatically migrated to `goals:` (per-project format) upon load.
+- To set a new goal: `npm run cli -- set-goal --project-id <id> --description "<text>"` (must provide project-id).
 
 Full annotated schema: [state-schema-detail.md](./state-schema-detail.md)
 
