@@ -38,9 +38,8 @@ export class TaskFinalizer {
     }
 
     const completedTask: CompletedTask = {
-      task_id: task.task_id,
+      ...task,
       completed_at: new Date().toISOString(),
-      intent: task.intent,
       summary: this.generateTaskSummary(task, validationReport),
       validation_report: validationReport,
       requires_context: true,

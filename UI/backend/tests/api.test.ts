@@ -243,6 +243,98 @@ describe('UI Backend API - Functional Tests', () => {
       const res = await request(app).post('/api/tasks/update').send({});
       expect(res.status).toBe(400);
     });
+
+    it('POST /api/tasks/enqueue should preserve depends_on and affects_files', async () => {
+      const task = {
+        task_id: 'task-deps',
+        project_id: 'test-project',
+        intent: 'Dependent task',
+        instructions: 'Do something after another',
+        acceptance_criteria: ['done'],
+        depends_on: ['task-prior-1', 'task-prior-2'],
+        affects_files: ['src/foo.ts', 'src/bar.ts'],
+        status: 'pending',
+      };
+
+      const res = await request(app).post('/api/tasks/enqueue').send(task);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      // Verify fields are preserved in queue
+      const queueRes = await request(app).get('/api/tasks/queue');
+      expect(queueRes.status).toBe(200);
+      const enqueuedTask = queueRes.body.pending.find((t: any) => t.task_id === 'task-deps');
+      expect(enqueuedTask).toBeDefined();
+      expect(enqueuedTask.depends_on).toEqual(['task-prior-1', 'task-prior-2']);
+      expect(enqueuedTask.affects_files).toEqual(['src/foo.ts', 'src/bar.ts']);
+    });
+
+    it('GET /api/tasks/completed should preserve full task fields including validation_report', async () => {
+      const completedTask = {
+        task_id: 'done-full',
+        project_id: 'test-project',
+        intent: 'Full detail task',
+        instructions: 'Do everything',
+        acceptance_criteria: ['criterion A', 'criterion B'],
+        depends_on: ['prior-task'],
+        affects_files: ['main.ts'],
+        completed_at: '2026-01-01T12:00:00Z',
+        validation_report: {
+          valid: true,
+          confidence: 'HIGH',
+          reason: 'All criteria met',
+          rules_passed: ['file exists', 'tests pass'],
+          rules_failed: [],
+          failed_criteria: [],
+        },
+      };
+      const redis = MockRedis.getInstance();
+      await redis.set('supervisor:state', JSON.stringify({
+        ...sampleState,
+        completed_tasks: [completedTask],
+      }));
+
+      const res = await request(app).get('/api/tasks/completed');
+      expect(res.status).toBe(200);
+      expect(res.body.tasks).toHaveLength(1);
+      const t = res.body.tasks[0];
+      expect(t.task_id).toBe('done-full');
+      expect(t.instructions).toBe('Do everything');
+      expect(t.acceptance_criteria).toEqual(['criterion A', 'criterion B']);
+      expect(t.depends_on).toEqual(['prior-task']);
+      expect(t.affects_files).toEqual(['main.ts']);
+      expect(t.validation_report.valid).toBe(true);
+      expect(t.validation_report.confidence).toBe('HIGH');
+      expect(t.validation_report.rules_passed).toEqual(['file exists', 'tests pass']);
+    });
+
+    it('GET /api/tasks/blocked should preserve full task fields and reason', async () => {
+      const blockedTask = {
+        task_id: 'blocked-full',
+        project_id: 'test-project',
+        intent: 'Blocked task',
+        instructions: 'Impossible task',
+        acceptance_criteria: ['impossible criterion'],
+        affects_files: ['locked.ts'],
+        blocked_at: '2026-01-02T10:00:00Z',
+        reason: 'Max retries exceeded — criterion not met after 3 attempts',
+      };
+      const redis = MockRedis.getInstance();
+      await redis.set('supervisor:state', JSON.stringify({
+        ...sampleState,
+        blocked_tasks: [blockedTask],
+      }));
+
+      const res = await request(app).get('/api/tasks/blocked');
+      expect(res.status).toBe(200);
+      expect(res.body.tasks).toHaveLength(1);
+      const t = res.body.tasks[0];
+      expect(t.task_id).toBe('blocked-full');
+      expect(t.instructions).toBe('Impossible task');
+      expect(t.acceptance_criteria).toEqual(['impossible criterion']);
+      expect(t.affects_files).toEqual(['locked.ts']);
+      expect(t.reason).toBe('Max retries exceeded — criterion not met after 3 attempts');
+    });
   });
 
   // ─── Commands ────────────────────────────────────────────
@@ -345,6 +437,21 @@ describe('UI Backend API - Functional Tests', () => {
       });
       expect(res.status).toBe(422);
       expect(res.body.error.code).toBe('GIT_CLONE_FAILED');
+    });
+
+    it('POST /api/projects/:id/open-folder should 404 when project unknown', async () => {
+      const res = await request(app).post('/api/projects/unknown-proj/open-folder');
+      expect(res.status).toBe(404);
+    });
+
+    it('POST /api/projects/:id/open-folder should succeed for registered project', async () => {
+      await request(app).post('/api/projects').send({
+        id: 'open-me',
+        name: 'Open Me',
+      });
+      const res = await request(app).post('/api/projects/open-me/open-folder');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
     });
 
     it('POST /api/projects should store gitUrl and branch', async () => {

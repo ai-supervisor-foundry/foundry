@@ -9,6 +9,8 @@ interface Project {
   path: string;
   registered_at: string;
   status: 'active' | 'archived';
+  git_head?: string | null;
+  checked_out_branch?: string | null;
 }
 
 interface DiscoveredProject {
@@ -99,6 +101,14 @@ export default function Projects() {
 
   const unregisteredDirs = discovered.filter(d => !d.registered);
 
+  const handleOpenFolder = async (id: string) => {
+    try {
+      await apiClient.openProjectFolder(id);
+    } catch {
+      alert('Could not open folder (runs on the machine hosting the UI backend).');
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-8">Loading...</div>;
   }
@@ -126,6 +136,8 @@ export default function Projects() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Path</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">HEAD</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Registered</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -137,6 +149,12 @@ export default function Projects() {
                     <td className="px-6 py-4 text-sm font-mono font-medium text-gray-900">{project.id}</td>
                     <td className="px-6 py-4 text-sm text-gray-700">{project.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-500 font-mono">{project.path}</td>
+                    <td className="px-6 py-4 text-sm font-mono text-gray-700">
+                      {project.checked_out_branch ?? '—'}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-mono text-gray-600">
+                      {project.git_head ?? '—'}
+                    </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 text-xs font-medium rounded ${
                         project.status === 'active'
@@ -149,8 +167,16 @@ export default function Projects() {
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {new Date(project.registered_at).toLocaleDateString()}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right space-x-2">
                       <button
+                        type="button"
+                        onClick={() => handleOpenFolder(project.id)}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                      >
+                        Open folder
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleUnregister(project.id)}
                         className="text-red-600 hover:text-red-800 text-sm"
                       >

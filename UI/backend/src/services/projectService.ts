@@ -21,6 +21,10 @@ export interface Project {
   branch?: string | null;
   registered_at: string;
   status: 'active' | 'archived';
+  /** Short SHA of checked-out HEAD (live), when path is a git work tree */
+  git_head?: string | null;
+  /** Current branch name, or "detached", or null if not git / unreadable */
+  checked_out_branch?: string | null;
 }
 
 export interface DiscoveredProject {
@@ -47,13 +51,92 @@ function sanitizeProjectId(id: string): string | null {
   return /^[a-zA-Z0-9_-]+$/.test(id) ? id : null;
 }
 
+/** Absolute sandbox project directory; null if path escapes sandbox */
+export function resolveProjectDirectory(project: Pick<Project, 'path'>): string | null {
+  const sandboxRoot = path.resolve(resolveSandboxRoot());
+  const abs = path.resolve(sandboxRoot, path.normalize(project.path));
+  if (abs !== sandboxRoot && !abs.startsWith(sandboxRoot + path.sep)) {
+    return null;
+  }
+  return abs;
+}
+
+async function readGitWorkingCopy(dir: string): Promise<{ head: string | null; branch: string | null }> {
+  try {
+    await fs.access(path.join(dir, '.git'));
+  } catch {
+    try {
+      await execFileAsync('git', ['-C', dir, 'rev-parse', '--git-dir'], { timeout: 5000 });
+    } catch {
+      return { head: null, branch: null };
+    }
+  }
+  try {
+    const { stdout: sha } = await execFileAsync('git', ['-C', dir, 'rev-parse', '--short', 'HEAD'], {
+      timeout: 8000,
+      maxBuffer: 64 * 1024,
+    });
+    const { stdout: ref } = await execFileAsync('git', ['-C', dir, 'rev-parse', '--abbrev-ref', 'HEAD'], {
+      timeout: 8000,
+      maxBuffer: 64 * 1024,
+    });
+    const r = ref.trim();
+    const head = (sha || '').trim() || null;
+    const branch = r === 'HEAD' ? 'detached' : r || null;
+    return { head, branch };
+  } catch {
+    return { head: null, branch: null };
+  }
+}
+
 export async function getRegisteredProjects(): Promise<Project[]> {
   const { rows } = await getPool().query<Project>(
     `SELECT id, name, path, git_url, branch, status,
             registered_at::text AS registered_at
      FROM projects ORDER BY registered_at DESC`
   );
-  return rows;
+  const enriched = await Promise.all(
+    rows.map(async (row) => {
+      const dir = resolveProjectDirectory(row);
+      if (!dir) {
+        return { ...row, git_head: null, checked_out_branch: null };
+      }
+      try {
+        await fs.access(dir);
+      } catch {
+        return { ...row, git_head: null, checked_out_branch: null };
+      }
+      const { head, branch } = await readGitWorkingCopy(dir);
+      return { ...row, git_head: head, checked_out_branch: branch };
+    })
+  );
+  return enriched;
+}
+
+/** Opens the project folder in the system file manager (server machine). */
+export async function openProjectFolderInFileManager(projectId: string): Promise<'ok' | 'not_found' | 'bad_path'> {
+  const project = await getProject(projectId);
+  if (!project) return 'not_found';
+  const dir = resolveProjectDirectory(project);
+  if (!dir) return 'bad_path';
+  try {
+    await fs.access(dir);
+  } catch {
+    return 'not_found';
+  }
+  try {
+    if (process.platform === 'win32') {
+      await execFileAsync('explorer.exe', [dir], { timeout: 15000 });
+    } else if (process.platform === 'darwin') {
+      await execFileAsync('open', [dir], { timeout: 15000 });
+    } else {
+      await execFileAsync('xdg-open', [dir], { timeout: 15000 });
+    }
+  } catch (e) {
+    console.error('[projectService] open folder failed:', e);
+    return 'not_found';
+  }
+  return 'ok';
 }
 
 export async function getProject(projectId: string): Promise<Project | null> {

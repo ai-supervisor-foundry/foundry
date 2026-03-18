@@ -160,12 +160,39 @@ export interface CompletedTask {
   intent?: string;
   summary?: string;
   requires_context?: boolean;
+  // Full task fields retained for recreation
+  project_id?: string;
+  tool?: Provider;
+  task_type?: TaskType;
+  instructions?: string;
+  acceptance_criteria?: string[];
+  retry_policy?: RetryPolicy;
+  working_directory?: string;
+  agent_mode?: string;
+  affects_files?: string[];
+  depends_on?: string[];
+  required_artifacts?: string[];
+  test_command?: string;
 }
 
 export interface BlockedTask {
   task_id: string;
   blocked_at: string;
   reason: string;
+  // Full task fields retained for recreation
+  project_id?: string;
+  tool?: Provider;
+  task_type?: TaskType;
+  intent?: string;
+  instructions?: string;
+  acceptance_criteria?: string[];
+  retry_policy?: RetryPolicy;
+  working_directory?: string;
+  agent_mode?: string;
+  affects_files?: string[];
+  depends_on?: string[];
+  required_artifacts?: string[];
+  test_command?: string;
 }
 
 export interface Decision {

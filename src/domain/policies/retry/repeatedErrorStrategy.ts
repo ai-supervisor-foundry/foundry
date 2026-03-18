@@ -60,7 +60,7 @@ export class RepeatedErrorStrategy implements RetryStrategy {
         state.blocked_tasks = [];
       }
       state.blocked_tasks.push({
-        task_id: task.task_id,
+        ...task,
         blocked_at: new Date().toISOString(),
         reason: `Validation failed with identical error 3 times in a row: ${currentError}`,
       });

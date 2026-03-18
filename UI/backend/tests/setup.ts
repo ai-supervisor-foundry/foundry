@@ -21,7 +21,10 @@ jest.mock('../src/services/projectService', () => {
     getRegisteredProjects: jest.fn(async () => {
       const redis = MockRedis.getInstance();
       const raw = await redis.hgetall(PROJECTS_KEY);
-      return Object.values(raw).map((v: string) => JSON.parse(v));
+      return Object.values(raw).map((v: string) => {
+        const p = JSON.parse(v);
+        return { ...p, git_head: null, checked_out_branch: null };
+      });
     }),
     getProject: jest.fn(async (id: string) => {
       const redis = MockRedis.getInstance();
@@ -52,6 +55,11 @@ jest.mock('../src/services/projectService', () => {
       return removed > 0;
     }),
     discoverProjects: jest.fn(async () => []),
+    openProjectFolderInFileManager: jest.fn(async (id: string) => {
+      const redis = MockRedis.getInstance();
+      const raw = await redis.hget(PROJECTS_KEY, id);
+      return raw ? 'ok' : 'not_found';
+    }),
   };
 });
 

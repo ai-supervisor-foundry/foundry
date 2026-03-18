@@ -40,6 +40,6 @@ The supervisor uses a CLI adapter (`src/cliAdapter.ts`) that provides:
 
 ## Prompt Construction
 
-Every dispatched task includes: task ID, description (verbatim), acceptance criteria (verbatim), state snapshot, AUTO MODE instruction, halt-on-ambiguity instruction, output format, working directory, and agent mode. Agents must **never infer missing information**.
+Every dispatched task includes: task ID, description (verbatim), acceptance criteria (verbatim), state snapshot (includes sandbox_root), AUTO MODE instruction, halt-on-ambiguity instruction, output format, and agent mode. The agent process is spawned with cwd set to the sandbox directory. Agents must **never infer missing information**.
 
 Full prompt construction details: [tool-prompt-construction.md](./tool-prompt-construction.md)

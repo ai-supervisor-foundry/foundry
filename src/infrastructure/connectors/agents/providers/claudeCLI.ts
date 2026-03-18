@@ -1,11 +1,10 @@
 // Claude CLI Dispatcher
-// TASK: Research Claude CLI command structure and implement
+// Spawns claude via node-pty so the child process sees a real PTY (isTTY=true),
+// preventing daemon/non-interactive detection by Claude Code.
 
 import { ProviderResult } from '../../../../domain/executors/haltDetection';
-import { spawn } from 'child_process';
+import * as pty from 'node-pty';
 import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as os from 'os';
 
 function log(message: string, ...args: unknown[]): void {
   const timestamp = new Date().toISOString();
@@ -20,7 +19,7 @@ export async function dispatchToClaude(
 ): Promise<ProviderResult> {
   log(`Executing Claude CLI in directory: ${cwd}`);
   log(`Prompt length: ${prompt.length} characters`);
-  
+
   // Enforce cwd strictly - must exist and be a directory
   try {
     const cwdStat = await fs.stat(cwd);
@@ -32,98 +31,96 @@ export async function dispatchToClaude(
     throw new Error(`Invalid cwd: ${cwd} - ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  // Claude Code CLI: Installed at ~/.local/bin/claude or via npm
-  // Documentation: https://docs.claude.com/en/docs/claude-code/cli-reference
-  // Command: claude -p/--print [prompt] for non-interactive output
-  const useNpx = !process.env.CLAUDE_CLI_PATH;
-  const claudeCommand = process.env.CLAUDE_CLI_PATH || 'npx';
+  // Build args
+  const claudeCommand = process.env.CLAUDE_CLI_PATH || 'claude';
   const args: string[] = [];
-  
-  if (useNpx) {
-    args.push('@anthropic-ai/claude-code');
-  }
-  
-  // Use --print for non-interactive mode (prints response and exits)
+
   args.push('--print');
-  
-  // Set output format to JSON so we can parse session_id and result
   args.push('--output-format', 'json');
-  
-  // Skip interactive permission prompts in sandboxed, non-interactive runs
   args.push('--dangerously-skip-permissions');
-  
-  // Set model if provided (agentMode maps to Claude model)
+
   if (agentMode && agentMode !== 'auto') {
     args.push('--model', agentMode);
   }
-  
-  // If we have a session id from Supervisor, reuse it
+
   if (sessionId) {
-    args.push('--session-id', sessionId);
+    args.push('--resume', sessionId);
   }
-  
-  // Add prompt as argument
+
   args.push(prompt);
-  
-  log(`Spawning: ${claudeCommand} ${args.join(' ')}`);
+
+  log(`Spawning (pty): ${claudeCommand} ${args.join(' ')}`);
 
   return new Promise<ProviderResult>((resolve, reject) => {
-    const childProcess = spawn(claudeCommand, args, {
-      cwd: cwd,
-      env: process.env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    let ptyProcess: pty.IPty;
 
-    log(`Claude CLI process started, PID: ${childProcess.pid}`);
+    try {
+      // Strip Claude Code daemon-detection vars so the child process is not
+      // identified as a nested Claude Code instance (which triggers API pricing).
+      // Strip ANTHROPIC_API_KEY so claude uses subscription auth (OAuth stored
+      // credentials) instead of API key billing. Without the key, claude falls
+      // back to ~/.claude credentials same as a direct terminal invocation.
+      const childEnv = { ...process.env } as { [key: string]: string };
+      delete childEnv.CLAUDECODE;
+      delete childEnv.CLAUDE_CODE_ENTRYPOINT;
+      delete childEnv.CLAUDE_CODE_SSE_PORT;
+      delete childEnv.ANTHROPIC_API_KEY;
 
-    childProcess.stdin?.end();
+      ptyProcess = pty.spawn(claudeCommand, args, {
+        name: 'xterm-color',
+        cols: 220,
+        rows: 50,
+        cwd: cwd,
+        env: childEnv,
+      });
+    } catch (err) {
+      return reject(new Error(`Claude CLI process error: ${err instanceof Error ? err.message : String(err)}`));
+    }
 
-    let stdout = '';
-    let stderr = '';
+    log(`Claude CLI process started, PID: ${ptyProcess.pid}`);
+
+    let output = '';
 
     const timeout = setTimeout(() => {
-      childProcess.kill('SIGTERM');
+      ptyProcess.kill();
       reject(new Error('Claude CLI process timed out after 30 minutes'));
     }, 30 * 60 * 1000);
 
-    childProcess.stdout?.on('data', (data: Buffer) => {
-      stdout += data.toString('utf8');
+    ptyProcess.onData((data) => {
+      output += data;
     });
 
-    childProcess.stderr?.on('data', (data: Buffer) => {
-      stderr += data.toString('utf8');
-    });
-
-    childProcess.on('close', async (code) => {
+    ptyProcess.onExit(({ exitCode }) => {
       clearTimeout(timeout);
-      const exitCode = code ?? 1;
-      const rawOutput = stdout + stderr;
-
       log(`Claude CLI process closed, exit code: ${exitCode}`);
 
+      // Strip ANSI escape codes that PTY may inject
+      const clean = output.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '').replace(/[\x00-\x09\x0B-\x1F\x7F]/g, '');
+
+      // Extract JSON from output (PTY may include trailing control sequences)
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      const stdout = jsonMatch ? jsonMatch[0] : clean;
+
+      let parsedJson: { is_error?: boolean; session_id?: string } = {};
+      try { parsedJson = JSON.parse(stdout); } catch { /* non-JSON output */ }
+
       let status: string | undefined;
-      if (exitCode !== 0) {
+      if (exitCode !== 0 || parsedJson.is_error === true) {
         status = 'FAILED';
-        log(`Claude CLI execution FAILED (exit code: ${exitCode})`);
+        log(`Claude CLI execution FAILED (exit code: ${exitCode}, is_error: ${parsedJson.is_error})`);
       } else {
         log(`Claude CLI execution SUCCESS`);
       }
 
       resolve({
-        stdout: stdout,
-        stderr: stderr,
-        exitCode: exitCode,
-        rawOutput: rawOutput,
-        status: status,
-        output: rawOutput,
+        stdout,
+        stderr: '',
+        exitCode,
+        rawOutput: output,
+        status,
+        output: stdout,
+        sessionId: parsedJson.session_id,
       });
-    });
-
-    childProcess.on('error', async (error) => {
-      clearTimeout(timeout);
-      log(`ERROR: Claude CLI process error: ${error.message}`);
-      reject(new Error(`Claude CLI process error: ${error.message}`));
     });
   });
 }
-

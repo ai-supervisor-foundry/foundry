@@ -1,0 +1,34 @@
+File,Type,Module/Area,Description
+sandbox/backend/src/middlewares/rate-limit.middleware.spec.ts,unit,middleware,Verifies rate limit middleware logic
+sandbox/backend/src/db/config.spec.ts,unit,db,Validates database configuration
+sandbox/backend/src/middlewares/test-internal-server-error.middleware.spec.ts,unit,middleware,Checks internal error handling middleware
+sandbox/backend/src/db/custom.base.entity.spec.ts,unit,db,Tests custom base entity behavior
+sandbox/backend/src/modules/health/health.controller.spec.ts,unit,controller,Health controller responses
+sandbox/backend/src/modules/project/project.service.spec.ts,unit,service,Project service methods and permission logic
+sandbox/backend/src/modules/users/users.service.spec.ts,unit,service,User service operations
+sandbox/backend/src/env.spec.ts,unit,config,Environment variable validation
+sandbox/backend/src/common/utils/date.utils.spec.ts,unit,utils,Date utility functions
+sandbox/backend/src/helpers/common.spec.ts,unit,helpers,Common helper functions
+sandbox/backend/src/common/utils/cache-key.util.spec.ts,unit,utils,Cache key generation utilities
+sandbox/backend/src/common/utils/string.utils.spec.ts,unit,utils,String utility functions
+sandbox/backend/src/modules/auth/role.guard.spec.ts,unit,auth,Role guard authorization rules
+sandbox/backend/src/exception-filters/query.exception.spec.ts,unit,exceptions,Query exception filter behavior
+sandbox/backend/src/modules/timesheet/timesheet-notification.service.spec.ts,unit,service,Timesheet notification logic
+sandbox/backend/src/modules/timesheet/timesheet.service.spec.ts,unit,service,Timesheet business logic
+sandbox/backend/src/common/pipes/parse-optional-boolean.pipe.spec.ts,unit,pipes,Boolean parsing pipe
+sandbox/backend/src/modules/reports/reports.service.spec.ts,unit,service,Reports service computations
+sandbox/backend/src/exception-filters/global.exception.spec.ts,unit,exceptions,Global exception handling
+sandbox/backend/src/common/pipes/parse-optional-int.pipe.spec.ts,unit,pipes,Integer parsing pipe
+sandbox/backend/src/modules/project/project-task.service.spec.ts,unit,service,Project task service
+sandbox/backend/src/modules/auth/password/password.service.spec.ts,unit,auth,Password service operations
+sandbox/backend/src/modules/auth/auth.service.spec.ts,unit,auth,Authentication service
+sandbox/backend/src/modules/auth/auth.guard.spec.ts,unit,auth,Authentication guard
+sandbox/backend/src/modules/auth/temp-auth.guard.spec.ts,unit,auth,Temporary auth guard
+sandbox/backend/test/auth.e2e-spec.ts,e2e,auth,Authentication controller end-to-end flows
+sandbox/backend/test/health.e2e-spec.ts,e2e,health,Health-check endpoint
+sandbox/backend/test/users.e2e-spec.ts,e2e,users,User endpoints
+sandbox/backend/test/projects.e2e-spec.ts,e2e,projects,Project endpoints
+sandbox/backend/test/timesheet-entries.e2e-spec.ts,e2e,timesheet,Timesheet entry endpoints
+sandbox/backend/test/reports-hours.e2e-spec.ts,e2e,reports,Reporting hours endpoint
+sandbox/frontend/services/apiClient.test.ts,unit,frontend,API client helper functions
+sandbox/frontend/utils/dashboardStats.test.ts,unit,frontend,Dashboard statistics utilities

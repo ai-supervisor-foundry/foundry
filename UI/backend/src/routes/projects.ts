@@ -6,6 +6,7 @@ import {
   registerProject,
   unregisterProject,
   discoverProjects,
+  openProjectFolderInFileManager,
 } from '../services/projectService.js';
 
 const router = Router();
@@ -25,6 +26,22 @@ router.get('/discovered', async (req, res, next) => {
   try {
     const discovered = await discoverProjects();
     res.json({ projects: discovered });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/projects/:id/open-folder — opens sandbox project dir on the server (file manager)
+router.post('/:id/open-folder', async (req, res, next) => {
+  try {
+    const result = await openProjectFolderInFileManager(req.params.id);
+    if (result === 'not_found') {
+      return res.status(404).json({ error: 'Project or directory not found' });
+    }
+    if (result === 'bad_path') {
+      return res.status(400).json({ error: 'Invalid project path' });
+    }
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }

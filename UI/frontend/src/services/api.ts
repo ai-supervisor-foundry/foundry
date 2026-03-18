@@ -110,6 +110,7 @@ export const apiClient = {
   registerProject: (id: string, name: string, projectPath?: string, gitUrl?: string, branch?: string) =>
     api.post('/api/projects', { id, name, path: projectPath || id, gitUrl, branch }),
   unregisterProject: (id: string) => api.delete(`/api/projects/${id}`),
+  openProjectFolder: (id: string) => api.post(`/api/projects/${id}/open-folder`),
 
   // Supervisor control
   haltSupervisor: (reason: string = 'User requested halt via UI') => 

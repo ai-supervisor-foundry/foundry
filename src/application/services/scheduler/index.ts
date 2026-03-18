@@ -280,6 +280,7 @@ async function handleWorkerCompletion(
       // Block the task
       if (!state.blocked_tasks) state.blocked_tasks = [];
       state.blocked_tasks.push({
+        ...(activeTask?.task || {}),
         task_id: taskId,
         blocked_at: new Date().toISOString(),
         reason: event.reason,

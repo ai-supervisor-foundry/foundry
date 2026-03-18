@@ -17,8 +17,7 @@ Every task dispatched to a provider CLI must include:
 5. Explicit instruction to remain in AUTO MODE
 6. Explicit instruction to halt on ambiguity
 7. Explicit output format requirement
-8. **WORKING DIRECTORY** instruction (`sandbox/{project_id}/`)
-9. **AGENT MODE** instruction (if specified in task)
+8. **AGENT MODE** instruction (if specified in task)
 
 The agent must **never infer missing information**.
 

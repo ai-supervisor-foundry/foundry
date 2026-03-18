@@ -24,8 +24,8 @@ Parent: [state-management.md](./state-management.md)
   "file_locks": {
     "<file_path>": { "file_path": "string", "task_id": "string", "worker_id": "string", "acquired_at": "ISO8601" }
   },
-  "completed_tasks": [{ "task_id": "", "completed_at": "ISO8601", "validation_report": {} }],
-  "blocked_tasks": [{ "task_id": "", "reason": "", "blocked_at": "ISO8601" }],
+  "completed_tasks": [{ "task_id": "", "completed_at": "ISO8601", "validation_report": {}, "intent": "", "instructions": "", "acceptance_criteria": [], "tool": "", "project_id": "", "affects_files": [], "depends_on": [], "working_directory": "", "agent_mode": "" }],
+  "blocked_tasks": [{ "task_id": "", "reason": "", "blocked_at": "ISO8601", "intent": "", "instructions": "", "acceptance_criteria": [], "tool": "", "project_id": "", "affects_files": [], "depends_on": [], "working_directory": "", "agent_mode": "" }],
   "queue": { "name": "string", "exhausted": "boolean", "ready_count": "number?", "waiting_count": "number?" },
   "last_validation_report": "ValidationReport | null",
   "last_updated": "ISO8601",
