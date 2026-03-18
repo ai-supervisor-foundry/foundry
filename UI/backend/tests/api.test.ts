@@ -337,5 +337,26 @@ describe('UI Backend API - Functional Tests', () => {
       const res = await request(app).post('/api/projects').send({ id: 'only-id' });
       expect(res.status).toBe(400);
     });
+
+    it('POST /api/projects should reject invalid project ID characters', async () => {
+      const res = await request(app).post('/api/projects').send({
+        id: 'bad id/with spaces',
+        name: 'Bad ID',
+      });
+      expect(res.status).toBe(422);
+      expect(res.body.error.code).toBe('GIT_CLONE_FAILED');
+    });
+
+    it('POST /api/projects should store gitUrl and branch', async () => {
+      const res = await request(app).post('/api/projects').send({
+        id: 'git-project',
+        name: 'Git Project',
+        gitUrl: 'https://github.com/org/repo.git',
+        branch: 'develop',
+      });
+      expect(res.status).toBe(200);
+      expect(res.body.project.git_url).toBe('https://github.com/org/repo.git');
+      expect(res.body.project.branch).toBe('develop');
+    });
   });
 });

@@ -10,8 +10,8 @@ jest.mock('../src/services/logReader', () => ({
   getAvailableProjects: jest.fn().mockResolvedValue([]),
 }));
 
-// Mock projectService (uses import.meta.url which is ESM-only)
-// We provide a full in-memory implementation backed by the Redis mock
+// Mock projectService (uses pg + import.meta.url which are not available in tests)
+// In-memory implementation backed by the Redis mock to keep existing tests working.
 jest.mock('../src/services/projectService', () => {
   const MockRedis = require('./mocks/ioredis').default;
 
@@ -29,11 +29,17 @@ jest.mock('../src/services/projectService', () => {
       return raw ? JSON.parse(raw) : null;
     }),
     registerProject: jest.fn(async (project: any) => {
+      // Reject IDs with unsafe characters (mirrors real sanitizeProjectId)
+      if (!/^[a-zA-Z0-9_-]+$/.test(project.id)) {
+        return { code: 'GIT_CLONE_FAILED', hint: 'Project ID may only contain letters, numbers, hyphens, and underscores.' };
+      }
       const redis = MockRedis.getInstance();
       const full = {
         id: project.id,
         name: project.name,
         path: project.path || project.id,
+        git_url: project.gitUrl ?? null,
+        branch: project.branch ?? null,
         registered_at: new Date().toISOString(),
         status: project.status || 'active',
       };

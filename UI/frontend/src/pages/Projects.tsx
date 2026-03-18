@@ -22,7 +22,9 @@ export default function Projects() {
   const [discovered, setDiscovered] = useState<DiscoveredProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
-  const [newProject, setNewProject] = useState({ id: '', name: '' });
+  const [newProject, setNewProject] = useState({ id: '', name: '', gitUrl: '', branch: '' });
+  const [addError, setAddError] = useState<string | null>(null);
+  const [isCloning, setIsCloning] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -66,17 +68,32 @@ export default function Projects() {
 
   const handleAddManual = async () => {
     if (!newProject.id || !newProject.name) {
-      alert('Project ID and Name are required');
+      setAddError('Project ID and Name are required');
       return;
     }
+    setAddError(null);
+    setIsCloning(!!newProject.gitUrl);
     try {
-      await apiClient.registerProject(newProject.id, newProject.name, newProject.id);
+      await apiClient.registerProject(
+        newProject.id,
+        newProject.name,
+        newProject.id,
+        newProject.gitUrl || undefined,
+        newProject.branch || undefined,
+      );
       setIsAdding(false);
-      setNewProject({ id: '', name: '' });
+      setIsCloning(false);
+      setNewProject({ id: '', name: '', gitUrl: '', branch: '' });
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
+      setIsCloning(false);
+      const errData = error?.response?.data?.error;
+      if (errData?.hint) {
+        setAddError(`${errData.code}: ${errData.hint}`);
+      } else {
+        setAddError('Failed to add project');
+      }
       console.error('Error adding project:', error);
-      alert('Failed to add project');
     }
   };
 
@@ -186,7 +203,7 @@ export default function Projects() {
       {isAdding && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          onClick={() => setIsAdding(false)}
+          onClick={() => { setIsAdding(false); setAddError(null); }}
         >
           <div
             className="bg-white rounded-lg p-6 w-full max-w-md"
@@ -194,7 +211,7 @@ export default function Projects() {
           >
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold">Add Project</h3>
-              <button onClick={() => setIsAdding(false)} className="text-gray-500 hover:text-gray-700">
+              <button onClick={() => { setIsAdding(false); setAddError(null); }} className="text-gray-500 hover:text-gray-700">
                 X
               </button>
             </div>
@@ -210,7 +227,7 @@ export default function Projects() {
                   className="w-full border rounded px-3 py-2"
                   placeholder="my-project"
                 />
-                <p className="text-xs text-gray-500 mt-1">Must match sandbox directory name</p>
+                <p className="text-xs text-gray-500 mt-1">Alphanumeric, hyphens, underscores. Used as sandbox directory name.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -224,18 +241,50 @@ export default function Projects() {
                   placeholder="My Project"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Git URL <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={newProject.gitUrl}
+                  onChange={(e) => setNewProject({ ...newProject, gitUrl: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                  placeholder="https://github.com/org/repo.git"
+                />
+                <p className="text-xs text-gray-500 mt-1">If provided, the repo will be cloned into sandbox/{newProject.id || '<id>'}.</p>
+              </div>
+              {newProject.gitUrl && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Branch <span className="text-gray-400 font-normal">(optional — defaults to repo default)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newProject.branch}
+                    onChange={(e) => setNewProject({ ...newProject, branch: e.target.value })}
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="main"
+                  />
+                </div>
+              )}
+              {addError && (
+                <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{addError}</p>
+              )}
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
-                  onClick={() => setIsAdding(false)}
+                  onClick={() => { setIsAdding(false); setAddError(null); }}
                   className="px-4 py-2 border rounded hover:bg-gray-50"
+                  disabled={isCloning}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleAddManual}
-                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                  disabled={isCloning}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
                 >
-                  Register
+                  {isCloning ? 'Cloning...' : 'Register'}
                 </button>
               </div>
             </div>

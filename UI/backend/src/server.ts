@@ -1,12 +1,15 @@
 // Express server for Supervisor UI backend
 import { config } from './config.js';
 import { createApp } from './app.js';
+import { runMigrations } from './services/db.js';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+await runMigrations();
 
 const app = createApp();
 

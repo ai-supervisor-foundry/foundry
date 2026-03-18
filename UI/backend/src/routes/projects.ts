@@ -10,7 +10,7 @@ import {
 
 const router = Router();
 
-// GET /api/projects - List registered projects
+// GET /api/projects
 router.get('/', async (req, res, next) => {
   try {
     const projects = await getRegisteredProjects();
@@ -20,7 +20,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// GET /api/projects/discovered - Scan sandbox for all projects (registered + unregistered)
+// GET /api/projects/discovered
 router.get('/discovered', async (req, res, next) => {
   try {
     const discovered = await discoverProjects();
@@ -30,7 +30,7 @@ router.get('/discovered', async (req, res, next) => {
   }
 });
 
-// GET /api/projects/:id - Get single project
+// GET /api/projects/:id
 router.get('/:id', async (req, res, next) => {
   try {
     const project = await getProject(req.params.id);
@@ -43,21 +43,36 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-// POST /api/projects - Register a project
+// POST /api/projects
+// Body: { id, name, path?, gitUrl?, branch? }
+// If gitUrl is provided, clones the repo into sandbox/<id> before registering.
 router.post('/', async (req, res, next) => {
   try {
-    const { id, name, path } = req.body;
+    const { id, name, path, gitUrl, branch } = req.body;
     if (!id || !name) {
       return res.status(400).json({ error: 'id and name are required' });
     }
-    const project = await registerProject({ id, name, path: path || id });
-    res.json({ success: true, project });
+
+    const result = await registerProject({ id, name, path, gitUrl, branch });
+
+    // Detect git clone error (has a `code` field)
+    if ('code' in result) {
+      const statusMap: Record<string, number> = {
+        GIT_AUTH_FAILED: 403,
+        GIT_NOT_FOUND: 404,
+        DIR_EXISTS: 409,
+        GIT_CLONE_FAILED: 422,
+      };
+      return res.status(statusMap[result.code] ?? 422).json({ error: result });
+    }
+
+    res.json({ success: true, project: result });
   } catch (error) {
     next(error);
   }
 });
 
-// DELETE /api/projects/:id - Unregister a project
+// DELETE /api/projects/:id
 router.delete('/:id', async (req, res, next) => {
   try {
     const removed = await unregisterProject(req.params.id);

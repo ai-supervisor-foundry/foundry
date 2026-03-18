@@ -107,8 +107,8 @@ export const apiClient = {
   // Projects endpoints
   getProjects: () => api.get('/api/projects'),
   getDiscoveredProjects: () => api.get('/api/projects/discovered'),
-  registerProject: (id: string, name: string, projectPath?: string) =>
-    api.post('/api/projects', { id, name, path: projectPath || id }),
+  registerProject: (id: string, name: string, projectPath?: string, gitUrl?: string, branch?: string) =>
+    api.post('/api/projects', { id, name, path: projectPath || id, gitUrl, branch }),
   unregisterProject: (id: string) => api.delete(`/api/projects/${id}`),
 
   // Supervisor control
