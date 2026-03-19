@@ -103,7 +103,7 @@ describe('ClaudeCLI - dispatchToClaude', () => {
     await dispatchToClaude('prompt', '/tmp', undefined, 'sess-abc');
 
     const args = mockPtySpawn.mock.calls[0][1];
-    expect(args).toContain('--session-id');
+    expect(args).toContain('--resume');
     expect(args).toContain('sess-abc');
   });
 
