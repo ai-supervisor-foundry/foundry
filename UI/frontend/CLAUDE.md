@@ -11,6 +11,12 @@ Read `../../supervisor-contexts/CONTEXT.md` first — it indexes all system docu
 
 - State schema: `../../supervisor-contexts/state-management.md`
 - Task schema: `../../supervisor-contexts/task-schema.md`
+- Configuration: `../../supervisor-contexts/configuration.md`
+- Logging & auditability: `../../supervisor-contexts/logging-auditability.md`
+
+## Navigation
+
+Parent: [`UI/CLAUDE.md`](../CLAUDE.md)
 
 ## Behavioral Rules
 

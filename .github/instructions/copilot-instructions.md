@@ -34,3 +34,7 @@ For each *.md or context file, first read the frontmatter (Lines between "---" i
 - **System docs**: `supervisor-contexts/` (read specific section files as needed)
 - **Project details**: `README.md`, `docs/*.md` (not `docs/plans` unless working on a plan)
 - **Sandbox projects**: `contexts/sandbox/`
+- **UI Dashboard**: `UI/` — Express API backend + React frontend; entry point: [`UI/copilot-instructions.md`](UI/copilot-instructions.md)
+- **Core source**: `src/` — see [`src/copilot-instructions.md`](src/copilot-instructions.md)
+- **Tests**: `tests/` — see [`tests/copilot-instructions.md`](tests/copilot-instructions.md)
+- **Scripts**: `scripts/` — see [`scripts/copilot-instructions.md`](scripts/copilot-instructions.md)

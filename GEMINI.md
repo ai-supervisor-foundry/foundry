@@ -34,3 +34,7 @@ For each *.md or context file, first read the frontmatter (Lines between "---" i
 - **System docs**: `supervisor-contexts/` (read specific section files as needed)
 - **Project details**: `README.md`, `docs/*.md` (not `docs/plans` unless working on a plan)
 - **Sandbox projects**: `contexts/sandbox/`
+- **UI Dashboard**: `UI/` — Express API backend + React frontend; entry point: [`UI/GEMINI.md`](UI/GEMINI.md)
+- **Core source**: `src/` — see [`src/GEMINI.md`](src/GEMINI.md)
+- **Tests**: `tests/` — see [`tests/GEMINI.md`](tests/GEMINI.md)
+- **Scripts**: `scripts/` — see [`scripts/GEMINI.md`](scripts/GEMINI.md)

@@ -134,9 +134,8 @@ export async function controlLoop(
       }
       
       if (state.supervisor.status !== 'RUNNING') {
-        logShared('ControlLoop', `[Iteration ${iteration}] Status is ${state.supervisor.status}, sleeping...`);
-        await sleep(1000);
-        continue;
+        logShared('ControlLoop', `[Iteration ${iteration}] Status is ${state.supervisor.status}, exiting loop`);
+        break;
       }
     }
     

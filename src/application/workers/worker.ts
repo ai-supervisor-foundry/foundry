@@ -158,7 +158,7 @@ async function executeTask(task: Task, worktreePath: string, config: WorkerConfi
 
       if (retryDecision.action === 'block') {
         const blockedTask: BlockedTask = {
-          task_id: task.task_id,
+          ...task,
           blocked_at: new Date().toISOString(),
           reason: validationResult.report.reason || 'Validation failed after retries',
         };

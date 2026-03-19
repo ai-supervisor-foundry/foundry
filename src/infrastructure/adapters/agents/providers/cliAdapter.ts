@@ -175,7 +175,7 @@ export class CLIAdapter implements LLMProviderPort {
       case Provider.CURSOR:
         return await dispatchToCursor(prompt, cwd, agentMode, sessionId, featureId);
       case Provider.CLAUDE:
-        return await dispatchToClaude(prompt, cwd, agentMode);
+        return await dispatchToClaude(prompt, cwd, agentMode, sessionId);
       case Provider.CODEX:
         return await dispatchToCodex(prompt, cwd, agentMode);
       case Provider.GEMINI:

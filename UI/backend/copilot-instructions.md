@@ -18,8 +18,13 @@ Read `../../supervisor-contexts/CONTEXT.md` first — it indexes all system docu
 
 - `src/app.ts` — Express app factory (`createApp()`)
 - `src/routes/` — API routes (state, tasks, commands, projects, logs)
-- `src/services/` — supervisorState (ioredis), projectService, logReader
-- `tests/` — Jest + supertest with mocked ioredis, fs, child_process
+- `src/services/` — supervisorState (ioredis), projectService (pg), db (pg pool + migrations), logReader
+- `src/services/db.ts` — pg Pool, `runMigrations()` (auto-runs on startup), `writeAuditLog()`; tables: projects, tasks, task_runs, audit_log
+- `tests/` — Jest + supertest with mocked ioredis, fs, child_process; projectService is fully in-memory mocked (no pg in tests)
+
+## Navigation
+
+Parent: [`UI/copilot-instructions.md`](../copilot-instructions.md)
 
 ## Behavioral Rules
 

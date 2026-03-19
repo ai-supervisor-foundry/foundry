@@ -10,6 +10,13 @@ export interface Config {
     host: string;
     port: number;
   };
+  postgres: {
+    host: string;
+    port: number;
+    user: string;
+    password: string;
+    database: string;
+  };
   supervisor: {
     stateKey: string;
     queueName: string;
@@ -31,6 +38,13 @@ export function loadConfig(): Config {
     redis: {
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6499', 10),
+    },
+    postgres: {
+      host: process.env.PG_HOST || 'localhost',
+      port: parseInt(process.env.PG_PORT || '5433', 10),
+      user: process.env.PG_USER || 'supervisor',
+      password: process.env.PG_PASSWORD || 'supervisor',
+      database: process.env.PG_DATABASE || 'supervisor',
     },
     supervisor: {
       stateKey: process.env.STATE_KEY || 'supervisor:state',

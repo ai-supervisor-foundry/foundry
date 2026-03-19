@@ -17,6 +17,8 @@ interface TaskCardProps {
     working_directory?: string;
     agent_mode?: string;
     required_artifacts?: string[];
+    affects_files?: string[];
+    depends_on?: string[];
     test_command?: string;
     // Completed task fields
     completed_at?: string;
@@ -41,6 +43,7 @@ interface TaskCardProps {
 
 export default function TaskCard({ task, className = '', isCurrent = false, onEdit }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [jsonModalOpen, setJsonModalOpen] = useState(false);
 
   // Helper to extract task_type value (handles both string and object formats)
   const getTaskType = () => {
@@ -50,12 +53,14 @@ export default function TaskCard({ task, className = '', isCurrent = false, onEd
     return String(task.task_type);
   };
 
-  const hasDetails = task.instructions || 
+  const hasDetails = task.instructions ||
     (task.acceptance_criteria && task.acceptance_criteria.length > 0) ||
     task.retry_policy ||
     task.working_directory ||
     task.agent_mode ||
     task.required_artifacts ||
+    task.affects_files ||
+    task.depends_on ||
     task.test_command ||
     task.validation_report ||
     task.reason;
@@ -379,6 +384,26 @@ export default function TaskCard({ task, className = '', isCurrent = false, onEd
                     </ul>
                   </div>
                 )}
+                {task.affects_files && task.affects_files.length > 0 && (
+                  <div>
+                    <span className="font-medium text-gray-700">Affects Files:</span>
+                    <ul className="ml-4 mt-1 list-disc list-inside">
+                      {task.affects_files.map((file: string, index: number) => (
+                        <li key={index} className="text-gray-600 font-mono text-xs">{file}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {task.depends_on && task.depends_on.length > 0 && (
+                  <div>
+                    <span className="font-medium text-gray-700">Depends On:</span>
+                    <div className="ml-2 mt-1 flex flex-wrap gap-1">
+                      {task.depends_on.map((dep: string, index: number) => (
+                        <span key={index} className="inline-block px-2 py-0.5 bg-yellow-100 text-yellow-800 font-mono text-xs rounded">{dep}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -405,15 +430,49 @@ export default function TaskCard({ task, className = '', isCurrent = false, onEd
             </div>
           )}
           
-          <div className="pt-2 border-t">
+          <div className="pt-2 border-t flex gap-2">
             <button
               onClick={() => {
                 navigator.clipboard.writeText(JSON.stringify(task, null, 2));
               }}
               className="text-xs px-3 py-1.5 bg-gray-200 hover:bg-gray-300 rounded"
             >
-              Copy Full JSON
+              Copy JSON
             </button>
+            <button
+              onClick={() => setJsonModalOpen(true)}
+              className="text-xs px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded"
+            >
+              View Full JSON
+            </button>
+          </div>
+        </div>
+      )}
+
+      {jsonModalOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setJsonModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4 shrink-0">
+              <h3 className="text-lg font-bold font-mono">{task.task_id}</h3>
+              <button onClick={() => setJsonModalOpen(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <pre className="bg-gray-100 p-4 rounded text-sm overflow-auto flex-1 whitespace-pre-wrap break-words">
+              {JSON.stringify(task, null, 2)}
+            </pre>
+            <div className="mt-3 flex justify-end shrink-0">
+              <button
+                onClick={() => navigator.clipboard.writeText(JSON.stringify(task, null, 2))}
+                className="text-xs px-3 py-1.5 bg-gray-200 hover:bg-gray-300 rounded"
+              >
+                Copy
+              </button>
+            </div>
           </div>
         </div>
       )}

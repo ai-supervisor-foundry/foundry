@@ -479,10 +479,6 @@ export function buildPrompt(task: Task, minimalState: MinimalState): string {
   // Section 8: Output Requirements
   sections.push(...strategy.getOutputRequirements());
 
-  // Section 9: Working directory
-  sections.push(`- Working directory: ${minimalState.project.sandbox_root}`);
-  sections.push('');
-
   const prompt = sections.join('\n');
   const duration = Date.now() - startTime;
   logPerformance('BuildPrompt', duration, {

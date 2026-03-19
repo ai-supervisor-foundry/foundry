@@ -37,6 +37,7 @@ The Supervisor is a **persistent orchestration layer for AI-assisted software de
 | PM2 Integration | [pm2-integration.md](./pm2-integration.md) |
 | Sandbox Structure | [sandbox-structure.md](./sandbox-structure.md) |
 | Final Instruction | [final-instruction.md](./final-instruction.md) |
+| UI Dashboard & API | [../UI/CLAUDE.md](../UI/CLAUDE.md) → [backend](../UI/backend/CLAUDE.md) · [frontend](../UI/frontend/CLAUDE.md) |
 
 ## Workflow Summary
 

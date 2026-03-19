@@ -73,7 +73,7 @@ export class MaxRetriesStrategy implements RetryStrategy {
             state.blocked_tasks = [];
           }
           state.blocked_tasks.push({
-            task_id: task.task_id,
+            ...task,
             blocked_at: new Date().toISOString(),
             reason: `Validation failed after ${maxRetries} retries and final interrogation confirmed incomplete: ${finalInterrogation.remaining_failed_criteria.join(', ')}`,
           });

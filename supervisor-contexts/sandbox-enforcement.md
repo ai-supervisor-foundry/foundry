@@ -15,7 +15,7 @@ Each app/project:
 
 - **No cross-project file access**
 - **No shared state**
-- Cursor task prompts must specify: `WORKING DIRECTORY: <sandbox-root>/<project-id>` or `<sandbox-root>/<working_directory>`
+- Agent process is spawned with `cwd` set to `<sandbox-root>/<project-id>` (or `working_directory` override); `sandbox_root` is also injected into the state snapshot context
 
 ## Sandbox Location
 
