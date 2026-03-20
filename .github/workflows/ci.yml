@@ -207,20 +207,21 @@ jobs:
             SUMMARY="- ${PR_TITLE}"
           fi
 
-          # Build release entry
-          ENTRY="## v${NEW_VERSION} (${DATE})
+          # Build release entry and prepend to CHANGELOG.md
+          {
+            echo "## v${NEW_VERSION} (${DATE})"
+            echo ""
+            echo "${SUMMARY}"
+            echo ""
+            echo "PR: #${{ github.event.pull_request.number }}"
+          } > RELEASE_ENTRY.tmp
 
-${SUMMARY}
-
-PR: #${{ github.event.pull_request.number }}
-"
-
-          # Prepend to CHANGELOG.md (create if missing)
           if [ -f CHANGELOG.md ]; then
-            echo "${ENTRY}" | cat - CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+            cat RELEASE_ENTRY.tmp CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
           else
-            echo "${ENTRY}" > CHANGELOG.md
+            mv RELEASE_ENTRY.tmp CHANGELOG.md
           fi
+          rm -f RELEASE_ENTRY.tmp
 
       - name: Commit version bump and release notes
         if: steps.check.outputs.skip == 'false'
