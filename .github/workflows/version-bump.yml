@@ -1,0 +1,99 @@
+name: Version Bump
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    # Skip if the latest commit is already a version bump
+    if: "!contains(github.event.pull_request.title, '[version-bump]')"
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Check if already bumped
+        id: check
+        run: |
+          HEAD_MSG=$(git log -1 --format=%s)
+          if echo "$HEAD_MSG" | grep -q '\[version-bump\]'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine bump type from PR title
+        if: steps.check.outputs.skip == 'false'
+        id: bump-type
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          echo "PR title: $PR_TITLE"
+          TITLE_UPPER=$(echo "$PR_TITLE" | tr '[:lower:]' '[:upper:]')
+          if echo "$TITLE_UPPER" | grep -qE '^MAJOR[^A-Z]'; then
+            echo "type=major" >> "$GITHUB_OUTPUT"
+          elif echo "$TITLE_UPPER" | grep -qE '^MINOR[^A-Z]'; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump version
+        if: steps.check.outputs.skip == 'false'
+        run: bash scripts/bump-version.sh "${{ steps.bump-type.outputs.type }}"
+
+      - name: Generate release notes
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_BODY="${{ github.event.pull_request.body }}"
+          DATE=$(date +%Y-%m-%d)
+
+          # Extract summary section from PR body if present
+          SUMMARY=$(echo "$PR_BODY" | sed -n '/^## Summary/,/^## /{ /^## Summary/d; /^## /d; p; }' | sed '/^$/d')
+          if [ -z "$SUMMARY" ]; then
+            SUMMARY="- ${PR_TITLE}"
+          fi
+
+          # Build release entry
+          ENTRY="## v${NEW_VERSION} (${DATE})
+
+${SUMMARY}
+
+PR: #${{ github.event.pull_request.number }}
+"
+
+          # Prepend to CHANGELOG.md (create if missing)
+          if [ -f CHANGELOG.md ]; then
+            echo "${ENTRY}" | cat - CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+          else
+            echo "${ENTRY}" > CHANGELOG.md
+          fi
+
+      - name: Commit version bump and release notes
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          git add package.json UI/backend/package.json UI/frontend/package.json CHANGELOG.md
+          git commit -m "chore: bump version to v${NEW_VERSION} [version-bump]"
+          git push

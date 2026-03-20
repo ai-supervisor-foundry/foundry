@@ -1,6 +1,6 @@
 {
   "name": "foundry",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "The Persistent Control Plane for Autonomous AI Software Factories",
   "main": "index.ts",
   "scripts": {
