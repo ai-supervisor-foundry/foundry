@@ -1,11 +1,18 @@
 // Tasks Page
 // Current task, queue, completed tasks, and blocked tasks
 import { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { apiClient } from '../services/api';
 import TaskCard from '../components/TaskCard';
 import AutoRefresh from '../components/AutoRefresh';
+import ConfirmModal from '../components/ConfirmModal';
+// @todo - Remove cross module dependency on Supervisor main codebase.
+import { PROVIDER_MODELS } from '../constants/providers/models';
+import { ExecutionMode, FALLBACK_MODES } from '../constants/executionModes';
 
 const PER_PAGE_OPTIONS = [5, 10, 20, 50, 100];
+
+
 
 export default function Tasks() {
   const [currentTask, setCurrentTask] = useState<any>(null);
@@ -24,24 +31,21 @@ export default function Tasks() {
   "task_id": "task-${Date.now()}",
   "project_id": "",
   "intent": "Example task",
-  "tool": "gemini",
   "instructions": "Describe what needs to be done...",
   "acceptance_criteria": [
     "Criteria 1"
-  ],
-  "working_directory": ".",
-  "agent_mode": "auto"
+  ]
 }`);
   const [taskForm, setTaskForm] = useState({
     task_id: `task-${Date.now()}`,
     project_id: '',
     intent: '',
-    tool: 'gemini',
+    tool: '',
     task_type: '',
     instructions: '',
     acceptance_criteria: [''],
-    working_directory: '.',
-    agent_mode: 'auto',
+    working_directory: '',
+    agent_mode: '',
     max_retries: 1,
     status: 'pending'
   });
@@ -61,6 +65,23 @@ export default function Tasks() {
   const [queuePerPage, setQueuePerPage] = useState(5);
   const [completedPerPage, setCompletedPerPage] = useState(5);
   const [blockedPerPage, setBlockedPerPage] = useState(5);
+
+  // Selection state for bulk delete
+  const [selectedQueue, setSelectedQueue] = useState<Set<string>>(new Set());
+  const [selectedCompleted, setSelectedCompleted] = useState<Set<string>>(new Set());
+  const [selectedBlocked, setSelectedBlocked] = useState<Set<string>>(new Set());
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    open: boolean;
+    source: 'queue' | 'completed' | 'blocked';
+    taskIds: string[];
+  }>({ open: false, source: 'queue', taskIds: [] });
+
+  // Execution mode & multi-create
+  const [executionModes, setExecutionModes] = useState<ExecutionMode[]>(FALLBACK_MODES);
+  const [executionMode, setExecutionMode] = useState('default');
+  const [preserveGlobal, setPreserveGlobal] = useState(false);
+  const [createMultiple, setCreateMultiple] = useState(false);
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -83,9 +104,124 @@ export default function Tasks() {
     }
   }, []);
 
+  // Selection helpers
+  const toggleSelection = (set: Set<string>, setFn: (s: Set<string>) => void, taskId: string) => {
+    const next = new Set(set);
+    if (next.has(taskId)) next.delete(taskId);
+    else next.add(taskId);
+    setFn(next);
+  };
+
+  const toggleSelectAll = (
+    tasks: any[],
+    set: Set<string>,
+    setFn: (s: Set<string>) => void
+  ) => {
+    const allIds = tasks.map((t: any) => t.task_id);
+    const allSelected = allIds.length > 0 && allIds.every((id: string) => set.has(id));
+    if (allSelected) {
+      setFn(new Set());
+    } else {
+      setFn(new Set(allIds));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    const { taskIds, source } = deleteConfirm;
+    try {
+      await apiClient.deleteTasks(taskIds, source);
+      // Clear selection for that section
+      if (source === 'queue') setSelectedQueue(new Set());
+      else if (source === 'completed') setSelectedCompleted(new Set());
+      else if (source === 'blocked') setSelectedBlocked(new Set());
+      setDeleteConfirm({ open: false, source: 'queue', taskIds: [] });
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting tasks:', error);
+      alert('Failed to delete tasks');
+      setDeleteConfirm({ open: false, source: 'queue', taskIds: [] });
+    }
+  };
+
+  const openDeleteConfirm = (source: 'queue' | 'completed' | 'blocked', taskIds: string[]) => {
+    if (taskIds.length === 0) return;
+    setDeleteConfirm({ open: true, source, taskIds });
+  };
+
+  // Load execution modes from API + saved preferences on mount
+  useEffect(() => {
+    // Fetch execution mode presets from backend
+    apiClient.getExecutionModes().then(res => {
+      setExecutionModes(res.data);
+
+      // Then load saved preferences and apply
+      apiClient.getPreferences().then(prefRes => {
+        const prefs = prefRes.data;
+        if (prefs.preserveGlobal && prefs.executionMode) {
+          setExecutionMode(prefs.executionMode);
+          setPreserveGlobal(true);
+          const mode = (res.data as ExecutionMode[]).find(m => m.id === prefs.executionMode);
+          if (mode) {
+            setTaskForm(prev => ({ ...prev, tool: mode.prefill.tool, agent_mode: mode.prefill.agentMode }));
+          }
+        }
+      }).catch(() => { /* preferences not available yet */ });
+    }).catch(() => { /* API not available, use fallback */ });
+  }, []);
+
+  const handleExecutionModeChange = (modeId: string) => {
+    setExecutionMode(modeId);
+    const mode = executionModes.find(m => m.id === modeId);
+    if (mode) {
+      setTaskForm(prev => ({ ...prev, tool: mode.prefill.tool, agent_mode: mode.prefill.agentMode }));
+    }
+    // Persist if global is checked
+    if (preserveGlobal) {
+      apiClient.savePreferences({ executionMode: modeId, preserveGlobal: true }).catch(() => {});
+    }
+  };
+
+  const handlePreserveGlobalToggle = (checked: boolean) => {
+    setPreserveGlobal(checked);
+    if (checked) {
+      apiClient.savePreferences({ executionMode, preserveGlobal: true }).catch(() => {});
+    } else {
+      apiClient.savePreferences({ executionMode: 'default', preserveGlobal: false }).catch(() => {});
+    }
+  };
+
+  const handleModalClose = () => {
+    // If form has been modified, show confirmation
+    const hasContent = taskForm.intent || taskForm.instructions || taskForm.acceptance_criteria.some(c => c.trim());
+    if (hasContent) {
+      setCloseConfirmOpen(true);
+    } else {
+      setIsAddingTask(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleDuplicate = (task: any) => {
+    const newId = `task-${Date.now()}`;
+    setTaskForm({
+      task_id: newId,
+      project_id: task.project_id || '',
+      intent: task.intent || '',
+      tool: task.tool || '',
+      task_type: typeof task.task_type === 'string' ? task.task_type : task.task_type?.type || '',
+      instructions: task.instructions || '',
+      acceptance_criteria: task.acceptance_criteria?.length ? [...task.acceptance_criteria] : [''],
+      working_directory: task.working_directory || '',
+      agent_mode: task.agent_mode || '',
+      max_retries: task.retry_policy?.max_retries ?? 1,
+      status: 'pending',
+    });
+    setAddTaskMode('form');
+    setIsAddingTask(true);
+  };
 
   const handleEdit = (task: any) => {
     setEditingTask(task);
@@ -150,14 +286,14 @@ export default function Tasks() {
       task_id: taskForm.task_id,
       project_id: taskForm.project_id,
       intent: taskForm.intent,
-      tool: taskForm.tool,
       instructions: taskForm.instructions,
       acceptance_criteria: taskForm.acceptance_criteria.filter(c => c.trim()),
       status: taskForm.status,
-      working_directory: taskForm.working_directory,
-      agent_mode: taskForm.agent_mode,
     };
+    if (taskForm.tool) task.tool = taskForm.tool;
     if (taskForm.task_type) task.task_type = taskForm.task_type;
+    if (taskForm.working_directory) task.working_directory = taskForm.working_directory;
+    if (taskForm.agent_mode) task.agent_mode = taskForm.agent_mode;
     if (taskForm.max_retries > 0) {
       task.retry_policy = { max_retries: taskForm.max_retries };
     }
@@ -171,12 +307,12 @@ export default function Tasks() {
         task_id: parsed.task_id || `task-${Date.now()}`,
         project_id: parsed.project_id || '',
         intent: parsed.intent || '',
-        tool: parsed.tool || 'gemini',
+        tool: parsed.tool || '',
         task_type: parsed.task_type || '',
         instructions: parsed.instructions || '',
         acceptance_criteria: parsed.acceptance_criteria || [''],
-        working_directory: parsed.working_directory || '.',
-        agent_mode: parsed.agent_mode || 'auto',
+        working_directory: parsed.working_directory || '',
+        agent_mode: parsed.agent_mode || '',
         max_retries: parsed.retry_policy?.max_retries || 1,
         status: parsed.status || 'pending'
       });
@@ -203,12 +339,12 @@ export default function Tasks() {
       task_id: newId,
       project_id: '',
       intent: '',
-      tool: 'gemini',
+      tool: '',
       task_type: '',
       instructions: '',
       acceptance_criteria: [''],
-      working_directory: '.',
-      agent_mode: 'auto',
+      working_directory: '',
+      agent_mode: '',
       max_retries: 1,
       status: 'pending'
     });
@@ -216,13 +352,10 @@ export default function Tasks() {
   "task_id": "${newId}",
   "project_id": "",
   "intent": "Example task",
-  "tool": "gemini",
   "instructions": "Describe what needs to be done...",
   "acceptance_criteria": [
     "Criteria 1"
-  ],
-  "working_directory": ".",
-  "agent_mode": "auto"
+  ]
 }`);
   };
 
@@ -233,46 +366,57 @@ export default function Tasks() {
         try {
           task = JSON.parse(newTaskJson);
         } catch (e) {
-          alert('Invalid JSON');
+          toast.error('Invalid JSON');
           return;
         }
       } else {
         // Validate form
-        if (!taskForm.task_id || !taskForm.project_id || !taskForm.intent || !taskForm.tool || !taskForm.instructions) {
-          alert('Please fill in required fields: Task ID, Project, Intent, Tool, and Instructions');
+        if (!taskForm.task_id || !taskForm.project_id || !taskForm.intent || !taskForm.instructions) {
+          toast.error('Please fill in required fields: Task ID, Project, Intent, and Instructions');
           return;
         }
         const validCriteria = taskForm.acceptance_criteria.filter(c => c.trim());
         if (validCriteria.length === 0) {
-          alert('Please add at least one acceptance criterion');
+          toast.error('Please add at least one acceptance criterion');
           return;
         }
-        
+
         // Convert form to task object
         task = {
           task_id: taskForm.task_id,
           project_id: taskForm.project_id,
           intent: taskForm.intent,
-          tool: taskForm.tool,
           instructions: taskForm.instructions,
           acceptance_criteria: validCriteria,
           status: taskForm.status,
-          working_directory: taskForm.working_directory,
-          agent_mode: taskForm.agent_mode,
         } as any;
+        if (taskForm.tool) task.tool = taskForm.tool;
         if (taskForm.task_type) task.task_type = taskForm.task_type;
+        if (taskForm.working_directory) task.working_directory = taskForm.working_directory;
+        if (taskForm.agent_mode) task.agent_mode = taskForm.agent_mode;
         if (taskForm.max_retries > 0) {
           task.retry_policy = { max_retries: taskForm.max_retries };
         }
       }
-      
+
       await apiClient.enqueueTask(task);
-      setIsAddingTask(false);
-      resetTaskForm();
+      toast.success(`Task "${task.task_id}" enqueued`);
       fetchData();
+
+      if (createMultiple) {
+        // Keep modal open, reset form for next task, reapply execution mode
+        resetTaskForm();
+        const mode = executionModes.find(m => m.id === executionMode);
+        if (mode) {
+          setTaskForm(prev => ({ ...prev, tool: mode.prefill.tool, agent_mode: mode.prefill.agentMode }));
+        }
+      } else {
+        setIsAddingTask(false);
+        resetTaskForm();
+      }
     } catch (error) {
       console.error('Error adding task:', error);
-      alert('Failed to add task');
+      toast.error('Failed to add task');
     }
   };
 
@@ -501,10 +645,11 @@ export default function Tasks() {
               </span>
             </div>
             {currentTask ? (
-              <TaskCard 
-                task={currentTask} 
-                isCurrent={true} 
+              <TaskCard
+                task={currentTask}
+                isCurrent={true}
                 onEdit={handleEdit}
+                onDuplicate={handleDuplicate}
               />
             ) : (
               <p className="text-gray-500 italic">No task in progress</p>
@@ -514,6 +659,15 @@ export default function Tasks() {
           <div className="border-l-4 border-gray-300 pl-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
+                {queue?.pending && queue.pending.length > 0 && (
+                  <input
+                    type="checkbox"
+                    checked={queue.pending.length > 0 && queue.pending.every((t: any) => selectedQueue.has(t.task_id))}
+                    onChange={() => toggleSelectAll(queue.pending, selectedQueue, setSelectedQueue)}
+                    className="w-4 h-4 rounded border-gray-300"
+                    title="Select all in queue"
+                  />
+                )}
                 <h3 className="text-lg font-semibold">
                   Queue
                 </h3>
@@ -521,6 +675,14 @@ export default function Tasks() {
                   {queue?.length || 0}
                 </span>
               </div>
+              {selectedQueue.size > 0 && (
+                <button
+                  onClick={() => openDeleteConfirm('queue', Array.from(selectedQueue))}
+                  className="px-3 py-1.5 bg-red-500 text-white rounded hover:bg-red-600 text-sm font-medium"
+                >
+                  Delete ({selectedQueue.size})
+                </button>
+              )}
             </div>
             {queue?.pending && queue.pending.length > 0 ? (
               <>
@@ -530,15 +692,24 @@ export default function Tasks() {
                     <>
                       <div className="space-y-2">
                         {queuePagination.items.map((task: any, index: number) => {
-                          // Check if this task matches the current task being processed
                           const isCurrentTask = currentTask?.task_id === task.task_id;
                           return (
-                            <TaskCard 
-                              key={task.task_id || index} 
-                              task={task} 
-                              isCurrent={isCurrentTask}
-                              onEdit={handleEdit}
-                            />
+                            <div key={task.task_id || index} className="flex items-start gap-2">
+                              <input
+                                type="checkbox"
+                                checked={selectedQueue.has(task.task_id)}
+                                onChange={() => toggleSelection(selectedQueue, setSelectedQueue, task.task_id)}
+                                className="w-4 h-4 mt-4 rounded border-gray-300 shrink-0"
+                              />
+                              <div className="flex-1">
+                                <TaskCard
+                                  task={task}
+                                  isCurrent={isCurrentTask}
+                                  onEdit={handleEdit}
+                                  onDuplicate={handleDuplicate}
+                                />
+                              </div>
+                            </div>
                           );
                         })}
                       </div>
@@ -560,19 +731,37 @@ export default function Tasks() {
           </div>
 
           <div className="border-l-4 border-green-500 pl-4">
-            <div className="flex items-center gap-2 mb-3">
-              <h3 className="text-lg font-semibold">
-                Completed Tasks
-              </h3>
-              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
-                {completedTasks.length}
-              </span>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                {completedTasks.length > 0 && (
+                  <input
+                    type="checkbox"
+                    checked={completedTasks.length > 0 && completedTasks.every((t: any) => selectedCompleted.has(t.task_id))}
+                    onChange={() => toggleSelectAll(completedTasks, selectedCompleted, setSelectedCompleted)}
+                    className="w-4 h-4 rounded border-gray-300"
+                    title="Select all completed"
+                  />
+                )}
+                <h3 className="text-lg font-semibold">
+                  Completed Tasks
+                </h3>
+                <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                  {completedTasks.length}
+                </span>
+              </div>
+              {selectedCompleted.size > 0 && (
+                <button
+                  onClick={() => openDeleteConfirm('completed', Array.from(selectedCompleted))}
+                  className="px-3 py-1.5 bg-red-500 text-white rounded hover:bg-red-600 text-sm font-medium"
+                >
+                  Delete ({selectedCompleted.size})
+                </button>
+              )}
             </div>
             {completedTasks.length > 0 ? (
               <>
                 {(() => {
                   const sortedCompleted = [...completedTasks].sort((a, b) => {
-                    // Sort by completed_at descending (most recent first)
                     const dateA = a.completed_at ? new Date(a.completed_at).getTime() : 0;
                     const dateB = b.completed_at ? new Date(b.completed_at).getTime() : 0;
                     return dateB - dateA;
@@ -582,12 +771,22 @@ export default function Tasks() {
                     <>
                       <div className="space-y-3">
                         {completedPagination.items.map((task) => (
-                          <TaskCard 
-                            key={task.task_id} 
-                            task={task} 
-                            isCurrent={currentTask?.task_id === task.task_id}
-                            onEdit={handleEdit}
-                          />
+                          <div key={task.task_id} className="flex items-start gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedCompleted.has(task.task_id)}
+                              onChange={() => toggleSelection(selectedCompleted, setSelectedCompleted, task.task_id)}
+                              className="w-4 h-4 mt-4 rounded border-gray-300 shrink-0"
+                            />
+                            <div className="flex-1">
+                              <TaskCard
+                                task={task}
+                                isCurrent={currentTask?.task_id === task.task_id}
+                                onEdit={handleEdit}
+                                onDuplicate={handleDuplicate}
+                              />
+                            </div>
+                          </div>
                         ))}
                       </div>
                       <PaginationControls
@@ -608,19 +807,37 @@ export default function Tasks() {
           </div>
 
           <div className="border-l-4 border-red-500 pl-4">
-            <div className="flex items-center gap-2 mb-3">
-              <h3 className="text-lg font-semibold">
-                Blocked Tasks
-              </h3>
-              <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded">
-                {blockedTasks.length}
-              </span>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                {blockedTasks.length > 0 && (
+                  <input
+                    type="checkbox"
+                    checked={blockedTasks.length > 0 && blockedTasks.every((t: any) => selectedBlocked.has(t.task_id))}
+                    onChange={() => toggleSelectAll(blockedTasks, selectedBlocked, setSelectedBlocked)}
+                    className="w-4 h-4 rounded border-gray-300"
+                    title="Select all blocked"
+                  />
+                )}
+                <h3 className="text-lg font-semibold">
+                  Blocked Tasks
+                </h3>
+                <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded">
+                  {blockedTasks.length}
+                </span>
+              </div>
+              {selectedBlocked.size > 0 && (
+                <button
+                  onClick={() => openDeleteConfirm('blocked', Array.from(selectedBlocked))}
+                  className="px-3 py-1.5 bg-red-500 text-white rounded hover:bg-red-600 text-sm font-medium"
+                >
+                  Delete ({selectedBlocked.size})
+                </button>
+              )}
             </div>
             {blockedTasks.length > 0 ? (
               <>
                 {(() => {
                   const sortedBlocked = [...blockedTasks].sort((a, b) => {
-                    // Sort by blocked_at descending (most recent first)
                     const dateA = a.blocked_at ? new Date(a.blocked_at).getTime() : 0;
                     const dateB = b.blocked_at ? new Date(b.blocked_at).getTime() : 0;
                     return dateB - dateA;
@@ -630,12 +847,22 @@ export default function Tasks() {
                     <>
                       <div className="space-y-3">
                         {blockedPagination.items.map((task) => (
-                          <TaskCard 
-                            key={task.task_id} 
-                            task={task} 
-                            isCurrent={currentTask?.task_id === task.task_id}
-                            onEdit={handleEdit}
-                          />
+                          <div key={task.task_id} className="flex items-start gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedBlocked.has(task.task_id)}
+                              onChange={() => toggleSelection(selectedBlocked, setSelectedBlocked, task.task_id)}
+                              className="w-4 h-4 mt-4 rounded border-gray-300 shrink-0"
+                            />
+                            <div className="flex-1">
+                              <TaskCard
+                                task={task}
+                                isCurrent={currentTask?.task_id === task.task_id}
+                                onEdit={handleEdit}
+                                onDuplicate={handleDuplicate}
+                              />
+                            </div>
+                          </div>
                         ))}
                       </div>
                       <PaginationControls
@@ -708,6 +935,7 @@ export default function Tasks() {
                   <select
                     value={editForm.status}
                     onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    autoFocus
                     className="w-full border rounded px-3 py-2"
                   >
                     <option value="pending">Pending</option>
@@ -760,47 +988,100 @@ export default function Tasks() {
         {isAddingTask && (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-            onClick={() => setIsAddingTask(false)}
+            onClick={handleModalClose}
+            onKeyDown={(e) => { if (e.key === 'Escape') handleModalClose(); }}
           >
             <div
-              className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-auto"
+              className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold">Add New Task</h3>
                 <button
-                  onClick={() => setIsAddingTask(false)}
+                  onClick={handleModalClose}
                   className="text-gray-500 hover:text-gray-700"
                 >
                   ✕
                 </button>
               </div>
-              
-              {/* Mode Toggle */}
-              <div className="flex gap-2 mb-4 border-b pb-3">
-                <button
-                  onClick={() => handleModeToggle('form')}
-                  className={`px-4 py-2 rounded-t font-medium transition-colors ${
-                    addTaskMode === 'form'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Form Mode
-                </button>
-                <button
-                  onClick={() => handleModeToggle('json')}
-                  className={`px-4 py-2 rounded-t font-medium transition-colors ${
-                    addTaskMode === 'json'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  JSON Mode
-                </button>
+
+              {/* Mode Toggle + Controls Row */}
+              <div className="flex items-center justify-between mb-4 border-b pb-3">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleModeToggle('form')}
+                    className={`px-4 py-2 rounded-t font-medium transition-colors ${
+                      addTaskMode === 'form'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Form Mode
+                  </button>
+                  <button
+                    onClick={() => handleModeToggle('json')}
+                    className={`px-4 py-2 rounded-t font-medium transition-colors ${
+                      addTaskMode === 'json'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    JSON Mode
+                  </button>
+                </div>
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer" title="Keep modal open after creating a task. Form clears on success; stays on error.">
+                  <input
+                    type="checkbox"
+                    checked={createMultiple}
+                    onChange={(e) => setCreateMultiple(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300"
+                  />
+                  Create multiple
+                </label>
               </div>
-              
-              <div className="space-y-4">
+
+              {/* Sidebar + Form layout */}
+              <div className="flex gap-0">
+                {/* Execution Mode Sidebar */}
+                <div className="w-40 shrink-0 border-r border-gray-200 pr-4 mr-4">
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Exec Mode</div>
+                  <div className="space-y-1">
+                    {executionModes.map(mode => (
+                      <button
+                        key={mode.id}
+                        onClick={() => handleExecutionModeChange(mode.id)}
+                        className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                          executionMode === mode.id
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                        title={mode.description}
+                      >
+                        <span className="mr-2">{mode.icon}</span>
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-gray-200">
+                    <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer" title="Save execution mode as default for all new tasks (persisted in settings)">
+                      <input
+                        type="checkbox"
+                        checked={preserveGlobal}
+                        onChange={(e) => handlePreserveGlobalToggle(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded border-gray-300"
+                      />
+                      Set as global
+                    </label>
+                  </div>
+                  {executionMode !== 'default' && (
+                    <div className="mt-3 text-xs text-gray-400 leading-relaxed">
+                      {executionModes.find(m => m.id === executionMode)?.description}
+                    </div>
+                  )}
+                </div>
+
+                {/* Form content */}
+                <div className="flex-1 space-y-4">
                 {addTaskMode === 'json' ? (
                   <>
                     <p className="text-sm text-gray-600 mb-2">
@@ -823,6 +1104,7 @@ export default function Tasks() {
                         type="text"
                         value={taskForm.task_id}
                         onChange={(e) => setTaskForm({ ...taskForm, task_id: e.target.value })}
+                        autoFocus
                         className="w-full border rounded px-3 py-2"
                         placeholder="task-001"
                       />
@@ -867,23 +1149,45 @@ export default function Tasks() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Provider <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={taskForm.tool}
-                        onChange={(e) => setTaskForm({ ...taskForm, tool: e.target.value })}
-                        className="w-full border rounded px-3 py-2"
-                      >
-                        <option value="gemini">Gemini</option>
-                        <option value="copilot">Copilot</option>
-                        <option value="cursor">Cursor</option>
-                        <option value="claude">Claude</option>
-                        <option value="codex">Codex</option>
-                        <option value="ollama">Ollama (Local)</option>
-                        <option value="gemini_stub">Gemini Stub</option>
-                      </select>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Provider
+                          <span className="ml-1 text-gray-400 cursor-help" title="Optional. If selected, overrides the strategy's primary provider for this task. Leave empty to use the active strategy.">(?)</span>
+                        </label>
+                        <select
+                          value={taskForm.tool}
+                          onChange={(e) => setTaskForm({ ...taskForm, tool: e.target.value, agent_mode: '' })}
+                          className="w-full border rounded px-3 py-2"
+                        >
+                          <option value="">Use strategy default</option>
+                          <option value="claude">Claude</option>
+                          <option value="cursor">Cursor</option>
+                          <option value="gemini">Gemini</option>
+                          <option value="copilot">Copilot</option>
+                          <option value="codex">Codex</option>
+                          <option value="ollama">Ollama (Local)</option>
+                          <option value="gemini_stub">Gemini Stub</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Agent Mode
+                          <span className="ml-1 text-gray-400 cursor-help" title="Model/mode for the selected provider. Enabled when a provider is selected.">(?)</span>
+                        </label>
+                        <select
+                          value={taskForm.agent_mode}
+                          onChange={(e) => setTaskForm({ ...taskForm, agent_mode: e.target.value })}
+                          className="w-full border rounded px-3 py-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          disabled={!taskForm.tool}
+                        >
+                          <option value="">{taskForm.tool ? 'Select model...' : 'Select provider first'}</option>
+                          {taskForm.tool && PROVIDER_MODELS[taskForm.tool]?.map(model => (
+                            <option key={model} value={model}>{model}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
                     <div>
@@ -960,32 +1264,18 @@ export default function Tasks() {
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Working Directory
-                        </label>
-                        <input
-                          type="text"
-                          value={taskForm.working_directory}
-                          onChange={(e) => setTaskForm({ ...taskForm, working_directory: e.target.value })}
-                          className="w-full border rounded px-3 py-2"
-                          placeholder="."
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Agent Mode
-                        </label>
-                        <input
-                          type="text"
-                          value={taskForm.agent_mode}
-                          onChange={(e) => setTaskForm({ ...taskForm, agent_mode: e.target.value })}
-                          className="w-full border rounded px-3 py-2"
-                          placeholder="auto"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Working Directory
+                        <span className="ml-1 text-gray-400 cursor-help" title="Optional. Extra path info appended to the task prompt for context. Not used for CWD — the project determines the working directory.">(?)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={taskForm.working_directory}
+                        onChange={(e) => setTaskForm({ ...taskForm, working_directory: e.target.value })}
+                        className="w-full border rounded px-3 py-2"
+                        placeholder="Optional path extension for prompt context"
+                      />
                     </div>
 
                     <div>
@@ -1006,7 +1296,7 @@ export default function Tasks() {
                 
                 <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
                   <button
-                    onClick={() => setIsAddingTask(false)}
+                    onClick={handleModalClose}
                     className="px-4 py-2 border rounded hover:bg-gray-50"
                   >
                     Cancel
@@ -1018,10 +1308,34 @@ export default function Tasks() {
                     Add Task
                   </button>
                 </div>
-              </div>
+                </div>{/* end flex-1 form content */}
+              </div>{/* end sidebar+form flex */}
             </div>
           </div>
         )}
+
+        {/* Close confirmation modal */}
+        <ConfirmModal
+          open={closeConfirmOpen}
+          title="Discard changes?"
+          message="You have unsaved task data. Are you sure you want to close?"
+          confirmLabel="Discard"
+          onConfirm={() => {
+            setCloseConfirmOpen(false);
+            setIsAddingTask(false);
+            resetTaskForm();
+          }}
+          onCancel={() => setCloseConfirmOpen(false)}
+        />
+
+        <ConfirmModal
+          open={deleteConfirm.open}
+          title="Delete Tasks"
+          message={`Are you sure you want to delete ${deleteConfirm.taskIds.length} task(s) from ${deleteConfirm.source}? This action cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={handleDeleteSelected}
+          onCancel={() => setDeleteConfirm({ open: false, source: 'queue', taskIds: [] })}
+        />
       </div>
     </AutoRefresh>
   );

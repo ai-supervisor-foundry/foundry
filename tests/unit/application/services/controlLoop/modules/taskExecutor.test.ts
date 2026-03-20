@@ -75,7 +75,8 @@ describe('TaskExecutor', () => {
         expect.stringMatching(/\/my-project$/),
         expect.any(String),
         undefined,
-        'feat-1'
+        'feat-1',
+        Provider.GEMINI // default tool from TaskBuilder
       );
     });
 
@@ -94,7 +95,8 @@ describe('TaskExecutor', () => {
         `${sandboxRoot}/custom/path`,
         expect.any(String),
         undefined,
-        'feat-1'
+        'feat-1',
+        Provider.GEMINI // default tool from TaskBuilder
       );
     });
 
@@ -107,7 +109,6 @@ describe('TaskExecutor', () => {
 
       await executor.executeTask(task, state, 1, mockSessionResolver);
 
-      // Prompt logger is called twice: once for PROMPT, once for RESPONSE
       expect(mockPromptLogger.appendPromptLog).toHaveBeenCalledWith(
         sandboxRoot,
         'logger-project',
@@ -123,6 +124,85 @@ describe('TaskExecutor', () => {
         expect.objectContaining({
           task_id: 't3',
           type: 'RESPONSE',
+        })
+      );
+    });
+  });
+
+  describe('provider override via task.tool', () => {
+    it('should pass task.tool as providerOverride to execute()', async () => {
+      const task = TaskBuilder.simple('t4', 'Ollama task')
+        .withTool(Provider.OLLAMA)
+        .withProjectId('test-project')
+        .build();
+      task.agent_mode = 'phi4-mini';
+
+      const state = StateBuilder.running().build();
+
+      await executor.executeTask(task, state, 1, mockSessionResolver);
+
+      expect(mockCliAdapter.execute).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        'phi4-mini',
+        undefined,
+        'feat-1',
+        Provider.OLLAMA
+      );
+    });
+
+    it('should pass task.tool for Claude override', async () => {
+      const task = TaskBuilder.simple('t5', 'Claude task')
+        .withTool(Provider.CLAUDE)
+        .withProjectId('test-project')
+        .build();
+
+      const state = StateBuilder.running().build();
+
+      await executor.executeTask(task, state, 1, mockSessionResolver);
+
+      expect(mockCliAdapter.execute).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        expect.any(String),
+        undefined,
+        'feat-1',
+        Provider.CLAUDE
+      );
+    });
+
+    it('should log correct provider in prompt metadata when task.tool is set', async () => {
+      const task = TaskBuilder.simple('t6', 'Ollama logging')
+        .withTool(Provider.OLLAMA)
+        .withProjectId('test-project')
+        .build();
+      task.agent_mode = 'phi4-mini';
+
+      const state = StateBuilder.running().build();
+
+      await executor.executeTask(task, state, 1, mockSessionResolver);
+
+      // PROMPT log should have provider = ollama (not null or the default adapter provider)
+      expect(mockPromptLogger.appendPromptLog).toHaveBeenCalledWith(
+        sandboxRoot,
+        'test-project',
+        expect.objectContaining({
+          type: 'PROMPT',
+          metadata: expect.objectContaining({
+            provider: Provider.OLLAMA,
+          }),
+        })
+      );
+
+      // RESPONSE log should also have provider = ollama
+      expect(mockPromptLogger.appendPromptLog).toHaveBeenCalledWith(
+        sandboxRoot,
+        'test-project',
+        expect.objectContaining({
+          type: 'RESPONSE',
+          metadata: expect.objectContaining({
+            provider: Provider.OLLAMA,
+          }),
         })
       );
     });

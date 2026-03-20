@@ -3,6 +3,12 @@ import { createApp } from '../src/app';
 import type { Application } from 'express';
 import MockRedis from './mocks/ioredis';
 
+// Access DB mock helpers for test setup
+const dbMock = jest.requireMock('../src/services/db') as {
+  _reset: () => void;
+  _addExecutionMode: (id: string) => void;
+};
+
 describe('UI Backend API - Functional Tests', () => {
   let app: Application;
 
@@ -334,6 +340,44 @@ describe('UI Backend API - Functional Tests', () => {
       expect(t.acceptance_criteria).toEqual(['impossible criterion']);
       expect(t.affects_files).toEqual(['locked.ts']);
       expect(t.reason).toBe('Max retries exceeded — criterion not met after 3 attempts');
+    });
+  });
+
+  // ─── Preferences ────────────────────────────────────────
+  describe('Preferences API', () => {
+    beforeEach(() => {
+      dbMock._reset();
+    });
+
+    it('GET /api/config/preferences should return defaults when unset', async () => {
+      const res = await request(app).get('/api/config/preferences');
+      expect(res.status).toBe(200);
+      expect(res.body.executionMode).toBe('default');
+    });
+
+    it('POST /api/config/preferences should accept a builtin execution mode', async () => {
+      const res = await request(app).post('/api/config/preferences').send({ executionMode: 'thinking' });
+      expect(res.status).toBe(200);
+      expect(res.body.executionMode).toBe('thinking');
+    });
+
+    it('POST /api/config/preferences should accept a custom execution mode from DB', async () => {
+      dbMock._addExecutionMode('exhausted');
+      const res = await request(app).post('/api/config/preferences').send({ executionMode: 'exhausted' });
+      expect(res.status).toBe(200);
+      expect(res.body.executionMode).toBe('exhausted');
+    });
+
+    it('POST /api/config/preferences should reject an unknown execution mode', async () => {
+      const res = await request(app).post('/api/config/preferences').send({ executionMode: 'nonexistent' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Invalid execution mode');
+    });
+
+    it('POST /api/config/preferences should accept preserveGlobal without executionMode', async () => {
+      const res = await request(app).post('/api/config/preferences').send({ preserveGlobal: true });
+      expect(res.status).toBe(200);
+      expect(res.body.preserveGlobal).toBe(true);
     });
   });
 

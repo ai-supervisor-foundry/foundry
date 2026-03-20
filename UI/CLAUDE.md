@@ -22,7 +22,7 @@ Read `../supervisor-contexts/CONTEXT.md` first — it indexes all system documen
 
 ## Data Layer
 
-- **PostgreSQL** (port 5433 on host → 5432 in container): projects, tasks, task_runs, audit_log — managed by `backend/src/services/db.ts`
+- **PostgreSQL** (port 5433 on host → 5432 in container): projects, tasks, task_runs, audit_log, settings, strategies, execution_modes — managed by `backend/src/services/db.ts`; seeded on first startup via `seedDefaults()`
 - **DragonflyDB/Redis** (port 6499): supervisor state, task queue (hot path only)
 
 ## Navigation

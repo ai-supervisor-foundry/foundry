@@ -15,6 +15,13 @@ The supervisor executes a fixed control loop sequence:
 7. **Persist updated state** immediately after mutation
 8. **Halt or continue** per explicit instruction
 
+## Task Retrieval Guards
+
+Before executing a dequeued task, `TaskRetriever` applies:
+1. **Completed-task guard**: Skips tasks already in `completed_tasks` (prevents re-execution after retry)
+2. **Redis task lock**: Acquires `SET NX EX 15` lock on `tasklock:{task_id}` (prevents competing consumers). Lock is released after finalization.
+3. **Dedup safety net**: `TaskFinalizer` and `scheduler` deduplicate before pushing to `completed_tasks` / `blocked_tasks`.
+
 ## Task List Rules
 
 - Task list is treated as **closed and authoritative**

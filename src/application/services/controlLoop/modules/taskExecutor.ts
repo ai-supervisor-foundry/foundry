@@ -74,7 +74,11 @@ export class TaskExecutor {
     const agentMode = task.agent_mode || defaultAgentMode;
     const projectId = task.project_id;
 
-    // 5. Log Prompt
+    // 5. Resolve provider override from task.tool
+    const providerOverride = task.tool || undefined;
+    const effectiveProvider = providerOverride || this.cliAdapter.getProviderInUse();
+
+    // 6. Log Prompt
     // Using Port
     await this.promptLogger.appendPromptLog(
       this.sandboxRoot,
@@ -86,7 +90,7 @@ export class TaskExecutor {
         content: prompt,
         metadata: {
           agent_mode: agentMode,
-          provider: this.cliAdapter.getProviderInUse(),
+          provider: effectiveProvider,
           working_directory: sandboxCwd,
           prompt_length: prompt.length,
           intent: task.intent,
@@ -95,7 +99,7 @@ export class TaskExecutor {
       }
     );
 
-    // 6. Execute Provider
+    // 7. Execute Provider
     this.logger.log('ControlLoop', `[Iteration ${iteration}] Task ${task.task_id}: Executing CLI / Agent with agent mode: ${agentMode}${resolvedSessionId ? ` (Session: ${resolvedSessionId})` : ''}...`);
     this.logger.logVerbose('ControlLoop', 'Dispatching to CLI / Agent', {
       iteration,
@@ -103,9 +107,8 @@ export class TaskExecutor {
       agent_mode: agentMode,
       session_id: resolvedSessionId,
     });
-    
     const providerStartTime = Date.now();
-    const providerResult = await this.cliAdapter.execute(prompt, sandboxCwd, agentMode, resolvedSessionId, featureId);
+    const providerResult = await this.cliAdapter.execute(prompt, sandboxCwd, agentMode, resolvedSessionId, featureId, providerOverride);
     const providerDuration = Date.now() - providerStartTime;
     analyticsService.recordExecution(task.task_id, prompt.length, (providerResult.stdout || providerResult.rawOutput || '').length, providerDuration);
 
@@ -116,7 +119,7 @@ export class TaskExecutor {
       exit_code: providerResult.exitCode,
     });
 
-    // 7. Log Response
+    // 8. Log Response
     const responseContent = providerResult.stdout || providerResult.rawOutput || '';
     await this.promptLogger.appendPromptLog(
       this.sandboxRoot,
@@ -128,7 +131,7 @@ export class TaskExecutor {
         content: responseContent,
         metadata: {
           agent_mode: agentMode,
-          provider: this.cliAdapter.getProviderInUse(),
+          provider: providerOverride || this.cliAdapter.getProviderInUse(),
           working_directory: sandboxCwd,
           response_length: responseContent.length,
           stdout_length: providerResult.stdout?.length || 0,

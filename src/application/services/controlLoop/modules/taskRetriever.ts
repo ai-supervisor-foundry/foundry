@@ -1,6 +1,9 @@
+import Redis from 'ioredis';
 import { QueueAdapter } from '../../../../domain/executors/taskQueue';
 import { SupervisorState, Task } from '../../../../domain/types/types';
 import { log as logShared, logVerbose, logPerformance } from '../../../../infrastructure/adapters/logging/logger';
+
+const TASK_LOCK_TTL = 15; // seconds
 
 export interface TaskRetrievalResult {
   task: Task | null;
@@ -8,12 +11,34 @@ export interface TaskRetrievalResult {
 }
 
 export class TaskRetriever {
-  constructor(private queue: QueueAdapter) {}
+  constructor(
+    private queue: QueueAdapter,
+    private redisClient?: Redis
+  ) {}
+
+  /**
+   * Acquire a Redis-based task lock (SET NX EX).
+   * Returns true if lock acquired, false if already locked.
+   */
+  private async acquireTaskLock(taskId: string): Promise<boolean> {
+    if (!this.redisClient) return true; // No client = no locking (backwards compat)
+    const key = `tasklock:${taskId}`;
+    const result = await this.redisClient.set(key, Date.now().toString(), 'EX', TASK_LOCK_TTL, 'NX');
+    return result === 'OK';
+  }
+
+  /**
+   * Release a task lock.
+   */
+  async releaseTaskLock(taskId: string): Promise<void> {
+    if (!this.redisClient) return;
+    await this.redisClient.del(`tasklock:${taskId}`);
+  }
 
   async retrieveTask(state: SupervisorState, iteration: number): Promise<TaskRetrievalResult> {
     const taskRetrievalStartTime = Date.now();
     logVerbose('ControlLoop', 'Retrieving task', { iteration });
-    
+
     let task: Task | null = null;
     let taskSource: TaskRetrievalResult['source'] = 'none';
 
@@ -56,7 +81,7 @@ export class TaskRetriever {
       const dequeueDuration = Date.now() - dequeueStartTime;
       logPerformance('TaskDequeue', dequeueDuration, { iteration });
       taskSource = 'queue';
-      
+
       if (task) {
         logShared('ControlLoop', `[Iteration ${iteration}] Dequeued task from queue: ${task.task_id}`);
         logVerbose('ControlLoop', 'Dequeued task from queue', {
@@ -70,6 +95,23 @@ export class TaskRetriever {
         });
       } else {
         logVerbose('ControlLoop', 'No task available in queue', { iteration });
+      }
+    }
+
+    // Guard: skip tasks already in completed_tasks
+    if (task && state.completed_tasks?.some(t => t.task_id === task!.task_id)) {
+      logShared('ControlLoop', `[Iteration ${iteration}] Task ${task.task_id} already completed, skipping`);
+      task = null;
+      taskSource = 'none';
+    }
+
+    // Guard: acquire task lock to prevent competing consumers
+    if (task) {
+      const locked = await this.acquireTaskLock(task.task_id);
+      if (!locked) {
+        logShared('ControlLoop', `[Iteration ${iteration}] Task ${task.task_id} locked by another consumer, skipping`);
+        task = null;
+        taskSource = 'none';
       }
     }
 

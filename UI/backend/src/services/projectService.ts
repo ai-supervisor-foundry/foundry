@@ -201,6 +201,17 @@ export async function registerProject(
     }
   }
 
+  // Ensure project directory exists and is a git repo
+  // (git clone already handles both; for non-git projects, create dir + init repo)
+  await fs.mkdir(destDir, { recursive: true });
+  if (!project.gitUrl) {
+    try {
+      await execFileAsync('git', ['init', '-b', 'main'], { cwd: destDir, timeout: 10_000 });
+    } catch {
+      // git init failed — directory still usable, just won't be a repo
+    }
+  }
+
   const projectPath = project.path ?? safeId;
   const { rows } = await getPool().query<Project>(
     `INSERT INTO projects (id, name, path, git_url, branch, status)

@@ -90,6 +90,8 @@ export class RetryOrchestrator {
 
     // 4. Log Fix Prompt
     const agentMode = task.agent_mode || 'auto';
+    const providerOverride = task.tool || undefined;
+    const effectiveProvider = providerOverride || cliAdapter.getProviderInUse();
     await this.promptLogger.appendPromptLog(
         this.sandboxRoot,
         projectId,
@@ -100,7 +102,7 @@ export class RetryOrchestrator {
           content: fixPrompt,
           metadata: {
             agent_mode: agentMode,
-            provider: cliAdapter.getProviderInUse(),
+            provider: effectiveProvider,
             working_directory: sandboxCwd,
             prompt_length: fixPrompt.length,
             intent: task.intent,
@@ -113,7 +115,7 @@ export class RetryOrchestrator {
     // 5. Execute Fix Attempt
     this.logger.log('ControlLoop', `[Iteration ${iteration}] Task ${task.task_id}: Executing fix/clarification attempt...`);
     const fixStartTime = Date.now();
-    const fixProviderResult = await cliAdapter.execute(fixPrompt, sandboxCwd, agentMode, sessionId);
+    const fixProviderResult = await cliAdapter.execute(fixPrompt, sandboxCwd, agentMode, sessionId, undefined, providerOverride);
     const fixDuration = Date.now() - fixStartTime;
     this.logger.log('ControlLoop', `[Iteration ${iteration}] Task ${task.task_id}: Fix attempt completed in ${fixDuration}ms, exit code: ${fixProviderResult.exitCode}`);
     
@@ -139,7 +141,7 @@ export class RetryOrchestrator {
           content: fixResponseContent,
           metadata: {
             agent_mode: agentMode,
-            provider: cliAdapter.getProviderInUse(),
+            provider: providerOverride || cliAdapter.getProviderInUse(),
             working_directory: sandboxCwd,
             response_length: fixResponseContent.length,
             exit_code: fixProviderResult.exitCode,
@@ -183,9 +185,11 @@ export class RetryOrchestrator {
         };
     }
 
-    // 9. Success!
+    // 9. Success! Clean retry state before returning
     this.logger.log('ControlLoop', `[Iteration ${iteration}] Task ${task.task_id}: Fix attempt succeeded!`);
-    
+    delete (state.supervisor as any).retry_task;
+    delete (state.supervisor as any)[`retry_count_${task.task_id}`];
+
     return {
         action: 'complete',
         updatedState: state,

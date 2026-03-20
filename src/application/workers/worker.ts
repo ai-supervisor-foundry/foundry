@@ -68,7 +68,7 @@ async function executeTask(task: Task, worktreePath: string, config: WorkerConfi
     const promptBuilder = new PromptBuilder();
 
     const { getActiveStrategy } = await import('../../config/agents/providers/strategies');
-    const activeStrategy = getActiveStrategy();
+    const activeStrategy = await getActiveStrategy();
     const primaryAdapter = new CLIAdapter(redisClient, activeStrategy.primary, config.circuitBreakerTtl, true);
     const secondaryAdapter = new CLIAdapter(redisClient, activeStrategy.secondary, config.circuitBreakerTtl);
 

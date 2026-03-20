@@ -13,7 +13,7 @@ import { dispatchToCopilot } from '../../../connectors/agents/providers/copilotC
 import { dispatchToOllama } from '../../../connectors/agents/providers/ollamaProvider';
 import Redis from 'ioredis';
 import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared, log as logShared } from '../../logging/logger';
-import { getActiveStrategy, ProviderEntry } from '../../../../config/agents/providers/strategies';
+import { getActiveStrategySync, ProviderEntry } from '../../../../config/agents/providers/strategies';
 import { LLMProviderPort } from '../../../../domain/ports/llmProvider';
 
 function log(message: string, ...args: unknown[]): void {
@@ -40,7 +40,7 @@ export class CLIAdapter implements LLMProviderPort {
     useEnvOverride: boolean = false
   ) {
     this.circuitBreaker = new CircuitBreakerManager(redisClient, ttlSeconds);
-    this.entries = (useEnvOverride ? this.parseEntriesFromEnv() : null) || entries || getActiveStrategy().primary;
+    this.entries = (useEnvOverride ? this.parseEntriesFromEnv() : null) || entries || getActiveStrategySync().primary;
     log(`CLIAdapter initialized with priority: ${this.entries.map(e => e.provider).join(' → ')}, TTL: ${ttlSeconds || 86400}s`);
   }
 
@@ -49,7 +49,7 @@ export class CLIAdapter implements LLMProviderPort {
     if (!envPriority) return null;
 
     try {
-      const strategy = getActiveStrategy();
+      const strategy = getActiveStrategySync();
       const strategyModes = new Map(strategy.primary.map(e => [e.provider, e.agentMode]));
       const providers = envPriority.split(',').map(p => p.trim().toLowerCase());
       const validEntries: ProviderEntry[] = [];
@@ -213,8 +213,9 @@ export class CLIAdapter implements LLMProviderPort {
       provider_override: providerOverride,
     });
 
-    // Handle provider override (e.g., Local Helper Agent)
+    // Handle provider override (e.g., Local Helper Agent, task.tool)
     if (providerOverride) {
+      this.providerInUse = providerOverride;
       try {
         const result = await this.executeProvider(providerOverride, prompt, workingDirectory, agentMode, sessionId, featureId);
         const duration = Date.now() - startTime;

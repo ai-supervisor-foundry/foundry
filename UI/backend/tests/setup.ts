@@ -3,6 +3,63 @@ jest.mock('ioredis', () => {
   return require('./mocks/ioredis').default;
 });
 
+// Mock db (PostgreSQL) — in-memory settings store + execution_modes table
+jest.mock('../src/services/db', () => {
+  let settings: Record<string, any> = {};
+  let executionModes: Array<{ id: string; builtin: boolean }> = [
+    { id: 'default', builtin: true },
+    { id: 'normal', builtin: true },
+    { id: 'thinking', builtin: true },
+    { id: 'savings', builtin: true },
+  ];
+
+  const mockQuery = jest.fn(async (sql: string, params?: any[]) => {
+    if (sql.includes('SELECT id FROM execution_modes WHERE id')) {
+      const id = params?.[0];
+      const rows = executionModes.filter((m) => m.id === id);
+      return { rows };
+    }
+    if (sql.includes('SELECT * FROM execution_modes')) {
+      return { rows: executionModes };
+    }
+    if (sql.includes('SELECT builtin FROM execution_modes WHERE id')) {
+      const id = params?.[0];
+      const rows = executionModes.filter((m) => m.id === id);
+      return { rows };
+    }
+    if (sql.includes('INSERT INTO execution_modes')) {
+      const id = params?.[0];
+      executionModes.push({ id, builtin: false });
+      return { rows: [{ id }] };
+    }
+    if (sql.includes('DELETE FROM execution_modes')) {
+      const id = params?.[0];
+      executionModes = executionModes.filter((m) => m.id !== id);
+      return { rows: [] };
+    }
+    return { rows: [] };
+  });
+
+  return {
+    getPool: jest.fn(() => ({ query: mockQuery })),
+    getSetting: jest.fn(async (key: string) => settings[key] ?? null),
+    setSetting: jest.fn(async (key: string, value: any) => { settings[key] = value; }),
+    runMigrations: jest.fn(async () => {}),
+    seedDefaults: jest.fn(async () => {}),
+    writeAuditLog: jest.fn(async () => {}),
+    _reset: () => {
+      settings = {};
+      executionModes = [
+        { id: 'default', builtin: true },
+        { id: 'normal', builtin: true },
+        { id: 'thinking', builtin: true },
+        { id: 'savings', builtin: true },
+      ];
+    },
+    _addExecutionMode: (id: string) => { executionModes.push({ id, builtin: false }); },
+  };
+});
+
 // Mock logReader (uses import.meta.url which is ESM-only)
 jest.mock('../src/services/logReader', () => ({
   getAuditLogs: jest.fn().mockResolvedValue([]),
