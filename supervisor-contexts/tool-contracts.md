@@ -32,11 +32,12 @@ The supervisor uses provider CLIs to dispatch tasks. Provider CLIs are treated a
 
 ## CLI Adapter
 
-The supervisor uses a CLI adapter (`src/cliAdapter.ts`) that provides:
+The supervisor uses a CLI adapter (`src/infrastructure/adapters/agents/providers/cliAdapter.ts`) that provides:
 - **Priority-based provider selection**: Configurable fallback chain (default order set in config, adjustable via environment)
+- **Provider override**: When `task.tool` is set, bypasses the priority chain and dispatches directly to that provider. Applied to initial execution, retries, and interrogation.
 - **Circuit breaker**: 1-day TTL for failed providers
 - **Automatic fallback**: On resource exhaustion or provider failure
-- **Model filtering**: Only allowed models (sonnet*, opus*, gpt4*, gpt5*, gemini*)
+- **Provider tracking**: `getProviderInUse()` returns the active provider (including overrides) for metadata logging
 
 ## Prompt Construction
 

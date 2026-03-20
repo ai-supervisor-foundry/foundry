@@ -1,0 +1,3 @@
+1. Within logs view when I refresh if I was on another tab, I am taken back to the first tab. when navigated the route or query params should preserve which tab you were on so reload doesnt affect it.
+2. Visualize chat should be per project (Project selector dropdown). Also I dont see some logs for dummy project, maybe that is the reason. 
+3. Theme overall needs to be adjusted including UI, fonts sizes etc to be more friendly. For ref, view sandbox/**/* for style references, which are sleeker.

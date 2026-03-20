@@ -45,6 +45,8 @@ export class TaskFinalizer {
       requires_context: true,
     };
 
+    // Deduplicate — prevent same task from being added twice across iterations
+    state.completed_tasks = state.completed_tasks.filter(t => t.task_id !== task.task_id);
     state.completed_tasks.push(completedTask);
 
     // Prune old tasks to cap state size

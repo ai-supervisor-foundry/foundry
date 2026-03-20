@@ -243,6 +243,7 @@ async function handleWorkerCompletion(
 
       // Update state
       if (!state.completed_tasks) state.completed_tasks = [];
+      state.completed_tasks = state.completed_tasks.filter(t => t.task_id !== taskId);
       state.completed_tasks.push(event.completedTask);
       if (state.active_tasks) delete state.active_tasks[taskId];
 
@@ -279,6 +280,7 @@ async function handleWorkerCompletion(
 
       // Block the task
       if (!state.blocked_tasks) state.blocked_tasks = [];
+      state.blocked_tasks = state.blocked_tasks.filter(t => t.task_id !== taskId);
       state.blocked_tasks.push({
         ...(activeTask?.task || {}),
         task_id: taskId,
@@ -306,6 +308,7 @@ async function handleWorkerCompletion(
       }
 
       if (!state.blocked_tasks) state.blocked_tasks = [];
+      state.blocked_tasks = state.blocked_tasks.filter(t => t.task_id !== taskId);
       state.blocked_tasks.push(event.blockedTask);
       if (state.active_tasks) delete state.active_tasks[taskId];
 

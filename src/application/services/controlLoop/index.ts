@@ -48,7 +48,7 @@ export async function controlLoop(
 ): Promise<void> {
   // Initialize modules with injected dependencies
   const stateManager = new StateManager(persistence); // PersistenceLayer implements PersistencePort
-  const taskRetriever = new TaskRetriever(queue);
+  const taskRetriever = new TaskRetriever(queue, persistence.getClient());
   
   const goalChecker = new GoalCompletionChecker(
       primaryAdapter,
@@ -273,6 +273,9 @@ export async function controlLoop(
             finalResponse: executionResult.response
         }
     );
+
+    // Release task lock after finalization
+    await taskRetriever.releaseTaskLock(task.task_id);
 
     logPerformance('Iteration', Date.now() - iterationStartTime, { iteration, task_id: task.task_id });
   }

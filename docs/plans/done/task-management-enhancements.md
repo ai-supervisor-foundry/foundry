@@ -1,0 +1,23 @@
+1. Add task modal needs
+    - A row of expandable controls under FORM / JSON mode
+        - checkbox: create multiple tasks (tooltip says: Keep opened, functionality clear form with toast on creation, on error show error toast but dont clear form)
+        - modal close and escape should work with cancel modal confirmation
+    - A new feature for execution mode:
+        - Task modal has side bar for execution modes (Split by vertical divider)
+        - Modes: Default, Normal, Thinking, Savings, with icons
+        - Review models and strategies in project (src/config/agents/providers)
+        - Execution Modes (reference: supervisor-contexts/CONTEXT.md):
+            - Default: Uses default applied strategy as is
+            - Normal: Prefills provider/model to favor normal operations with
+                - Primary: Claude (sonnet latest), Cursor (composer 2), Gemini (gemini 2.5 pro)
+                - Secondary: Cursor (Composer 2), Gemini (gemini 2.* flash version), Ollama (phi-4mini)
+            - Thinking: Prefills provider/model to favor reasoning/creative models (planning, analysis, decomposition).
+                - Primary: Claude (Opus latest), Cursor (Opus latest), Gemini (gemini-3.1-pro-preview)
+                - Secondary: Gemini (gemini-3.1-flash-preview)
+            - Savings: Prefills Cursor composer tier for low-cost runs (operator may override).
+                - Primary: Cursor (composer-2)
+                - Secondary: Cursor (composer-2)
+        - Needs action preserve as global task strategy (Checkbox state + selection needs to be preserved in user prefs in postgres), unchecking sets default
+    - When mode is selected in the modal, provider/model fields in the form are auto-filled but remain editable.
+    - UI should include tooltips for each mode explaining default provider/model choices, and show a brief note if operator overrides the default.
+    - Reference supported models in UI from `PROVIDER_MODELS` constants, and strategies in `src/config/agents/providers/strategies.ts` for mapping (see contexts).

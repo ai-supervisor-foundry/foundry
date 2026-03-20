@@ -75,6 +75,8 @@ export const apiClient = {
   enqueueTask: (task: any) => api.post('/api/tasks/enqueue', task),
   enqueueTasks: (tasks: any[]) => api.post('/api/tasks/enqueue-bulk', tasks),
   dumpTasks: () => api.get('/api/tasks/dump'),
+  deleteTasks: (taskIds: string[], source: 'queue' | 'completed' | 'blocked') =>
+    api.post('/api/tasks/delete', { taskIds, source }),
   
   // Logs endpoints
   getLogProjects: () => api.get('/api/logs/projects'),
@@ -98,6 +100,28 @@ export const apiClient = {
   // Config endpoint
   getConfig: () => api.get('/api/config'),
   updateConfig: (config: Record<string, any>) => api.post('/api/config', config),
+
+  // Execution modes CRUD
+  getExecutionModes: () => api.get('/api/config/execution-modes'),
+  createExecutionMode: (mode: any) => api.post('/api/config/execution-modes', mode),
+  updateExecutionMode: (id: string, mode: any) => api.put(`/api/config/execution-modes/${id}`, mode),
+  deleteExecutionMode: (id: string) => api.delete(`/api/config/execution-modes/${id}`),
+
+  // Strategies CRUD
+  getStrategies: () => api.get('/api/config/strategies'),
+  createStrategy: (strategy: any) => api.post('/api/config/strategies', strategy),
+  updateStrategy: (id: string, strategy: any) => api.put(`/api/config/strategies/${id}`, strategy),
+  deleteStrategy: (id: string) => api.delete(`/api/config/strategies/${id}`),
+
+  // Preferences
+  getPreferences: () => api.get('/api/config/preferences'),
+  savePreferences: (prefs: { executionMode?: string; preserveGlobal?: boolean }) =>
+    api.post('/api/config/preferences', prefs),
+
+  // Settings (configurable, Postgres-backed)
+  getSettings: () => api.get('/api/config/settings'),
+  saveSetting: (key: string, value: string) =>
+    api.post('/api/config/settings', { key, value }),
   
   // Ollama endpoints
   getOllamaVersion: () => api.get('/api/ollama/version'),

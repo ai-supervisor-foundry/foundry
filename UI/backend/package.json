@@ -1,6 +1,6 @@
 {
   "name": "supervisor-ui-backend",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Backend API server for Supervisor UI",
   "main": "dist/server.js",
   "type": "module",

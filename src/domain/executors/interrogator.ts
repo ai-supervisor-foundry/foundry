@@ -405,6 +405,10 @@ export async function interrogateAgent(
 
     log(`Built batched interrogation prompt for ${unresolvedCriteria.length} criteria`);
     
+    // CRITICAL: Resolve provider override before logging
+    const providerOverride = task.tool || undefined;
+    const effectiveProvider = providerOverride || cliAdapter.getProviderInUse();
+
     // Log interrogation prompt
     if (sandboxRoot && projectId) {
       await appendPromptLog(
@@ -415,7 +419,7 @@ export async function interrogateAgent(
           content: interrogationPrompt,
           metadata: {
             agent_mode: task.agent_mode || 'auto',
-            provider: cliAdapter.getProviderInUse(),
+            provider: effectiveProvider,
             working_directory: sandboxCwd,
             prompt_length: interrogationPrompt.length,
             criteria_count: unresolvedCriteria.length,
@@ -431,7 +435,7 @@ export async function interrogateAgent(
     // CRITICAL: Wait for response before continuing (Prompt → Response)
     const interrogationStartTime = Date.now();
     const sessionId = task.meta?.session_id;
-    const cursorResult = await cliAdapter.execute(interrogationPrompt, sandboxCwd, task.agent_mode, sessionId);
+    const cursorResult = await cliAdapter.execute(interrogationPrompt, sandboxCwd, task.agent_mode, sessionId, undefined, providerOverride);
     const interrogationDuration = Date.now() - interrogationStartTime;
     
     log(`Batched interrogation response received in ${interrogationDuration}ms`);
@@ -454,7 +458,7 @@ export async function interrogateAgent(
           content: agentResponse,
           metadata: {
             agent_mode: task.agent_mode || 'auto',
-            provider: cliAdapter.getProviderInUse(),
+            provider: providerOverride || cliAdapter.getProviderInUse(),
             working_directory: sandboxCwd,
             response_length: agentResponse.length,
             stdout_length: cursorResult.stdout?.length || 0,

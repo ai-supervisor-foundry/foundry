@@ -206,10 +206,13 @@ router.post('/update', async (req, res, next) => {
         if (targetLocation === 'completed') {
           if (!state.completed_tasks) state.completed_tasks = [];
           if (!updatedTask.completed_at) updatedTask.completed_at = new Date().toISOString();
+          // Deduplicate — scheduler may have already completed this task
+          state.completed_tasks = state.completed_tasks.filter((t: any) => t.task_id !== taskId);
           state.completed_tasks.push(updatedTask);
         } else if (targetLocation === 'blocked') {
           if (!state.blocked_tasks) state.blocked_tasks = [];
           if (!updatedTask.blocked_at) updatedTask.blocked_at = new Date().toISOString();
+          state.blocked_tasks = state.blocked_tasks.filter((t: any) => t.task_id !== taskId);
           state.blocked_tasks.push(updatedTask);
         } else if (targetLocation === 'current') {
           if (!state.active_tasks) state.active_tasks = {};
@@ -276,6 +279,55 @@ router.get('/queue', async (req, res, next) => {
       exhausted,
       pending,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/tasks/delete
+router.post('/delete', async (req, res, next) => {
+  try {
+    const { taskIds, source } = req.body;
+
+    if (!Array.isArray(taskIds) || taskIds.length === 0) {
+      return res.status(400).json({ error: 'taskIds must be a non-empty array' });
+    }
+
+    if (!['queue', 'completed', 'blocked'].includes(source)) {
+      return res.status(400).json({ error: 'source must be one of: queue, completed, blocked' });
+    }
+
+    let deleted = 0;
+
+    if (source === 'queue') {
+      for (const taskId of taskIds) {
+        const removed = await removeTaskFromQueue(taskId);
+        if (removed) deleted++;
+      }
+    } else {
+      const state = await loadSupervisorState();
+      if (!state) return res.status(500).json({ error: 'Failed to load state' });
+
+      const taskIdSet = new Set(taskIds);
+
+      if (source === 'completed' && state.completed_tasks) {
+        const before = state.completed_tasks.length;
+        state.completed_tasks = state.completed_tasks.filter(
+          (t: any) => !taskIdSet.has(t.task_id)
+        );
+        deleted = before - state.completed_tasks.length;
+      } else if (source === 'blocked' && state.blocked_tasks) {
+        const before = state.blocked_tasks.length;
+        state.blocked_tasks = state.blocked_tasks.filter(
+          (t: any) => !taskIdSet.has(t.task_id)
+        );
+        deleted = before - state.blocked_tasks.length;
+      }
+
+      await saveSupervisorState(state);
+    }
+
+    res.json({ success: true, deleted });
   } catch (error) {
     next(error);
   }

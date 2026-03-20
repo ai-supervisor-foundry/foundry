@@ -39,9 +39,10 @@ interface TaskCardProps {
   className?: string;
   isCurrent?: boolean;
   onEdit?: (task: any) => void;
+  onDuplicate?: (task: any) => void;
 }
 
-export default function TaskCard({ task, className = '', isCurrent = false, onEdit }: TaskCardProps) {
+export default function TaskCard({ task, className = '', isCurrent = false, onEdit, onDuplicate }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [jsonModalOpen, setJsonModalOpen] = useState(false);
 
@@ -171,6 +172,19 @@ export default function TaskCard({ task, className = '', isCurrent = false, onEd
           )}
         </div>
         <div className="flex gap-2 ml-4">
+          {onDuplicate && !isCurrent && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDuplicate(task);
+              }}
+              className="px-2 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 rounded border shadow-sm transition-colors"
+              title="Duplicate task"
+              aria-label="Duplicate task"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          )}
           {onEdit && (
             <button
               onClick={(e) => {

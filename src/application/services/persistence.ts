@@ -229,6 +229,11 @@ export class PersistenceLayer implements PersistencePort {
     return loadState(this.client, this.stateKey);
   }
 
+  /** Expose Redis client for task-level locking */
+  getClient(): Redis {
+    return this.client;
+  }
+
   async writeState(state: SupervisorState): Promise<void> {
     logVerbose('PersistenceLayer', 'writeState called', {
       state_key: this.stateKey,

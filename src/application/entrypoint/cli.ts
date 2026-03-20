@@ -727,7 +727,7 @@ async function start(
     // Use stateClient for circuit breaker storage (same DB as state)
     const ttlSeconds = parseInt(process.env.CIRCUIT_BREAKER_TTL_SECONDS || '86400', 10);
     const { getActiveStrategy } = await import('../../config/agents/providers/strategies');
-    const activeStrategy = getActiveStrategy();
+    const activeStrategy = await getActiveStrategy();
     logVerbose('Start', `Active provider strategy: ${activeStrategy.name}`, { strategy: process.env.PROVIDER_STRATEGY || '1' });
     const primaryAdapter = new CLIAdapter(stateClient, activeStrategy.primary, ttlSeconds, true);
     const secondaryAdapter = new CLIAdapter(stateClient, activeStrategy.secondary, ttlSeconds);

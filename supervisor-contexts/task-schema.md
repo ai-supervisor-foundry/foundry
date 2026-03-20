@@ -11,7 +11,7 @@ Tasks are defined as JSON objects with the following structure:
   "task_id": "string (unique identifier)",
   "project_id": "string (required — sandbox working directory)",
   "intent": "string (brief description)",
-  "tool": "cursor | gemini | gemini_stub | copilot | codex | claude",
+  "tool": "cursor | gemini | gemini_stub | copilot | codex | claude | ollama (optional — acts as provider override; strategy decides if omitted)",
   "instructions": "string (detailed instructions for agent)",
   "acceptance_criteria": ["array of strings (ALL must be met)"],
   "retry_policy": {
@@ -31,7 +31,7 @@ Tasks are defined as JSON objects with the following structure:
 
 ## Project Assignment
 
-Each task must specify its `project_id`. This determines the agent's working directory as `sandbox/{project_id}/`. The `working_directory` field can still override this default if a task needs a different CWD.
+Each task must specify its `project_id`. This determines the agent's working directory as `sandbox/{project_id}/`. The `working_directory` field is optional prompt-level context — if provided, its value is appended to the task prompt for additional path context but does **not** override the CWD (which is always derived from `project_id`).
 
 ## Parallel execution fields
 
@@ -41,6 +41,12 @@ For parallel or file-locked execution, each task must include:
 - **`depends_on`** (optional): Array of task IDs that must complete before this task can start.
 
 See [usage.md](./usage.md) § Parallel Execution Fields for examples.
+
+## Provider Override (`tool`)
+
+When `task.tool` is set, it acts as a **provider override** — the CLI adapter routes directly to that provider, bypassing the strategy's priority chain. The `agent_mode` field is passed as the `--model` flag to the selected provider. When `tool` is omitted, the active strategy's priority chain selects the provider.
+
+This override applies to all execution paths: initial execution, retry/fix attempts, and interrogation.
 
 ## Task Lifecycle
 

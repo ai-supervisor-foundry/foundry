@@ -250,6 +250,7 @@ export default function Projects() {
                   type="text"
                   value={newProject.id}
                   onChange={(e) => setNewProject({ ...newProject, id: e.target.value })}
+                  autoFocus
                   className="w-full border rounded px-3 py-2"
                   placeholder="my-project"
                 />
