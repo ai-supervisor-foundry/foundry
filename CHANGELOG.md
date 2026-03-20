@@ -1,3 +1,6 @@
+## v0.1.2 (2026-03-20)
+
+- Feat/ci updates (#23)
 ## v0.1.1 (2026-03-20)
 
 - feat: ci updates
