@@ -1,3 +1,8 @@
+## v0.1.1 (2026-03-20)
+
+- feat: ci updates
+
+PR: #22
 ## v0.1.0 (2026-03-20)
 
 Initial release combining PRs #18, #19, and #20.
