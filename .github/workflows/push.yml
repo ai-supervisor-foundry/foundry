@@ -1,0 +1,237 @@
+name: Push
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [lts/*]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ matrix.node-version }}-
+            ${{ runner.os }}-node-
+
+      - name: Cache TypeScript build
+        uses: actions/cache@v5
+        with:
+          path: |
+            dist
+            **/*.tsbuildinfo
+          key: ${{ runner.os }}-tsc-${{ matrix.node-version }}-${{ hashFiles('src/**/*.ts', 'tsconfig.json') }}
+          restore-keys: |
+            ${{ runner.os }}-tsc-${{ matrix.node-version }}-
+            ${{ runner.os }}-tsc-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript compilation
+        run: npm run build
+
+  unit-tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [lts/*]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ matrix.node-version }}-
+            ${{ runner.os }}-node-
+
+      - name: Cache TypeScript build
+        uses: actions/cache@v5
+        with:
+          path: |
+            dist
+            **/*.tsbuildinfo
+          key: ${{ runner.os }}-tsc-${{ matrix.node-version }}-${{ hashFiles('src/**/*.ts', 'tsconfig.json') }}
+          restore-keys: |
+            ${{ runner.os }}-tsc-${{ matrix.node-version }}-
+            ${{ runner.os }}-tsc-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Unit Tests
+        run: npm run test:unit
+
+  functional-tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [lts/*]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ matrix.node-version }}-
+            ${{ runner.os }}-node-
+
+      - name: Cache TypeScript build
+        uses: actions/cache@v5
+        with:
+          path: |
+            dist
+            **/*.tsbuildinfo
+          key: ${{ runner.os }}-tsc-${{ matrix.node-version }}-${{ hashFiles('src/**/*.ts', 'tsconfig.json') }}
+          restore-keys: |
+            ${{ runner.os }}-tsc-${{ matrix.node-version }}-
+            ${{ runner.os }}-tsc-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Functional Tests
+        run: npm run test:functional
+
+  version-bump:
+    runs-on: ubuntu-latest
+    needs: [build, unit-tests, functional-tests]
+    # Skip if this push is itself a version bump
+    if: "!contains(github.event.head_commit.message, '[version-bump]')"
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Determine bump type from merge commit
+        id: bump-type
+        run: |
+          COMMIT_MSG=$(git log -1 --format=%s)
+          echo "Merge commit: $COMMIT_MSG"
+          MSG_UPPER=$(echo "$COMMIT_MSG" | tr '[:lower:]' '[:upper:]')
+          if echo "$MSG_UPPER" | grep -qE 'MAJOR[^A-Z]'; then
+            echo "type=major" >> "$GITHUB_OUTPUT"
+          elif echo "$MSG_UPPER" | grep -qE 'MINOR[^A-Z]'; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump version
+        run: bash scripts/bump-version.sh "${{ steps.bump-type.outputs.type }}"
+
+      - name: Generate release notes
+        run: |
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          COMMIT_MSG=$(git log -1 --format=%s)
+          DATE=$(date +%Y-%m-%d)
+
+          {
+            echo "## v${NEW_VERSION} (${DATE})"
+            echo ""
+            echo "- ${COMMIT_MSG}"
+          } > RELEASE_ENTRY.tmp
+
+          if [ -f CHANGELOG.md ]; then
+            cat RELEASE_ENTRY.tmp CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+          else
+            mv RELEASE_ENTRY.tmp CHANGELOG.md
+          fi
+          rm -f RELEASE_ENTRY.tmp
+
+      - name: Commit and push version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          git add package.json UI/backend/package.json UI/frontend/package.json CHANGELOG.md
+          git commit -m "chore: bump version to v${NEW_VERSION} [version-bump]"
+          git push
+          echo "Version bumped to v${NEW_VERSION}"
+
+      # Uses Octokit (not shell). Release body = full CHANGELOG.md (already prepended in prior step).
+      # ref: https://github.com/actions/github-script
+      - name: Create GitHub release
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const { execSync } = require('child_process');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const tag = `v${pkg.version}`;
+            const body = fs.readFileSync('CHANGELOG.md', 'utf8');
+            const sha = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+            try {
+              await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                name: `Release ${tag}`,
+                body,
+                target_commitish: sha,
+              });
+              core.info(`Created release ${tag} at ${sha}`);
+            } catch (e) {
+              if (e.response?.status === 422) {
+                core.warning(`Release not created (likely exists): ${e.message}`);
+              } else {
+                throw e;
+              }
+            }
