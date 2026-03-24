@@ -140,10 +140,26 @@ jobs:
       - name: Run Functional Tests
         run: npm run test:functional
 
-  version-bump:
+  secret-check:
+  # ${{ secrets.PUSH_TOKEN }} != ''
     runs-on: ubuntu-latest
     needs: [build, unit-tests, functional-tests]
+    steps:
+      - name: Check if PUSH_TOKEN is defined
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const token = process.env.PUSH_TOKEN;
+            if (!token) {
+              throw new Error('PUSH_TOKEN is not defined');
+            }
+            core.info('PUSH_TOKEN is defined');
+
+  version-bump:
+    runs-on: ubuntu-latest
+    needs: [secret-check, build, unit-tests, functional-tests]
     # Skip if this push is itself a version bump
+    # Also should have secrets.token defined and present
     if: "!contains(github.event.head_commit.message, '[version-bump]')"
     permissions:
       contents: write
