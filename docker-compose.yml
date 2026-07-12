@@ -23,7 +23,7 @@ services:
     volumes:
       - ollama_data:/root/.ollama
       - ./sandbox:/sandbox
-    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull phi4-mini && wait"]
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull phi4-mini || true && wait"]
     restart: unless-stopped
     networks:
       - supervisor-network

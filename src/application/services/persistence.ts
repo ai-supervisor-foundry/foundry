@@ -1,11 +1,32 @@
-// Persistence Layer - DragonflyDB read/write only
+// Persistence Layer - DragonflyDB primary, state.json async fallback
 // Single key, full overwrite only, no partial updates
 // No Lua, no pubsub, no retries
 
 import { SupervisorState } from '../../domain/types/types';
 import Redis from 'ioredis';
-import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared } from '../../infrastructure/adapters/logging/logger';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { logVerbose as logVerboseShared, logPerformance as logPerformanceShared, logError } from '../../infrastructure/adapters/logging/logger';
 import { PersistencePort } from '../../domain/ports/persistence';
+
+const STATE_JSON_FILENAME = 'state.json';
+
+function resolveSandboxRoot(explicit?: string): string | undefined {
+  return explicit ?? process.env.SANDBOX_ROOT;
+}
+
+function getStateJsonPath(sandboxRoot: string): string {
+  return path.join(sandboxRoot, STATE_JSON_FILENAME);
+}
+
+function warnOperator(message: string): void {
+  console.warn(`[OPERATOR WARNING] ${message}`);
+}
+
+async function writeStateJsonBackup(sandboxRoot: string, serialized: string): Promise<void> {
+  await fs.mkdir(sandboxRoot, { recursive: true });
+  await fs.writeFile(getStateJsonPath(sandboxRoot), serialized, 'utf8');
+}
 
 function logVerbose(component: string, message: string, data?: Record<string, unknown>): void {
   logVerboseShared(`Persistence:${component}`, message, data);
@@ -22,25 +43,65 @@ function logPerformance(operation: string, duration: number, metadata?: Record<s
  */
 export async function loadState(
   client: Redis,
-  stateKey: string
+  stateKey: string,
+  sandboxRoot?: string
 ): Promise<SupervisorState> {
   const startTime = Date.now();
+  const fallbackRoot = resolveSandboxRoot(sandboxRoot);
   logVerbose('LoadState', 'Loading state from DragonflyDB', { state_key: stateKey });
   
   // Single GET operation
   const getStartTime = Date.now();
-  const rawValue = await client.get(stateKey);
+  let rawValue: string | null = null;
+  let redisError: unknown = null;
+  try {
+    rawValue = await client.get(stateKey);
+  } catch (error) {
+    redisError = error;
+    logVerbose('LoadState', 'Redis GET failed', {
+      state_key: stateKey,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
   const getDuration = Date.now() - getStartTime;
-  logPerformance('RedisGET', getDuration, { state_key: stateKey, found: rawValue !== null });
+  logPerformance('RedisGET', getDuration, {
+    state_key: stateKey,
+    found: rawValue !== null,
+    failed: redisError !== null,
+  });
   logVerbose('LoadState', 'GET operation completed', {
     state_key: stateKey,
     raw_value_size: rawValue?.length || 0,
     found: rawValue !== null,
   });
+
+  if (rawValue === null && fallbackRoot) {
+    const fallbackPath = getStateJsonPath(fallbackRoot);
+    try {
+      rawValue = await fs.readFile(fallbackPath, 'utf8');
+      warnOperator(
+        `Redis unavailable or state key missing; loaded supervisor state from ${fallbackPath}`
+      );
+      logVerbose('LoadState', 'Loaded state from state.json fallback', {
+        state_key: stateKey,
+        fallback_path: fallbackPath,
+      });
+    } catch (fallbackError) {
+      logVerbose('LoadState', 'state.json fallback unavailable', {
+        state_key: stateKey,
+        fallback_path: fallbackPath,
+        error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+      });
+    }
+  }
   
-  // GET must exist, else throw
   if (rawValue === null) {
     logVerbose('LoadState', 'State key not found', { state_key: stateKey });
+    if (redisError) {
+      throw new Error(
+        `Failed to load state from Redis: ${redisError instanceof Error ? redisError.message : String(redisError)}`
+      );
+    }
     throw new Error(`State key ${stateKey} not found`);
   }
 
@@ -143,7 +204,8 @@ export async function loadState(
 export async function persistState(
   client: Redis,
   stateKey: string,
-  state: SupervisorState
+  state: SupervisorState,
+  sandboxRoot?: string
 ): Promise<void> {
   const startTime = Date.now();
   logVerbose('PersistState', 'Persisting state to DragonflyDB', {
@@ -211,6 +273,13 @@ export async function persistState(
     throw new Error(`Failed to persist state to key ${stateKey}: ${error instanceof Error ? error.message : String(error)}`);
   }
   
+  const fallbackRoot = resolveSandboxRoot(sandboxRoot);
+  if (fallbackRoot) {
+    void writeStateJsonBackup(fallbackRoot, serialized).catch((error) => {
+      logError('Persistence', 'Failed to write state.json fallback', error);
+    });
+  }
+
   const totalDuration = Date.now() - startTime;
   logPerformance('PersistState', totalDuration, { state_key: stateKey });
 }
@@ -219,14 +288,18 @@ export async function persistState(
 export class PersistenceLayer implements PersistencePort {
   constructor(
     private client: Redis,
-    private stateKey: string // Operator-defined, fixed key name
+    private stateKey: string, // Operator-defined, fixed key name
+    private sandboxRoot?: string
   ) {
-    logVerbose('PersistenceLayer', 'PersistenceLayer initialized', { state_key: this.stateKey });
+    logVerbose('PersistenceLayer', 'PersistenceLayer initialized', {
+      state_key: this.stateKey,
+      sandbox_root: resolveSandboxRoot(this.sandboxRoot),
+    });
   }
 
   async readState(): Promise<SupervisorState> {
     logVerbose('PersistenceLayer', 'readState called', { state_key: this.stateKey });
-    return loadState(this.client, this.stateKey);
+    return loadState(this.client, this.stateKey, this.sandboxRoot);
   }
 
   /** Expose Redis client for task-level locking */
@@ -240,6 +313,6 @@ export class PersistenceLayer implements PersistencePort {
       status: state.supervisor.status,
       iteration: state.supervisor.iteration,
     });
-    return persistState(this.client, this.stateKey, state);
+    return persistState(this.client, this.stateKey, state, this.sandboxRoot);
   }
 }

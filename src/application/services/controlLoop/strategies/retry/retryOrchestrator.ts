@@ -1,4 +1,5 @@
 import { RetryStrategy, RetryContext, RetryDecision } from '../../../../../domain/policies/retry/retryStrategy';
+import { SessionResolver } from '../../modules/sessionResolver';
 import { Task, SupervisorState, ValidationReport } from '../../../../../domain/types/types';
 import { RepeatedErrorStrategy } from '../../../../../domain/policies/retry/repeatedErrorStrategy';
 import { MaxRetriesStrategy } from '../../../../../domain/policies/retry/maxRetriesStrategy';
@@ -10,6 +11,7 @@ import { analyticsService } from '../../../analytics'; // In application/service
 import { LLMProviderPort } from '../../../../../domain/ports/llmProvider';
 import { LoggerPort, PromptLoggerPort } from '../../../../../domain/ports/logger';
 import { AuditLogPort, LegacyAuditLogEntry } from '../../../../../domain/ports/auditLog';
+import { bumpGitContextExecutionSeq } from '../../../../../infrastructure/connectors/git/gitContextCache';
 import * as path from 'path';
 
 export class RetryOrchestrator {
@@ -26,7 +28,12 @@ export class RetryOrchestrator {
     this.resourceExhaustedStrategy = new ResourceExhaustedStrategy(logger);
     this.strategies = [
         new RepeatedErrorStrategy(auditLogger, logger, sandboxRoot),
-        new MaxRetriesStrategy(auditLogger, promptBuilder, logger, sandboxRoot)
+        new MaxRetriesStrategy(
+          auditLogger,
+          promptBuilder,
+          logger,
+          sandboxRoot
+        ),
     ];
   }
 
@@ -59,8 +66,13 @@ export class RetryOrchestrator {
     analyticsService.recordRetry(task.task_id, !validationReport.valid ? 'validation_failed' : 'ambiguity_or_question');
 
     // 3. Build Fix Prompt
-    const sandboxCwd = path.join(this.sandboxRoot, projectId);
-    const minimalState = this.promptBuilder.buildMinimalSnapshot(state, task, sandboxCwd);
+    const sandboxCwd =
+      context.sandboxCwd ?? path.join(this.sandboxRoot, projectId);
+    const minimalState = await this.promptBuilder.buildMinimalSnapshot(
+      state,
+      task,
+      sandboxCwd
+    );
     
     // Repeated error check for prompt construction
     const lastErrorKey = `last_error_${task.task_id}`;
@@ -116,7 +128,20 @@ export class RetryOrchestrator {
     this.logger.log('ControlLoop', `[Iteration ${iteration}] Task ${task.task_id}: Executing fix/clarification attempt...`);
     const fixStartTime = Date.now();
     const fixProviderResult = await cliAdapter.execute(fixPrompt, sandboxCwd, agentMode, sessionId, undefined, providerOverride);
+    bumpGitContextExecutionSeq(state, task.task_id);
     const fixDuration = Date.now() - fixStartTime;
+    if (fixProviderResult.sessionId) {
+      const sessionResolver = new SessionResolver();
+      sessionResolver.updateSessionState(
+        state,
+        sessionResolver.getFeatureId(task, state),
+        fixProviderResult.sessionId,
+        task,
+        fixProviderResult.usage?.tokens || 0,
+        sessionId,
+        iteration
+      );
+    }
     this.logger.log('ControlLoop', `[Iteration ${iteration}] Task ${task.task_id}: Fix attempt completed in ${fixDuration}ms, exit code: ${fixProviderResult.exitCode}`);
     
     this.logger.logPerformance('FixCLIAdapterExecution', fixDuration, {

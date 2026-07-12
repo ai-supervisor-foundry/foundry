@@ -13,19 +13,24 @@ const CONTEXT_LIMITS: Record<string, number> = {
 };
 const ERROR_LIMIT = 5;
 
+export function resolveTaskSessionId(task: Task, state: SupervisorState): string | undefined {
+  const featureId = task.meta?.feature_id
+    || (task.task_id ? `task:${task.task_id.split('_')[0]}` : undefined)
+    || (task.project_id ? `project:${task.project_id}` : undefined)
+    || 'default';
+  return task.meta?.session_id || state.active_sessions?.[featureId]?.session_id;
+}
+
 export class SessionResolver {
   
   async resolveSession(task: Task, state: SupervisorState, iteration: number): Promise<string | undefined> {
-    // 1. Initial resolution via SessionManager
+    const featureId = this.getFeatureId(task, state);
     let resolvedSessionId = await sessionManager.resolveSession(
       task.tool,
-      task.meta?.feature_id,
+      featureId,
       task.meta?.session_id,
       state
     );
-    
-    // Feature ID calculation
-    const featureId = this.getFeatureId(task, state);
     
     // 2. Policy Enforcement
     if (resolvedSessionId && state.active_sessions?.[featureId]) {

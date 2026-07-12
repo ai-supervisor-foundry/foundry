@@ -51,6 +51,15 @@ export interface ActiveTask {
   worker_id: string;
   started_at: string;
   worktree_path?: string;
+  /** Cached git diff for prompt builds; invalidated via git_execution_seq bump after agent runs. */
+  git_context?: {
+    gitRoot: string | null;
+    sandboxRel: string;
+    changedPaths: string[];
+    resolvedAt: string;
+  };
+  git_context_key?: string;
+  git_execution_seq?: number;
 }
 
 export interface FileLock {

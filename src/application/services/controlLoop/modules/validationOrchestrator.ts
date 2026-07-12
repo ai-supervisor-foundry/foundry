@@ -43,7 +43,12 @@ export class ValidationOrchestrator {
             new StandardValidator(logger),
             new DeterministicValidator(logger),
             new HelperAgentValidator(cliAdapter, commandExecutor, logger, promptLogger, sessionResolver, sandboxRoot),
-            new InterrogationValidator(cliAdapter, promptBuilder, logger, sandboxRoot)
+            new InterrogationValidator(
+              cliAdapter,
+              promptBuilder,
+              logger,
+              sandboxRoot
+            ),
         ];
     }
 

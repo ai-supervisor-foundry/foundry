@@ -6,6 +6,7 @@ import { Validator } from '../validator';
 import { AuditLogger } from '../../../infrastructure/adapters/logging/auditLogger';
 import { log as logShared, logVerbose, logStateTransition, logPerformance } from '../../../infrastructure/adapters/logging/logger';
 import { analyticsService } from '../analytics';
+import { sessionMetrics } from '../../../infrastructure/monitoring/sessionMetrics';
 import { 
     StateManager, 
     TaskRetriever, 
@@ -22,6 +23,7 @@ import { checkHardHalts } from '../../../domain/executors/haltDetection';
 import { LoggerAdapter } from '../../../infrastructure/adapters/logging/loggerAdapter';
 import { PromptLoggerAdapter } from '../../../infrastructure/adapters/logging/promptLoggerAdapter';
 import { CommandExecutorAdapter } from '../../../infrastructure/adapters/os/commandExecutorAdapter';
+import { bumpGitContextExecutionSeq } from '../../../infrastructure/connectors/git/gitContextCache';
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -107,7 +109,9 @@ export async function controlLoop(
     iteration++;
     const iterationStartTime = Date.now();
     logVerbose('ControlLoop', `Starting iteration ${iteration}`);
+    let metricsProjectId: string | undefined;
 
+    try {
     // 1. Load and validate state
     const stateBefore = await stateManager.loadState(iteration);
     const state = stateManager.deepCopyState(stateBefore, iteration);
@@ -143,6 +147,7 @@ export async function controlLoop(
 
     // 3. Retrieve task (with recovery)
     const { task, source: taskSource } = await taskRetriever.retrieveTask(state, iteration);
+    metricsProjectId = task?.project_id;
     
     // 4. Handle no task (goal completion check)
     if (!task) {
@@ -178,11 +183,14 @@ export async function controlLoop(
       task,
       worker_id: 'main',
       started_at: new Date().toISOString(),
+      git_execution_seq: 0,
     };
     await stateManager.persistState(state, iteration, task.task_id);
 
     // 6. Execute task
     const executionResult = await taskExecutor.executeTask(task, state, iteration, sessionResolver);
+
+    bumpGitContextExecutionSeq(state, task.task_id);
 
     // 7. Update session state
     if (executionResult.sessionId) {
@@ -195,6 +203,7 @@ export async function controlLoop(
             executionResult.resolvedSessionId,
             iteration
         );
+        await stateManager.persistState(state, iteration, task.task_id);
     }
 
     // 8. Halt Detection (Hard Halts)
@@ -241,6 +250,7 @@ export async function controlLoop(
                 sessionId: executionResult.sessionId,
                 projectId: task.project_id,
                 iteration,
+                sandboxCwd: executionResult.sandboxCwd,
             },
             haltReason
         );
@@ -278,5 +288,13 @@ export async function controlLoop(
     await taskRetriever.releaseTaskLock(task.task_id);
 
     logPerformance('Iteration', Date.now() - iterationStartTime, { iteration, task_id: task.task_id });
+    } finally {
+      if (iteration % 10 === 0) {
+        sessionMetrics.logSummary();
+        if (metricsProjectId) {
+          await sessionMetrics.persist(sandboxRoot, metricsProjectId);
+        }
+      }
+    }
   }
 }

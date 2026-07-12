@@ -6,6 +6,10 @@ import * as path from 'path';
 
 // Mock dependencies
 jest.mock('../../../src/infrastructure/adapters/logging/logger');
+jest.mock('child_process', () => ({
+  execSync: jest.fn(),
+  execFile: jest.fn((_file, _args, _opts, cb) => cb(null, '', '')),
+}));
 
 describe('Prompt Tightening Verification', () => {
   const sandboxRoot = path.join(__dirname, '../../tmp/test-sandbox');
@@ -44,12 +48,12 @@ describe('Prompt Tightening Verification', () => {
   };
 
   describe('Content Snippets (buildFixPrompt)', () => {
-    it('should inject file snippets when a path is found in failed rules', () => {
+    it('should inject file snippets when a path is found in failed rules', async () => {
       const validationReport = {
         rules_failed: ['File broken.ts should contain x = 2'],
         rules_passed: []
       };
-      const minimalState = buildMinimalState(mockTask, mockState, sandboxRoot);
+      const minimalState = await buildMinimalState(mockTask, mockState, sandboxRoot);
       const prompt = buildFixPrompt(mockTask, minimalState, validationReport);
 
       expect(prompt).toContain('### Contextual File Content');
@@ -57,12 +61,12 @@ describe('Prompt Tightening Verification', () => {
       expect(prompt).toContain('export const x = 1;');
     });
 
-    it('should NOT inject snippets for non-existent files', () => {
+    it('should NOT inject snippets for non-existent files', async () => {
       const validationReport = {
         rules_failed: ['File ghost.ts is missing'],
         rules_passed: []
       };
-      const minimalState = buildMinimalState(mockTask, mockState, sandboxRoot);
+      const minimalState = await buildMinimalState(mockTask, mockState, sandboxRoot);
       const prompt = buildFixPrompt(mockTask, minimalState, validationReport);
 
       expect(prompt).not.toContain('File: ghost.ts');
@@ -70,8 +74,8 @@ describe('Prompt Tightening Verification', () => {
   });
 
   describe('Consolidated Rules', () => {
-    it('should contain the "Check READ-ONLY CONTEXT first" instruction in all prompts', () => {
-      const minimalState = buildMinimalState(mockTask, mockState, sandboxRoot);
+    it('should contain the "Check READ-ONLY CONTEXT first" instruction in all prompts', async () => {
+      const minimalState = await buildMinimalState(mockTask, mockState, sandboxRoot);
       
       const prompt = buildPrompt(mockTask, minimalState);
       const fixPrompt = buildFixPrompt(mockTask, minimalState, { rules_failed: [], rules_passed: [] });

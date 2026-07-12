@@ -19,3 +19,4 @@ High-level map of the main modules. For role separation and boundaries, see [arc
 | **Audit Logger** | `src/auditLogger.ts` | Append-only JSONL: state diffs, events, task lifecycle. |
 | **Prompt Logger** | `src/promptLogger.ts` | Logs full prompts and responses for debugging. |
 | **Logger** | `src/logger.ts` | Central logging, PM2-friendly stdout, metrics, state transitions. |
+| **Git context** | `src/infrastructure/connectors/git/gitContext.ts`, `gitContextCache.ts` | Async git diff → `file_paths`; per-task cache on `active_tasks`; `bumpGitContextExecutionSeq()` after agent runs. |

@@ -6,6 +6,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Task, SupervisorState, TaskType } from '../types/types';
 import { logVerbose, logPerformance } from '../../infrastructure/adapters/logging/logger';
+import { resolveGitContextSync } from '../../infrastructure/connectors/git/gitContext';
+import { resolveGitContextForTask } from '../../infrastructure/connectors/git/gitContextCache';
 
 // Constants for Markdown generation to avoid nested backtick syntax errors in TS
 const MD_JSON_START = "```json";
@@ -42,6 +44,15 @@ export interface MinimalState {
     task_id: string;
     reason: string;
   }>;
+  file_paths?: string[];
+}
+
+/**
+ * Return git-changed file paths relative to sandboxCwd (working tree + staged).
+ * Failure-safe: returns [] when not in a repo, sandbox is outside repo, or git fails.
+ */
+export function getGitChangedSandboxPaths(sandboxCwd: string): string[] {
+  return resolveGitContextSync(sandboxCwd).changedPaths;
 }
 
 /**
@@ -81,12 +92,18 @@ export function validateFilePaths(
  * Build task-aware minimal state context
  * Reduces prompt size by including only relevant context
  */
-export function buildMinimalState(task: Task, state: SupervisorState, sandboxCwd: string): MinimalState {
+export async function buildMinimalState(
+  task: Task,
+  state: SupervisorState,
+  sandboxCwd: string
+): Promise<MinimalState> {
+  const gitContext = await resolveGitContextForTask(state, task, sandboxCwd);
   const context: MinimalState = {
     project: {
       id: task.project_id,
       sandbox_root: sandboxCwd,
     },
+    file_paths: gitContext.changedPaths,
   };
 
   // ALWAYS: Include last 3-5 completed tasks (working memory)
@@ -722,8 +739,14 @@ export function buildGoalCompletionPrompt(state: SupervisorState, sandboxRoot: s
   }
   sections.push('');
   sections.push('## Project Structure');
-  sections.push(`Frontend: ${sandboxRoot}/easeclassifieds`);
-  sections.push(`Backend: ${sandboxRoot}/easeclassifieds-api`);
+  const projectIds = Object.keys(state.goals);
+  if (projectIds.length === 0) {
+    sections.push('No projects.');
+  } else {
+    for (const pid of projectIds) {
+      sections.push(`- ./${pid}/`);
+    }
+  }
   sections.push('');
   sections.push('## Your Task');
   sections.push('Analyze the goal description and the completed tasks.');
@@ -788,7 +811,11 @@ export function parseGoalCompletionResponse(response: string): boolean {
 
 // Legacy PromptBuilder class for backward compatibility
 export class PromptBuilder {
-  buildMinimalSnapshot(state: SupervisorState, task: Task, sandboxCwd?: string): MinimalState {
+  async buildMinimalSnapshot(
+    state: SupervisorState,
+    task: Task,
+    sandboxCwd?: string
+  ): Promise<MinimalState> {
     const defaultCwd = `sandbox/${task.project_id}`;
     return buildMinimalState(task, state, sandboxCwd || defaultCwd);
   }

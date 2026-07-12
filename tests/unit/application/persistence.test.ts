@@ -3,16 +3,44 @@
 import { loadState, persistState } from '../../../src/application/services/persistence';
 import { createMockState } from '../../fixtures/mockData';
 import Redis from 'ioredis';
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
+
+const flushPromises = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
+async function waitForFile(filePath: string, attempts = 20): Promise<void> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await fs.access(filePath);
+      return;
+    } catch {
+      await flushPromises();
+    }
+  }
+  throw new Error(`Timed out waiting for file: ${filePath}`);
+}
 
 describe('Persistence', () => {
   let mockRedis: jest.Mocked<Redis>;
+  let sandboxRoot: string;
+  let warnSpy: jest.SpyInstance;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    delete process.env.SANDBOX_ROOT;
+    sandboxRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'persistence-test-'));
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
     mockRedis = {
       get: jest.fn(),
       set: jest.fn().mockResolvedValue('OK'),
       exists: jest.fn(),
     } as any;
+  });
+
+  afterEach(async () => {
+    warnSpy.mockRestore();
+    await fs.rm(sandboxRoot, { recursive: true, force: true });
   });
 
   describe('persistState', () => {
@@ -109,6 +137,21 @@ describe('Persistence', () => {
       expect(parsedState.supervisor.status).toBe('BLOCKED');
       expect(parsedState.supervisor.halt_reason).toBe('ASKED_QUESTION');
     });
+
+    it('should async write state.json fallback without blocking Redis SET', async () => {
+      const state = createMockState();
+      const stateKey = 'supervisor:state';
+
+      await persistState(mockRedis, stateKey, state, sandboxRoot);
+      const fallbackPath = path.join(sandboxRoot, 'state.json');
+      await waitForFile(fallbackPath);
+      const fallbackContent = await fs.readFile(fallbackPath, 'utf8');
+      const parsedFallback = JSON.parse(fallbackContent);
+
+      expect(mockRedis.set).toHaveBeenCalledTimes(1);
+      expect(parsedFallback.supervisor.status).toBe(state.supervisor.status);
+      expect(parsedFallback.last_updated).toBeDefined();
+    });
   });
 
   describe('loadState', () => {
@@ -130,6 +173,51 @@ describe('Persistence', () => {
       mockRedis.get.mockResolvedValue(null);
 
       await expect(loadState(mockRedis, stateKey)).rejects.toThrow();
+    });
+
+    it('should load from state.json when Redis returns null', async () => {
+      const state = createMockState({ supervisor: { status: 'HALTED', iteration: 3 } });
+      const stateKey = 'supervisor:state';
+      const fallbackPath = path.join(sandboxRoot, 'state.json');
+
+      await fs.mkdir(sandboxRoot, { recursive: true });
+      await fs.writeFile(fallbackPath, JSON.stringify(state), 'utf8');
+      mockRedis.get.mockResolvedValue(null);
+
+      const loaded = await loadState(mockRedis, stateKey, sandboxRoot);
+
+      expect(loaded.supervisor.status).toBe('HALTED');
+      expect(loaded.supervisor.iteration).toBe(3);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[OPERATOR WARNING]')
+      );
+    });
+
+    it('should load from state.json when Redis GET throws', async () => {
+      const state = createMockState({ supervisor: { status: 'RUNNING', iteration: 7 } });
+      const stateKey = 'supervisor:state';
+      const fallbackPath = path.join(sandboxRoot, 'state.json');
+
+      await fs.mkdir(sandboxRoot, { recursive: true });
+      await fs.writeFile(fallbackPath, JSON.stringify(state), 'utf8');
+      mockRedis.get.mockRejectedValue(new Error('Redis connection refused'));
+
+      const loaded = await loadState(mockRedis, stateKey, sandboxRoot);
+
+      expect(loaded.supervisor.iteration).toBe(7);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('state.json')
+      );
+    });
+
+    it('should throw when Redis and state.json fallback are unavailable', async () => {
+      const stateKey = 'supervisor:state';
+
+      mockRedis.get.mockRejectedValue(new Error('Redis connection refused'));
+
+      await expect(loadState(mockRedis, stateKey, sandboxRoot)).rejects.toThrow(
+        'Failed to load state from Redis'
+      );
     });
 
     it('should throw error on invalid JSON', async () => {

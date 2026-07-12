@@ -1,7 +1,7 @@
 // Gemini CLI Dispatcher
-// Based on https://github.com/google-gemini/gemini-cli
-// Installation: npm install -g @google/gemini-cli
-// Command: gemini --output-format json [prompt] for structured output
+// Based on Google Antigravity CLI (agy)
+// Installation: curl -fsSL https://antigravity.google/cli/install.sh | bash
+// Command: agy --output-format json [prompt] for structured output
 
 import { ProviderResult } from '../../../../domain/executors/haltDetection';
 import { spawn, exec } from 'child_process';
@@ -21,9 +21,8 @@ export class GeminiCLI {
    * List available sessions using `gemini --list-sessions`
    */
   async listSessions(): Promise<Array<{ snippet: string, timeRelative: string, sessionId: string }>> {
-    const geminiCommand = process.env.GEMINI_CLI_PATH || 'gemini';
-    const useNpx = !process.env.GEMINI_CLI_PATH;
-    const cmd = useNpx ? `npx @google/gemini-cli --list-sessions` : `${geminiCommand} --list-sessions`;
+    const geminiCommand = process.env.AGY_CLI_PATH || process.env.GEMINI_CLI_PATH || 'agy';
+    const cmd = `${geminiCommand} --list-sessions`;
 
     try {
       const { stdout } = await execAsync(cmd);
@@ -82,15 +81,9 @@ export async function dispatchToGemini(
     throw new Error(`Invalid cwd: ${cwd} - ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  // Gemini CLI: npm install -g @google/gemini-cli or use npx @google/gemini-cli
-  const geminiCommand = process.env.GEMINI_CLI_PATH || 'npx';
-  const useNpx = !process.env.GEMINI_CLI_PATH;
+  // Antigravity CLI: installed via install script, binary name 'agy'
+  const geminiCommand = process.env.AGY_CLI_PATH || process.env.GEMINI_CLI_PATH || 'agy';
   const args: string[] = [];
-  
-  // If using npx, add package name first
-  if (useNpx) {
-    args.push('@google/gemini-cli');
-  }
   
   // Yolo by default (if supported by CLI, otherwise ignore)
   args.push('--yolo');

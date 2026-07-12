@@ -49,7 +49,7 @@ export async function dispatchToClaude(
 
   args.push(prompt);
 
-  log(`Spawning (pty): ${claudeCommand} ${args.join(' ')}`);
+  log(`Spawning (pty): ${claudeCommand} ${args.slice(0, -1).join(' ')} [prompt: ${prompt.length} chars]${sessionId ? ` (resume: ${sessionId})` : ''}`);
 
   return new Promise<ProviderResult>((resolve, reject) => {
     let ptyProcess: pty.IPty;
@@ -103,6 +103,7 @@ export async function dispatchToClaude(
 
       let parsedJson: { is_error?: boolean; session_id?: string } = {};
       try { parsedJson = JSON.parse(stdout); } catch { /* non-JSON output */ }
+      const sessionFromRaw = clean.match(/"session_id"\s*:\s*"([^"]+)"/)?.[1];
 
       let status: string | undefined;
       if (exitCode !== 0 || parsedJson.is_error === true) {
@@ -119,7 +120,7 @@ export async function dispatchToClaude(
         rawOutput: output,
         status,
         output: stdout,
-        sessionId: parsedJson.session_id,
+        sessionId: parsedJson.session_id || sessionFromRaw || sessionId,
       });
     });
   });

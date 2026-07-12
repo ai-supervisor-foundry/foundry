@@ -6,6 +6,8 @@ export interface RetryContext {
   sessionId?: string;
   projectId: string;
   iteration: number;
+  /** Same cwd as task execution (e.g. in-sandbox worktree in parallel mode). */
+  sandboxCwd?: string;
 }
 
 export interface RetryDecision {

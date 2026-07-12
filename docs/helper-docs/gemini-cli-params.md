@@ -301,7 +301,7 @@ their corresponding top-level category object in your `settings.json` file.
     2000}}). Currently only the run_shell_command tool supports summarization.
   - **Default:** `undefined`
 
-- **`model.compressionThreshold`** (number):
+- **`model.indicator-sysmonitorionThreshold`** (number):
   - **Description:** The fraction of context usage at which to trigger context
     compression (e.g. 0.2, 0.3).
   - **Default:** `0.5`

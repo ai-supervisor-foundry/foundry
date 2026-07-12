@@ -1,9 +1,11 @@
 import { RetryStrategy, RetryContext, RetryDecision } from './retryStrategy';
 import { Task, SupervisorState, ValidationReport } from '../../types/types';
 import { interrogateAgent } from '../../executors/interrogator'; // Domain service
+import { resolveTaskSessionId } from '../../../application/services/controlLoop/modules/sessionResolver';
 import { PromptBuilder } from '../../agents/promptBuilder';
 import { LoggerPort } from '../../ports/logger';
 import { AuditLogPort, LegacyAuditLogEntry } from '../../ports/auditLog';
+import { bumpGitContextExecutionSeq } from '../../../infrastructure/connectors/git/gitContextCache';
 import { analyticsService } from '../../../application/services/analytics';
 import * as path from 'path';
 
@@ -39,12 +41,20 @@ export class MaxRetriesStrategy implements RetryStrategy {
           validation_reason: validationReport.reason,
         });
 
-        const sandboxCwd = path.join(this.sandboxRoot, projectId);
-        const minimalState = this.promptBuilder.buildMinimalSnapshot(state, task, sandboxCwd);
+        const sandboxCwd =
+          context.sandboxCwd ??
+          state.active_tasks?.[task.task_id]?.worktree_path ??
+          path.join(this.sandboxRoot, projectId);
+        const minimalState = await this.promptBuilder.buildMinimalSnapshot(
+          state,
+          task,
+          sandboxCwd
+        );
 
         // Final interrogation
         const finalInterrogationStartTime = Date.now();
         // @todo: interrogateAgent needs to be refactored to accept LLMProviderPort
+        const resolvedSessionId = resolveTaskSessionId(task, state);
         const finalInterrogation = await interrogateAgent(
           task,
           validationReport.failed_criteria || [],
@@ -54,8 +64,10 @@ export class MaxRetriesStrategy implements RetryStrategy {
           cliAdapter as any, // Cast for now
           0, // Final check: max 0 questions per criterion
           this.sandboxRoot,
-          projectId
+          projectId,
+          resolvedSessionId
         );
+        bumpGitContextExecutionSeq(state, task.task_id);
         const finalInterrogationDuration = Date.now() - finalInterrogationStartTime;
         
         this.logger.log('ControlLoop', `[Iteration ${iteration}] Task ${task.task_id}: Final interrogation completed in ${finalInterrogationDuration}ms`);

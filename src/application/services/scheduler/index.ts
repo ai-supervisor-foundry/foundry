@@ -153,6 +153,7 @@ export async function scheduler(
           worker_id: `pool`,
           started_at: new Date().toISOString(),
           worktree_path: worktreePath,
+          git_execution_seq: 0,
         };
 
         // Update queue counts
