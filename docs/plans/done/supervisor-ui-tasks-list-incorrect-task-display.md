@@ -1,3 +1,5 @@
+**Status:** COMPLETED (code-verified 2026-06 — superseded by `active_tasks`; migration in `persistence.ts`)
+
 ## Proposed Fix
 
 ### 1. Set `current_task` when work starts

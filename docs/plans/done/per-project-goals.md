@@ -61,7 +61,7 @@ interface Goal {
 |------|--------|
 | `index.ts` L159 | `state.goals[task.project_id].completed = true` (per-project) |
 | `index.ts` | Overall COMPLETED = `Object.values(state.goals).every(g => g.completed)` |
-| `modules/goalCompletionChecker.ts` | Accept project_id param; check goal for that project only |
+| `modules/goalCompletionChecker.ts` | Accept project_id param; check goal for that project only — **→ see [04-per-project-goal-check.md](../../prompt-context/04-per-project-goal-check.md)** |
 
 ### Prompt & Session
 | File | Change |

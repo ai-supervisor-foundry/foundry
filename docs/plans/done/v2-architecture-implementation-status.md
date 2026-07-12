@@ -1,7 +1,7 @@
 ---
 title: V2 Architecture Implementation Status & Gap Analysis
 date: 2026-03-18
-status: Active Review
+status: Completed (review snapshot — remaining work in ../v2-architecture-gaps/)
 ---
 
 # V2 Architecture Implementation Status

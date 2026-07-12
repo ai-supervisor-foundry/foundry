@@ -1,5 +1,7 @@
 # Proposal: Update Prompt Log Types in UI Frontend
 
+**Status:** COMPLETED (code-verified 2026-06 — `ChatVisualizer.tsx` handles all log types)
+
 ## Problem
 The `ChatVisualizer` component in the frontend uses a limited set of log types to distinguish between supervisor messages and agent responses. New log types have been introduced in the backend (e.g., `HELPER_AGENT_PROMPT`, `GOAL_COMPLETION_CHECK`), but the frontend logic doesn't explicitly account for them, potentially causing rendering issues or misclassification.
 

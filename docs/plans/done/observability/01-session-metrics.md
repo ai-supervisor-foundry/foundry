@@ -1,6 +1,6 @@
 # Session Metrics & Observability
 
-**Status:** Planned
+**Status:** COMPLETED — **Follow-up:** [02-session-metrics-hardening.md](../observability/02-session-metrics-hardening.md)
 **Source:** Extracted from `session-reuse-optimization.md` (Phase 3)
 **Priority:** Medium
 **Effort:** ~2 hours
@@ -46,6 +46,6 @@ Create a validation script or runbook commands to verify:
 
 ## Success Criteria
 
-*   [ ] Session reuse rate is observable via logs.
-*   [ ] Token savings are quantified.
-*   [ ] A "Session Health" report can be generated.
+*   [x] Session reuse rate is observable via logs.
+*   [x] Token savings are quantified.
+*   [x] A "Session Health" report can be generated.

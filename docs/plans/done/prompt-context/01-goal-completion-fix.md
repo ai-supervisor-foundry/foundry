@@ -1,5 +1,7 @@
 # Plan: Fix Goal Completion Check Context
 
+**Status:** COMPLETED (2026-06-13) — **Superseded for goal checker by** [04-per-project-goal-check.md](../../prompt-context/04-per-project-goal-check.md). Cwd/path fix remains until per-project check lands.
+
 ## Problem
 The `GOAL_COMPLETION_CHECK` failed with `Error: No such file or directory (os error 2)`.
 This occurs because the check is executed inside a specific project subdirectory (e.g., `sandbox/easeclassifieds`), but the prompt provides paths relative to the sandbox root (e.g., `./sandbox/easeclassifieds-api`).
@@ -11,15 +13,15 @@ Execute the Goal Completion Check from the **Sandbox Root** (`./sandbox` or just
 
 ## Implementation Steps
 
-1.  **Modify `src/application/entrypoint/controlLoop.ts`**:
-    *   Locate the `GOAL_COMPLETION_CHECK` block (around line 450).
-    *   Change the `working_directory` for the `cliAdapter.execute` call.
-    *   **Current**: `const sandboxCwd = path.join(sandboxRoot, projectId);`
-    *   **Proposed**: `const goalCheckCwd = sandboxRoot;` (or `process.cwd()` if we want full root access, but `sandboxRoot` is safer).
+1.  **Modify `src/application/services/controlLoop/modules/goalCompletionChecker.ts`**:
+    *   Change `working_directory` for `cliAdapter.execute`.
+    *   **Current**: `const sandboxCwd = path.join(this.sandboxRoot, firstProjectId);`
+    *   **Proposed**: `const goalCheckCwd = this.sandboxRoot;`
 
-2.  **Update Prompt Context**:
-    *   Ensure `buildGoalCompletionPrompt` describes paths relative to the directory where the agent is executing.
-    *   If executing from `sandboxRoot`, paths like `easeclassifieds/` and `easeclassifieds-api/` are correct.
+2.  **Update `buildGoalCompletionPrompt` in `src/domain/agents/promptBuilder.ts`**:
+    *   Remove hardcoded `easeclassifieds` / `easeclassifieds-api` paths (lines ~724–726).
+    *   Dynamically list projects from `Object.keys(state.goals)` or sandbox directory listing.
+    *   Paths relative to sandbox root where agent executes.
 
 ## Example Scenario
 
