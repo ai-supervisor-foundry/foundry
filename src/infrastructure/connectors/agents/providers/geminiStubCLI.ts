@@ -1,7 +1,7 @@
 // Gemini CLI Dispatcher
-// Based on https://github.com/google-gemini/gemini-cli
-// Installation: npm install -g @google/gemini-cli
-// Command: gemini --output-format json [prompt] for structured output
+// Based on Google Antigravity CLI (agy)
+// Installation: curl -fsSL https://antigravity.google/cli/install.sh | bash
+// Command: agy --output-format json [prompt] for structured output
 
 import { ProviderResult } from '../../../../domain/executors/haltDetection';
 import { logVerbose } from '../../../adapters/logging/logger';
@@ -41,15 +41,8 @@ export async function dispatchToGeminiStub(
   log(`Executing Gemini CLI in directory: ${cwd}`);
   log(`Prompt length: ${prompt.length} characters`);
   
-  // Gemini CLI: npm install -g @google/gemini-cli or use npx @google/gemini-cli
-  const geminiCommand = process.env.GEMINI_CLI_PATH || 'npx';
-  const useNpx = true
+  const geminiCommand = process.env.AGY_CLI_PATH || process.env.GEMINI_CLI_PATH || 'agy';
   const args: string[] = [];
-  
-  // If using npx, add package name first
-  if (useNpx) {
-    args.push('@google/gemini-cli');
-  }
   
   // Set output format to json to get session ID and stats
   args.push('--output-format', 'json');
