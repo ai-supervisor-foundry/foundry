@@ -1,4 +1,4 @@
-import { SupervisorState, SupervisorStatus, Goal, Task, CompletedTask, BlockedTask, ActiveTask, FileLock, WorkerPoolConfig } from '@/domain/types/types';
+import { SupervisorState, SupervisorStatus, Goal, Task, CompletedTask, BlockedTask, ActiveTask, FileLock, WorkerPoolConfig, SessionInfo } from '@/domain/types/types';
 
 export class StateBuilder {
   private state: SupervisorState;
@@ -109,6 +109,11 @@ export class StateBuilder {
 
   withExecutionMode(mode: 'AUTO' | 'MANUAL'): this {
     this.state.execution_mode = mode;
+    return this;
+  }
+
+  withActiveSessions(sessions: Record<string, SessionInfo>): this {
+    this.state.active_sessions = { ...sessions };
     return this;
   }
 

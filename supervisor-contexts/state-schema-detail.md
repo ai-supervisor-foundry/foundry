@@ -18,7 +18,15 @@ Parent: [state-management.md](./state-management.md)
     "halt_details": "string | undefined"
   },
   "active_tasks": {
-    "<task_id>": { "task": "Task", "worker_id": "string", "started_at": "ISO8601", "worktree_path": "string?" }
+    "<task_id>": {
+      "task": "Task",
+      "worker_id": "string",
+      "started_at": "ISO8601",
+      "worktree_path": "string?",
+      "git_context": "{ gitRoot, sandboxRel, changedPaths, resolvedAt }?",
+      "git_context_key": "string?",
+      "git_execution_seq": "number?"
+    }
   },
   "worker_pool": { "max_workers": "number", "active_count": "number" },
   "file_locks": {

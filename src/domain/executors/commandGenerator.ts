@@ -1,7 +1,10 @@
 // Command Generator - Helper Agent for generating read-only validation commands
 // Uses separate agent instance (different model/provider) to generate verification commands
 
+import { helperAgentConfig } from '../../config/modelConfig';
+import { Provider } from '../agents/enums/provider';
 import { CLIAdapter } from '../../infrastructure/adapters/agents/providers/cliAdapter';
+import { dispatchToOllama } from '../../infrastructure/connectors/agents/providers/ollamaProvider';
 import { CommandGenerationResult } from '../../domain/types/types';
 import { log as logShared, logVerbose } from '../../infrastructure/adapters/logging/logger';
 import { appendPromptLog } from '../../infrastructure/adapters/logging/promptLogger';
@@ -41,6 +44,7 @@ export async function generateValidationCommands(
 
   // Use helper agent mode from env or default to 'auto'
   const agentMode = helperAgentMode || process.env.HELPER_AGENT_MODE || 'auto';
+  const helperProvider = helperAgentConfig.useLocalModel ? Provider.OLLAMA : cliAdapter.getProviderInUse();
 
   // Discover code files to provide context
   let codeFiles: string[] = [];
@@ -65,7 +69,7 @@ export async function generateValidationCommands(
         content: prompt,
         metadata: {
           agent_mode: agentMode,
-          provider: cliAdapter.getProviderInUse(),
+          provider: helperProvider,
           working_directory: sandboxCwd,
           prompt_length: prompt.length,
           prompt_type: 'helper_agent_command_generation',
@@ -80,11 +84,13 @@ export async function generateValidationCommands(
 
   // Execute Helper Agent via secondary adapter (provider selection handled by strategy)
   const generationStartTime = Date.now();
-  log(`Executing Helper Agent with mode: ${agentMode}${sessionId ? ` (Session: ${sessionId})` : ''}`);
+  log(`Executing Helper Agent with provider: ${helperProvider}, mode: ${agentMode}${sessionId ? ` (Session: ${sessionId})` : ''}`);
 
   let helperResult;
   try {
-    helperResult = await cliAdapter.execute(prompt, sandboxCwd, agentMode, sessionId, featureId);
+    helperResult = helperAgentConfig.useLocalModel
+      ? await dispatchToOllama(prompt, sandboxCwd, agentMode, sessionId, featureId)
+      : await cliAdapter.execute(prompt, sandboxCwd, agentMode, sessionId, featureId);
   } catch (error) {
     throw error;
   }
@@ -113,7 +119,7 @@ export async function generateValidationCommands(
         content: helperResponse,
         metadata: {
           agent_mode: agentMode,
-          provider: cliAdapter.getProviderInUse(),
+          provider: helperProvider,
           working_directory: sandboxCwd,
           response_length: helperResponse.length,
           stdout_length: helperResult.stdout?.length || 0,

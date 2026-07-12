@@ -16,7 +16,7 @@ description: State lifecycle, JSON schema, per-project goals, and access rules
 {
   "goals": { "<project_id>": { "description": "", "completed": false, "project_id": "" } },
   "supervisor": { "status": "RUNNING|HALTED|COMPLETED|BLOCKED", "iteration": 0 },
-  "active_tasks": { "<task_id>": { "task": {}, "worker_id": "", "started_at": "" } },
+  "active_tasks": { "<task_id>": { "task": {}, "worker_id": "", "started_at": "", "worktree_path": "", "git_context": {}, "git_execution_seq": 0 } },
   "completed_tasks": [{ "task_id": "", "completed_at": "", "validation_report": {}, "intent": "", "instructions": "", "acceptance_criteria": [], "tool": "", "project_id": "", "affects_files": [], "depends_on": [], "working_directory": "", "agent_mode": "" }],
   "blocked_tasks": [{ "task_id": "", "reason": "", "blocked_at": "", "intent": "", "instructions": "", "acceptance_criteria": [], "tool": "", "project_id": "", "affects_files": [], "depends_on": [], "working_directory": "", "agent_mode": "" }],
   "queue": { "exhausted": false, "ready_count": 0, "waiting_count": 0 },

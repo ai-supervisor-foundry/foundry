@@ -32,6 +32,7 @@ export interface ProviderResult {
   sessionId?: string;
   usage?: {
     tokens?: number;
+    cached?: number;
     durationSeconds?: number;
   };
 }

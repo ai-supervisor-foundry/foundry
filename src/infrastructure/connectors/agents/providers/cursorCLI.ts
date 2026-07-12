@@ -64,6 +64,8 @@ export async function dispatchToCursor(
     'agent',
     '--print',
     '--force',
+    // Non-interactive Foundry workers: trust required so Cursor does not prompt (see configuration.md)
+    '--trust',
     '--output-format', 'json',
   ];
   if (sessionId) args.push('--resume', sessionId);

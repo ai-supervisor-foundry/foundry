@@ -71,6 +71,7 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Development helpers / dir
+sandbox/state.json
 sandbox/**/*
 **/sandbox/**
 !sandbox/.cursor
@@ -107,3 +108,8 @@ docs/reports
 
 **/src/*.js
 **/src/**/*.js
+
+.foundry/
+
+sandbox/**/*
+sandbox

@@ -2,9 +2,11 @@ import { ValidationStrategy, ValidationContext } from './validationStrategy';
 import { Task, ValidationReport } from '../../types/types';
 import { ProviderResult } from '../../executors/haltDetection';
 import { interrogateAgent } from '../../executors/interrogator'; // Domain service
+import { resolveTaskSessionId } from '../../../application/services/controlLoop/modules/sessionResolver';
 import { LLMProviderPort } from '../../ports/llmProvider';
 import { PromptBuilder } from '../../agents/promptBuilder';
 import { LoggerPort } from '../../ports/logger';
+import { bumpGitContextExecutionSeq } from '../../../infrastructure/connectors/git/gitContextCache';
 import { analyticsService } from '../../../application/services/analytics';
 
 export class InterrogationValidator implements ValidationStrategy {
@@ -65,11 +67,16 @@ export class InterrogationValidator implements ValidationStrategy {
     // Original code: Persist state immediately.
     // We will handle this in ValidationOrchestrator.
 
-    const minimalState = this.promptBuilder.buildMinimalSnapshot(state, task, sandboxCwd);
+    const minimalState = await this.promptBuilder.buildMinimalSnapshot(
+      state,
+      task,
+      sandboxCwd
+    );
     const interrogationStartTime = Date.now();
     
     // @todo: interrogateAgent expects CLIAdapter concrete, needs refactoring to accept LLMProviderPort
     // Casting for now to proceed, will fix interrogateAgent next
+    const resolvedSessionId = resolveTaskSessionId(task, state);
     const interrogationSession = await interrogateAgent(
         task,
         previousReport.failed_criteria || [],
@@ -79,8 +86,10 @@ export class InterrogationValidator implements ValidationStrategy {
         this.cliAdapter as any,
         1, // max 1 question per criterion
         this.sandboxRoot,
-        projectId
+        projectId,
+        resolvedSessionId
     );
+    bumpGitContextExecutionSeq(state, task.task_id);
 
     const interrogationDuration = Date.now() - interrogationStartTime;
     analyticsService.recordInterrogation(task.task_id, interrogationSession.interrogation_results.length, interrogationDuration);

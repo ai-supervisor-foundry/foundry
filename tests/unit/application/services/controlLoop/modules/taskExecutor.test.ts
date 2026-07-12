@@ -40,7 +40,7 @@ describe('TaskExecutor', () => {
     };
 
     mockPromptBuilder = {
-      buildMinimalSnapshot: jest.fn().mockReturnValue({
+      buildMinimalSnapshot: jest.fn().mockResolvedValue({
         project: { id: 'test-project', sandbox_root: sandboxRoot },
       }),
       buildTaskPrompt: jest.fn(),
@@ -77,6 +77,30 @@ describe('TaskExecutor', () => {
         undefined,
         'feat-1',
         Provider.GEMINI // default tool from TaskBuilder
+      );
+    });
+
+    it('should use sandboxCwdOverride when provided (e.g. worktree path)', async () => {
+      const task = TaskBuilder.simple('t-wt', 'Worktree task')
+        .withProjectId('my-project')
+        .build();
+      const worktree = `${sandboxRoot}/my-project/.worktrees/pool-t-wt`;
+      const state = StateBuilder.running().build();
+
+      await executor.executeTask(task, state, 1, mockSessionResolver, worktree);
+
+      expect(mockPromptBuilder.buildMinimalSnapshot).toHaveBeenCalledWith(
+        state,
+        task,
+        worktree
+      );
+      expect(mockCliAdapter.execute).toHaveBeenCalledWith(
+        expect.any(String),
+        worktree,
+        expect.any(String),
+        undefined,
+        'feat-1',
+        Provider.GEMINI
       );
     });
 

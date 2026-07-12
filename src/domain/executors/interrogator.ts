@@ -358,7 +358,8 @@ export async function interrogateAgent(
   cliAdapter: CLIAdapter,
   maxQuestionsPerCriterion: number = 1, // Default: single round (Phase 1 optimization)
   sandboxRoot?: string,
-  projectId?: string
+  projectId?: string,
+  resolvedSessionId?: string
 ): Promise<InterrogationSession> {
   log(`Starting BATCHED interrogation for task: ${task.task_id}`);
   log(`Failed criteria: ${failedCriteria.length}, Uncertain criteria: ${uncertainCriteria.length}`);
@@ -434,7 +435,7 @@ export async function interrogateAgent(
 
     // CRITICAL: Wait for response before continuing (Prompt → Response)
     const interrogationStartTime = Date.now();
-    const sessionId = task.meta?.session_id;
+    const sessionId = resolvedSessionId || task.meta?.session_id;
     const cursorResult = await cliAdapter.execute(interrogationPrompt, sandboxCwd, task.agent_mode, sessionId, undefined, providerOverride);
     const interrogationDuration = Date.now() - interrogationStartTime;
     

@@ -5,6 +5,8 @@ import { EventEmitter } from 'events';
 
 jest.mock('child_process');
 
+
+
 describe('cursorCLI', () => {
   const validCwd = path.join(process.cwd(), 'tests');
   let mockSpawn: jest.Mock;
@@ -123,4 +125,7 @@ describe('cursorCLI', () => {
     expect(mockSpawn).toHaveBeenCalledWith('cursor', expect.any(Array), expect.any(Object));
     expect(result.stdout).toContain('delegated');
   });
+
+
+
 });

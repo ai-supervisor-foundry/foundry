@@ -1,12 +1,13 @@
 import { dispatchToClaude } from '../../../src/infrastructure/connectors/agents/providers/claudeCLI';
 import * as nodePty from 'node-pty';
 import * as fs from 'fs/promises';
-import { EventEmitter } from 'events';
 
 jest.mock('node-pty');
 jest.mock('fs/promises', () => ({
   stat: jest.fn(),
 }));
+
+
 
 describe('ClaudeCLI - dispatchToClaude', () => {
   let mockPtySpawn: jest.Mock;
@@ -147,9 +148,20 @@ describe('ClaudeCLI - dispatchToClaude', () => {
     await expect(dispatchToClaude('prompt', '/nonexistent')).rejects.toThrow('Invalid cwd: /nonexistent');
   });
 
+  test('should extract session_id from JSON output', async () => {
+    mockPtyProcess('{"result":"ok","session_id":"sess-xyz-123"}', 0);
+
+    const result = await dispatchToClaude('prompt', '/tmp');
+
+    expect(result.sessionId).toBe('sess-xyz-123');
+  });
+
   test('should reject when cwd is not a directory', async () => {
     mockStat.mockResolvedValue({ isDirectory: () => false });
 
     await expect(dispatchToClaude('prompt', '/tmp/file.txt')).rejects.toThrow('cwd is not a directory');
   });
+
+
+
 });

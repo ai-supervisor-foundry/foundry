@@ -25,6 +25,7 @@ import { PromptLoggerAdapter } from '../../infrastructure/adapters/logging/promp
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { Provider } from '../../domain/agents/enums/provider';
+import { SessionMetrics } from '../../infrastructure/monitoring/sessionMetrics';
 
 function logVerbose(component: string, message: string, data?: Record<string, unknown>): void {
   logVerboseShared(`CLI:${component}`, message, data);
@@ -110,7 +111,7 @@ async function initState(
   });
 
   const persistStartTime = Date.now();
-  await persistState(client, stateKey, initialState);
+  await persistState(client, stateKey, initialState, sandboxRoot);
   const persistDuration = Date.now() - persistStartTime;
   logPerformance('InitialStatePersist', persistDuration, { state_key: stateKey });
   
@@ -576,6 +577,27 @@ async function showMetrics(
   } catch (error) {
     console.log(`No metrics available at ${metricsPath}`);
   }
+
+  const sessionMetricsPath = path.join(sandboxRoot, projectId, 'session-metrics.json');
+  try {
+    const sessionContent = await fs.readFile(sessionMetricsPath, 'utf8');
+    const session = JSON.parse(sessionContent) as SessionMetrics & { updated_at?: string };
+    console.log('=== Session Health ===');
+    console.log(`Sessions Created: ${session.totalSessionsCreated}`);
+    console.log(`Sessions Reused:  ${session.totalSessionsReused}`);
+    console.log(`Reuse Rate:       ${session.reuseRate.toFixed(1)}%`);
+    console.log(`Est. Token Savings: ${session.estimatedTokenSavings.toLocaleString()}`);
+    console.log(`Avg Session Lifespan: ${session.avgSessionLifespan.toFixed(1)} iterations`);
+    if (session.avgCacheHitRate > 0) {
+      console.log(`Avg Cache Hit Rate: ${session.avgCacheHitRate.toFixed(1)}%`);
+    }
+    if (session.updated_at) {
+      console.log(`Last Updated: ${session.updated_at}`);
+    }
+    console.log('\n');
+  } catch {
+    // Session metrics are optional until control loop has run
+  }
 }
 
 /**
@@ -697,7 +719,7 @@ async function start(
   try {
     // Validate state exists
     const stateLoadStartTime = Date.now();
-    const state = await loadState(stateClient, stateKey);
+    const state = await loadState(stateClient, stateKey, sandboxRoot);
     const stateLoadDuration = Date.now() - stateLoadStartTime;
     logPerformance('StartStateLoad', stateLoadDuration, { state_key: stateKey });
     const goalCount = Object.keys(state.goals).length;
@@ -720,7 +742,7 @@ async function start(
 
     // Initialize all dependencies
     const dependencyInitStartTime = Date.now();
-    const persistence = new PersistenceLayer(stateClient, stateKey);
+    const persistence = new PersistenceLayer(stateClient, stateKey, sandboxRoot);
     const queue = new QueueAdapter(queueClient, queueName);
     const promptBuilder = new PromptBuilder();
     // Initialize CLIAdapters with Redis client for circuit breaker

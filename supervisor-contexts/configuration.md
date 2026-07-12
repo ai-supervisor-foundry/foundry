@@ -8,6 +8,7 @@ description: Environment variables, CLI flags, and provider strategy config
 
 ```bash
 export CURSOR_CLI_PATH=/path/to/cursor  # Optional, defaults to 'cursor'
+# Cursor CLI: Foundry passes --trust on `cursor agent` for non-interactive workers
 export OPENROUTER_API_KEY=your_key      # For OpenRouter integration
 
 # Provider Strategy (default: '1')

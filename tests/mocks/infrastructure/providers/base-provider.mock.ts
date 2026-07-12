@@ -60,13 +60,14 @@ export abstract class BaseProviderMock implements LLMProviderPort {
     this.responses.push({ result: response, files });
   }
 
-  pushSuccessResponse(jsonOutput: any, files?: Record<string, string>): void {
+  pushSuccessResponse(jsonOutput: any, files?: Record<string, string>, sessionId?: string): void {
     const rawOutput = JSON.stringify(jsonOutput);
     this.pushResponse({
       stdout: rawOutput,
       stderr: '',
       exitCode: 0,
       rawOutput: rawOutput,
+      sessionId,
     }, files);
   }
 

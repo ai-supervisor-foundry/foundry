@@ -1,4 +1,3 @@
-import * as path from 'path';
 import { SupervisorState } from '../../../../domain/types/types';
 import { buildGoalCompletionPrompt, parseGoalCompletionResponse } from '../../../../domain/agents/promptBuilder';
 import { LLMProviderPort } from '../../../../domain/ports/llmProvider';
@@ -62,7 +61,7 @@ export class GoalCompletionChecker {
     // Build goal completion check prompt
     const goalCheckPrompt = buildGoalCompletionPrompt(state, this.sandboxRoot);
     const firstProjectId = Object.keys(state.goals)[0] || 'default';
-    const sandboxCwd = path.join(this.sandboxRoot, firstProjectId);
+    const goalCheckCwd = this.sandboxRoot;
     
     // Log goal check prompt
     await this.promptLogger.appendPromptLog(
@@ -76,7 +75,7 @@ export class GoalCompletionChecker {
         metadata: {
             agent_mode: 'auto',
             provider: this.cliAdapter.getProviderInUse(),
-            working_directory: sandboxCwd,
+            working_directory: goalCheckCwd,
             prompt_length: goalCheckPrompt.length,
         },
         }
@@ -85,7 +84,7 @@ export class GoalCompletionChecker {
     // Ask agent if goal is met
     this.logger.log('ControlLoop', `[Iteration ${iteration}] Asking agent if goal is completed...`);
     const goalSessionId = state.active_sessions?.['default']?.session_id || state.active_sessions?.[firstProjectId]?.session_id;
-    const goalCheckResult = await this.cliAdapter.execute(goalCheckPrompt, sandboxCwd, 'auto', goalSessionId);
+    const goalCheckResult = await this.cliAdapter.execute(goalCheckPrompt, goalCheckCwd, 'auto', goalSessionId);
     const goalCheckResponse = goalCheckResult.stdout || goalCheckResult.rawOutput || '';
     
     // Log goal check response
@@ -100,7 +99,7 @@ export class GoalCompletionChecker {
         metadata: {
             agent_mode: 'auto',
             provider: this.cliAdapter.getProviderInUse(),
-            working_directory: sandboxCwd,
+            working_directory: goalCheckCwd,
             response_length: goalCheckResponse.length,
         },
         }

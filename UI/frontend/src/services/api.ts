@@ -122,7 +122,7 @@ export const apiClient = {
   getSettings: () => api.get('/api/config/settings'),
   saveSetting: (key: string, value: string) =>
     api.post('/api/config/settings', { key, value }),
-  
+
   // Ollama endpoints
   getOllamaVersion: () => api.get('/api/ollama/version'),
   getOllamaModels: () => api.get('/api/ollama/tags'),

@@ -27,6 +27,10 @@ The agent must **never infer missing information**.
 - **Goal Context**: Included only if task intent relates to "goal"
 - **Queue Context**: Included only if task references "previous" or "last" task
 - **Completed Tasks**: Included only if task is "extending" or "building on" work
+- Git Changed Files (`file_paths`): tracked uncommitted + staged paths, relative to task sandbox cwd (project root or in-sandbox worktree when `MAX_WORKERS > 1`). Async via `gitContext.ts` (`execFile`; failure → `[]`). Untracked files excluded until staged.
+- Git context cache: `buildMinimalState()` uses `state.active_tasks[task_id].git_context` keyed by `{retry_count}:{git_execution_seq}:{cwd}`. `git_execution_seq` bumps after each agent run; cache reused only within same seq.
+
+Git diff: `gitContext.ts`, `gitContextCache.ts`; `promptBuilder.ts` → `resolveGitContextForTask()`.
 
 ## Task-Type Guidelines (auto-injected)
 

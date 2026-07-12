@@ -6,6 +6,7 @@ import { ProviderResult } from '../../../../domain/executors/haltDetection';
 import { SessionResolver } from './sessionResolver';
 import { LLMProviderPort } from '../../../../domain/ports/llmProvider';
 import { LoggerPort, PromptLoggerPort } from '../../../../domain/ports/logger';
+import { sessionMetrics } from '../../../../infrastructure/monitoring/sessionMetrics';
 
 export interface ExecutionResult {
   providerResult: ProviderResult;
@@ -15,6 +16,21 @@ export interface ExecutionResult {
   resolvedSessionId?: string; // The one we tried to use
   featureId: string;
   sandboxCwd: string;
+}
+
+/** Resolve agent cwd: optional override (e.g. in-sandbox worktree), then task fields. */
+export function resolveTaskSandboxCwd(
+  sandboxRoot: string,
+  task: Task,
+  sandboxCwdOverride?: string
+): string {
+  if (sandboxCwdOverride) {
+    return path.resolve(sandboxCwdOverride);
+  }
+  if (task.working_directory) {
+    return path.join(sandboxRoot, task.working_directory);
+  }
+  return path.join(sandboxRoot, task.project_id);
 }
 
 export class TaskExecutor {
@@ -27,16 +43,15 @@ export class TaskExecutor {
   ) {}
 
   async executeTask(
-    task: Task, 
-    state: SupervisorState, 
-    iteration: number, 
-    sessionResolver: SessionResolver
+    task: Task,
+    state: SupervisorState,
+    iteration: number,
+    sessionResolver: SessionResolver,
+    sandboxCwdOverride?: string
   ): Promise<ExecutionResult> {
     // 1. Determine Working Directory
     const cwdDeterminationStartTime = Date.now();
-    const sandboxCwd = task.working_directory
-      ? path.join(this.sandboxRoot, task.working_directory)
-      : path.join(this.sandboxRoot, task.project_id);
+    const sandboxCwd = resolveTaskSandboxCwd(this.sandboxRoot, task, sandboxCwdOverride);
     const cwdDeterminationDuration = Date.now() - cwdDeterminationStartTime;
     this.logger.logPerformance('CwdDetermination', cwdDeterminationDuration, { iteration, task_id: task.task_id });
     
@@ -52,7 +67,11 @@ export class TaskExecutor {
 
     // 2. Build Prompt
     const promptBuildStartTime = Date.now();
-    const minimalState = this.promptBuilder.buildMinimalSnapshot(state, task, sandboxCwd);
+    const minimalState = await this.promptBuilder.buildMinimalSnapshot(
+      state,
+      task,
+      sandboxCwd
+    );
     const prompt = buildPrompt(task, minimalState);
     const promptBuildDuration = Date.now() - promptBuildStartTime;
     this.logger.logPerformance('PromptBuild', promptBuildDuration, {
@@ -65,6 +84,12 @@ export class TaskExecutor {
     // 3. Resolve Session
     const resolvedSessionId = await sessionResolver.resolveSession(task, state, iteration);
     const featureId = sessionResolver.getFeatureId(task, state);
+
+    if (resolvedSessionId) {
+      sessionMetrics.recordSessionReused(featureId);
+    } else {
+      sessionMetrics.recordSessionCreated(featureId);
+    }
     
     // 4. Determine Agent Mode
     const taskType = detectTaskType(task);
@@ -111,6 +136,7 @@ export class TaskExecutor {
     const providerResult = await this.cliAdapter.execute(prompt, sandboxCwd, agentMode, resolvedSessionId, featureId, providerOverride);
     const providerDuration = Date.now() - providerStartTime;
     analyticsService.recordExecution(task.task_id, prompt.length, (providerResult.stdout || providerResult.rawOutput || '').length, providerDuration);
+    sessionMetrics.recordProviderUsage(providerResult.usage, prompt.length, !!resolvedSessionId);
 
     this.logger.log('ControlLoop', `[Iteration ${iteration}] Task ${task.task_id}: CLI / Agent completed in ${providerDuration}ms, exit code: ${providerResult.exitCode}`);
     this.logger.logPerformance('CLIAdapterExecution', providerDuration, {

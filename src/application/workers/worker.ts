@@ -17,6 +17,7 @@ import { checkHardHalts } from '../../domain/executors/haltDetection';
 import { LoggerAdapter } from '../../infrastructure/adapters/logging/loggerAdapter';
 import { PromptLoggerAdapter } from '../../infrastructure/adapters/logging/promptLoggerAdapter';
 import { CommandExecutorAdapter } from '../../infrastructure/adapters/os/commandExecutorAdapter';
+import { bumpGitContextExecutionSeq } from '../../infrastructure/connectors/git/gitContextCache';
 import { PersistenceLayer } from '../services/persistence';
 import Redis from 'ioredis';
 import * as path from 'path';
@@ -73,7 +74,7 @@ async function executeTask(task: Task, worktreePath: string, config: WorkerConfi
     const secondaryAdapter = new CLIAdapter(redisClient, activeStrategy.secondary, config.circuitBreakerTtl);
 
     const validator = new Validator();
-    const persistence = new PersistenceLayer(redisClient, config.stateKey);
+    const persistence = new PersistenceLayer(redisClient, config.stateKey, config.sandboxRoot);
     const stateManager = new StateManager(persistence);
     const sessionResolver = new SessionResolver();
     const auditLogger = new AuditLogger(path.join(config.sandboxRoot, task.project_id, 'audit.log.jsonl'));
@@ -109,8 +110,29 @@ async function executeTask(task: Task, worktreePath: string, config: WorkerConfi
     const state = await persistence.readState();
     const iteration = (state.supervisor.iteration || 0) + 1;
 
+    if (!state.active_tasks) {
+      state.active_tasks = {};
+    }
+    if (!state.active_tasks[task.task_id]) {
+      state.active_tasks[task.task_id] = {
+        task,
+        worker_id: workerId,
+        started_at: new Date().toISOString(),
+        worktree_path: worktreePath || undefined,
+        git_execution_seq: 0,
+      };
+    }
+
     // Execute task
-    const executionResult = await taskExecutor.executeTask(task, state, iteration, sessionResolver);
+    const executionResult = await taskExecutor.executeTask(
+      task,
+      state,
+      iteration,
+      sessionResolver,
+      sandboxCwd
+    );
+
+    bumpGitContextExecutionSeq(state, task.task_id);
 
     // Hard halt detection
     const haltReason = checkHardHalts({
@@ -152,6 +174,7 @@ async function executeTask(task: Task, worktreePath: string, config: WorkerConfi
           sessionId: executionResult.sessionId,
           projectId: task.project_id,
           iteration,
+          sandboxCwd: executionResult.sandboxCwd,
         },
         haltReason
       );
